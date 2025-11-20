@@ -1,1 +1,0 @@
-// Arquivo obsoleto. Funcionalidade movida para Inventory.tsx
