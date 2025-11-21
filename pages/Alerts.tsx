@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { AlertTriangle, Archive, TrendingDown, Printer, ChevronLeft, ChevronRight, Edit3 } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, Archive, TrendingDown, Printer, ChevronLeft, ChevronRight, Edit3, X, Check } from 'lucide-react';
 import { InventoryItem } from '../types';
 
 interface AlertsProps {
@@ -10,11 +9,7 @@ interface AlertsProps {
 const Alerts: React.FC<AlertsProps> = ({ data }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [orderNotes, setOrderNotes] = useState<Record<string, string>>({});
-  const [printContainer, setPrintContainer] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setPrintContainer(document.getElementById('print-root') || document.body);
-  }, []);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const itemsPerPage = 10;
 
@@ -30,13 +25,6 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
 
   const overStockItems = data.filter(item => item.quantidadeAtual > 50 && item.saidas < 2);
   const dormantItems = data.filter(item => item.entradas === 0 && item.saidas === 0 && item.quantidadeAtual > 0);
-
-  const handlePrint = () => {
-    // Delay aumentado para 500ms para garantir que o DOM foi atualizado
-    setTimeout(() => {
-        window.print();
-    }, 500);
-  };
 
   const handleNoteChange = (id: string, value: string) => {
     setOrderNotes(prev => ({ ...prev, [id]: value }));
@@ -62,7 +50,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                 </div>
             </div>
             <button 
-              onClick={handlePrint}
+              onClick={() => setShowPrintPreview(true)}
               disabled={lowStockItems.length === 0}
               className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -182,10 +170,37 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* --- PRINT PORTAL --- */}
-      {printContainer && createPortal(
-        <div className="print-portal p-8 text-black">
-           <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end">
+      {/* --- PRINT PREVIEW OVERLAY --- */}
+      {showPrintPreview && (
+        <div className="print-overlay bg-white text-black">
+           {/* Barra de Controle */}
+           <div className="no-print fixed top-0 left-0 right-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-[10000]">
+             <div className="flex items-center">
+               <Printer className="mr-2" />
+               <span className="font-bold">Pré-visualização de Requisição</span>
+             </div>
+             <div className="flex gap-3">
+               <button 
+                 onClick={() => setShowPrintPreview(false)}
+                 className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded flex items-center"
+               >
+                 <X className="w-4 h-4 mr-2" />
+                 Cancelar
+               </button>
+               <button 
+                 onClick={() => window.print()}
+                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center"
+               >
+                 <Check className="w-4 h-4 mr-2" />
+                 Confirmar Impressão
+               </button>
+             </div>
+          </div>
+
+          <div className="no-print h-20"></div>
+
+           <div className="p-8 max-w-[210mm] mx-auto">
+            <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end">
               <div>
                  <h1 className="text-3xl font-bold uppercase tracking-wide">Requisição de Compras</h1>
                  <p className="text-sm text-gray-600 mt-1">Relatório automático de itens abaixo do estoque mínimo</p>
@@ -251,8 +266,8 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                  <p className="text-sm mt-2">Gerência / Aprovação</p>
               </div>
            </div>
-        </div>,
-        printContainer
+        </div>
+        </div>
       )}
 
     </div>

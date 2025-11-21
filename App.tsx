@@ -21,14 +21,30 @@ const App: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
 
-  // Configuração Padrão com campos vazios para o usuário preencher
-  const [settings, setSettings] = useState<AppSettings>({
-    inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
-    inUrl: '', // Usuário deve preencher
-    outUrl: '', // Usuário deve preencher
-    refreshRate: 30, 
-    darkMode: false,
+  // Configuração com Persistência no LocalStorage
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const savedSettings = localStorage.getItem('almox_settings');
+    if (savedSettings) {
+      try {
+        return JSON.parse(savedSettings);
+      } catch (e) {
+        console.error("Erro ao ler configurações salvas", e);
+      }
+    }
+    // Valores Padrão se não houver nada salvo
+    return {
+      inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
+      inUrl: '', 
+      outUrl: '', 
+      refreshRate: 30, 
+      darkMode: false,
+    };
   });
+
+  // Salva configurações sempre que mudarem
+  useEffect(() => {
+    localStorage.setItem('almox_settings', JSON.stringify(settings));
+  }, [settings]);
 
   // Theme
   useEffect(() => {
@@ -59,10 +75,14 @@ const App: React.FC = () => {
         // Filtra movimentos deste item
         const itemMoves = allMoves.filter(m => m.codigo === item.codigo);
         
-        // Calcula totais baseados no histórico (Opcional: Se a planilha Inventário já tiver totais, pode usar de lá, 
-        // mas aqui estamos recalculando para garantir consistência com os gráficos)
-        const totalIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0);
-        const totalOut = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0);
+        // Calcula totais REAIS baseados no histórico (Abas Entrada/Saída) para estatísticas
+        const totalInHistory = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0);
+        const totalOutHistory = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0);
+
+        // Valores que constam na planilha principal (Snapshot)
+        const sheetStock = item.quantidadeAtual;
+        const sheetIn = item.entradas; 
+        const sheetOut = item.saidas;
 
         // Tenta encontrar fornecedor na última entrada registrada
         const lastEntry = [...inMoves]
@@ -74,12 +94,22 @@ const App: React.FC = () => {
 
         return {
           ...item,
+          // IMPORTANTE: Retornando exatamente o valor da planilha principal para Estoque Atual
+          // Removemos a lógica de cálculo compensatório para evitar confusão.
+          quantidadeAtual: sheetStock,
+          
           // Se não tiver na planilha principal, usa do histórico
           fornecedor: item.fornecedor || lastEntry?.fornecedor || '', 
-          // Se os totais da planilha principal vierem zerados (porque não tem a coluna), usa o calculado
-          entradas: item.entradas || totalIn,
-          saidas: item.saidas || totalOut,
-          ultimaMovimentacao: lastMove?.data
+          
+          // Para estatísticas de fluxo, priorizamos o histórico real se existir, senão usa a planilha
+          entradas: totalInHistory > 0 ? totalInHistory : sheetIn,
+          saidas: totalOutHistory > 0 ? totalOutHistory : sheetOut,
+          
+          // Atualiza valor total baseado no estoque da planilha
+          valorTotal: sheetStock * item.valorUnitario,
+
+          // Mesma lógica para data: usa a última calculada ou a que veio da planilha
+          ultimaMovimentacao: lastMove?.data || item.ultimaMovimentacao
         };
       });
 

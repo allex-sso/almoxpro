@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
-import { Package, DollarSign, ArrowDownRight, ArrowUpRight, TrendingUp, Filter, Calendar, Info } from 'lucide-react';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
+  PieChart, Pie, Cell, BarChart, Bar, ComposedChart, Line 
+} from 'recharts';
+import { Package, DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, Filter, TrendingDown } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { DashboardStats, InventoryItem, Movement } from '../types';
 
@@ -11,244 +14,304 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ data, movements = [] }) => {
-  const [categoryFilter, setCategoryFilter] = useState('Todos');
-  const [equipmentFilter, setEquipmentFilter] = useState('Todos');
-  
-  // Date Filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const categories = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.categoria).filter(Boolean)))], [data]);
-  const equipments = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.equipamento).filter(Boolean)))], [data]);
+  // --- STOCK HEALTH METRICS (DONUT CHART) ---
+  const healthData = useMemo(() => {
+    let critical = 0; // Abaixo do mínimo
+    let warning = 0;  // Próximo do mínimo (até 20% acima)
+    let healthy = 0;  // Acima
 
-  // --- FILTER LOGIC ---
-  const filteredItems = useMemo(() => {
-    return data.filter(item => {
-      const matchesCategory = categoryFilter === 'Todos' || item.categoria === categoryFilter;
-      const matchesEquipment = equipmentFilter === 'Todos' || item.equipamento === equipmentFilter;
-      
-      // Filtro de data nos itens (se tiver data de atualização ou movimentação)
-      let matchesDate = true;
-      if (startDate && endDate && item.ultimaMovimentacao) {
-          const itemDate = new Date(item.ultimaMovimentacao);
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59); // Fim do dia
-          matchesDate = itemDate >= start && itemDate <= end;
+    data.forEach(item => {
+      const min = item.quantidadeMinima || 0;
+      if (min > 0) {
+        if (item.quantidadeAtual <= min) critical++;
+        else if (item.quantidadeAtual <= min * 1.2) warning++;
+        else healthy++;
+      } else {
+        healthy++; // Sem mínimo definido, considera saudável se tem estoque
       }
-
-      return matchesCategory && matchesEquipment && matchesDate;
     });
-  }, [data, categoryFilter, equipmentFilter, startDate, endDate]);
 
-  // --- TIMELINE DATA LOGIC (New) ---
-  const timelineData = useMemo(() => {
+    return [
+      { name: 'Crítico (Repor)', value: critical, color: '#ef4444' },
+      { name: 'Atenção', value: warning, color: '#f59e0b' },
+      { name: 'Saudável', value: healthy, color: '#10b981' },
+    ].filter(d => d.value > 0);
+  }, [data]);
+
+  // --- FINANCIAL FLOW (AREA CHART) ---
+  const financialFlowData = useMemo(() => {
     if (!movements.length) return [];
 
-    const filteredCodes = new Set(filteredItems.map(i => i.codigo));
-    
-    // Filtra movimentos pelos itens selecionados e pelo intervalo de datas
-    const relevantMoves = movements.filter(m => {
-        if (!filteredCodes.has(m.codigo)) return false;
-        if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59);
-            return m.data >= start && m.data <= end;
-        }
-        return true;
+    // Map item values
+    const priceMap = new Map(data.map(i => [i.codigo, i.valorUnitario || 0] as [string, number]));
+
+    // Group by date
+    const grouped: Record<string, { date: string, entradaVal: number, saidaVal: number }> = {};
+
+    movements.forEach(m => {
+      // Filter by date range if set
+      const moveTime = new Date(m.data).getTime();
+      if (startDate && moveTime < new Date(startDate).getTime()) return;
+      if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59);
+          if (moveTime > end.getTime()) return;
+      }
+
+      const dateKey = m.data.toLocaleDateString('pt-BR');
+      const unitVal = Number(priceMap.get(m.codigo) || 0);
+      const value = unitVal * Number(m.quantidade);
+
+      if (!grouped[dateKey]) grouped[dateKey] = { date: dateKey, entradaVal: 0, saidaVal: 0 };
+      
+      if (m.tipo === 'entrada') grouped[dateKey].entradaVal += value;
+      if (m.tipo === 'saida') grouped[dateKey].saidaVal += value;
     });
 
-    // Agrupa por data
-    const grouped: Record<string, { date: string, entradas: number, saidas: number }> = {};
-    
-    relevantMoves.forEach(m => {
-        const dateKey = m.data.toLocaleDateString('pt-BR'); // dd/mm/yyyy
-        if (!grouped[dateKey]) {
-            grouped[dateKey] = { date: dateKey, entradas: 0, saidas: 0 };
-        }
-        if (m.tipo === 'entrada') grouped[dateKey].entradas += m.quantidade;
-        if (m.tipo === 'saida') grouped[dateKey].saidas += m.quantidade;
-    });
-
-    // Converte para array e ordena por data (Requer conversão da string BR de volta para ordenar)
+    // Sort by date
     return Object.values(grouped).sort((a, b) => {
-        const [da, ma, ya] = a.date.split('/').map(Number);
-        const [db, mb, yb] = b.date.split('/').map(Number);
-        return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
+      const partsA = a.date.split('/').map(Number);
+      const partsB = b.date.split('/').map(Number);
+
+      // Ensure we have values for date components to avoid arithmetic on undefined
+      const da = partsA[0] || 0;
+      const ma = partsA[1] || 0;
+      const ya = partsA[2] || 0;
+
+      const db = partsB[0] || 0;
+      const mb = partsB[1] || 0;
+      const yb = partsB[2] || 0;
+
+      return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
+    });
+  }, [movements, data, startDate, endDate]);
+
+  // --- ABC ANALYSIS (PARETO) ---
+  const abcData = useMemo(() => {
+    // Sort items by Total Value desc
+    const sorted = [...data].sort((a, b) => b.valorTotal - a.valorTotal);
+    const totalStockValue = sorted.reduce((acc, i) => acc + i.valorTotal, 0);
+    
+    let accumValue = 0;
+    let countA = 0, valA = 0;
+    let countB = 0, valB = 0;
+    let countC = 0, valC = 0;
+
+    sorted.forEach(item => {
+      accumValue += item.valorTotal;
+      const percentage = accumValue / totalStockValue;
+      
+      if (percentage <= 0.8) {
+        countA++; valA += item.valorTotal;
+      } else if (percentage <= 0.95) {
+        countB++; valB += item.valorTotal;
+      } else {
+        countC++; valC += item.valorTotal;
+      }
     });
 
-  }, [movements, filteredItems, startDate, endDate]);
+    return [
+      { name: 'Classe A (80% Valor)', itens: countA, valor: valA, color: '#3b82f6' },
+      { name: 'Classe B (15% Valor)', itens: countB, valor: valB, color: '#6366f1' },
+      { name: 'Classe C (5% Valor)', itens: countC, valor: valC, color: '#94a3b8' },
+    ];
+  }, [data]);
 
-  const filteredStats = useMemo(() => {
-    // Se tivermos movimentos carregados, calculamos entradas/saidas reais do período
-    // Caso contrário usamos o snapshot do item
-    const periodIn = timelineData.reduce((acc, d) => acc + d.entradas, 0);
-    const periodOut = timelineData.reduce((acc, d) => acc + d.saidas, 0);
-    const hasTimeline = timelineData.length > 0;
+  const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
+
+  // Calculate Filtered Totals for Cards
+  const totals = useMemo(() => {
+    let inVal = 0, outVal = 0;
+    if (financialFlowData.length > 0) {
+        inVal = financialFlowData.reduce((acc, d) => acc + d.entradaVal, 0);
+        outVal = financialFlowData.reduce((acc, d) => acc + d.saidaVal, 0);
+    } else {
+        // Fallback to static data
+        inVal = data.reduce((acc, i) => acc + (i.entradas * i.valorUnitario), 0);
+        outVal = data.reduce((acc, i) => acc + (i.saidas * i.valorUnitario), 0);
+    }
+    
+    const criticalCount = healthData.find(d => d.name.includes('Crítico'))?.value || 0;
 
     return {
-      totalItems: filteredItems.length,
-      totalValue: filteredItems.reduce((acc, item) => acc + item.valorTotal, 0),
-      // Se tiver filtro de data, usa o calculado da timeline, senão usa o acumulado do item
-      totalIn: (startDate || endDate) && hasTimeline ? periodIn : filteredItems.reduce((acc, item) => acc + item.entradas, 0),
-      totalOut: (startDate || endDate) && hasTimeline ? periodOut : filteredItems.reduce((acc, item) => acc + item.saidas, 0),
+      stockValue: data.reduce((acc, i) => acc + i.valorTotal, 0),
+      inValue: inVal,
+      outValue: outVal,
+      criticalItems: criticalCount
     };
-  }, [filteredItems, timelineData, startDate, endDate]);
-
-  // Chart Data: Category
-  const categoryChartData = useMemo(() => {
-    const map: Record<string, { name: string; entradas: number; saidas: number }> = {};
-    filteredItems.forEach(item => {
-      const cat = item.categoria || 'Outros';
-      if (!map[cat]) map[cat] = { name: cat, entradas: 0, saidas: 0 };
-      map[cat].entradas += item.entradas;
-      map[cat].saidas += item.saidas;
-    });
-    return Object.values(map).sort((a, b) => (b.entradas + b.saidas) - (a.entradas + a.saidas)).slice(0, 12);
-  }, [filteredItems]);
-
-  const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  }, [data, financialFlowData, healthData]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
       {/* Header Controls */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Painel Executivo</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {movements.length > 0 ? 'Dados integrados de Estoque, Entradas e Saídas.' : 'Visualizando apenas dados do estoque atual.'}
+            Análise financeira e operacional do estoque.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 w-full xl:w-auto bg-white dark:bg-dark-card p-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 items-center">
-           
-           {/* Date Range */}
-           <div className="flex items-center gap-2 px-2 border-r border-gray-200 dark:border-gray-700 mr-2">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <input 
-                type="date" 
-                className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-              />
-              <span className="text-slate-300">-</span>
-              <input 
-                type="date" 
-                className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-              />
-           </div>
-
-           {/* Selectors */}
-           <div className="flex items-center gap-2">
-             <Filter className="w-4 h-4 text-slate-400" />
-             <select 
-                className="px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-primary/50 outline-none dark:text-white"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-
-              <select 
-                className="px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-primary/50 outline-none dark:text-white"
-                value={equipmentFilter}
-                onChange={(e) => setEquipmentFilter(e.target.value)}
-              >
-                {equipments.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-           </div>
+        <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2">
+           <Calendar className="w-4 h-4 text-slate-400 ml-2" />
+           <input 
+             type="date" 
+             className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none"
+             value={startDate}
+             onChange={e => setStartDate(e.target.value)}
+           />
+           <span className="text-slate-300">-</span>
+           <input 
+             type="date" 
+             className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none"
+             value={endDate}
+             onChange={e => setEndDate(e.target.value)}
+           />
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Itens Cadastrados" value={filteredStats.totalItems} icon={Package} color="blue" />
-        <StatCard title="Valor em Estoque" value={formatCurrency(filteredStats.totalValue)} icon={DollarSign} color="green" />
         <StatCard 
-          title={startDate ? "Entradas (Período)" : "Entradas (Total)"} 
-          value={filteredStats.totalIn} 
-          icon={ArrowDownRight} 
-          color="purple" 
-          trendUp={true} 
+            title="Valor Total em Estoque" 
+            value={formatCurrency(totals.stockValue)} 
+            icon={DollarSign} 
+            color="blue" 
         />
         <StatCard 
-          title={startDate ? "Saídas (Período)" : "Saídas (Total)"} 
-          value={filteredStats.totalOut} 
-          icon={ArrowUpRight} 
-          color="red" 
-          trendUp={false} 
+            title="Fluxo de Entradas (R$)" 
+            value={formatCurrency(totals.inValue)} 
+            icon={TrendingUp} 
+            color="green" 
+            trendUp={true}
+        />
+        <StatCard 
+            title="Fluxo de Saídas (R$)" 
+            value={formatCurrency(totals.outValue)} 
+            icon={TrendingDown} 
+            color="purple" 
+            trendUp={false}
+        />
+        <StatCard 
+            title="Itens Críticos" 
+            value={totals.criticalItems} 
+            icon={AlertTriangle} 
+            color="red" 
+            trend="Repor Imediatamente"
         />
       </div>
 
-      {/* TIMELINE CHART (NEW) */}
-      {timelineData.length > 0 && (
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-              <TrendingUp className="w-5 h-5 mr-2 text-primary" />
-              Evolução Diária (Entradas vs Saídas)
-           </h3>
-           <div className="h-72">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Financial Flow Chart */}
+        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+           <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center">
+                 <Activity className="w-5 h-5 mr-2 text-primary" />
+                 Fluxo Financeiro (Entradas vs Saídas)
+              </h3>
+           </div>
+           <div className="h-80">
              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={timelineData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={financialFlowData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                   <defs>
+                     <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
+                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                       <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                     </linearGradient>
+                     <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
+                       <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                       <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                     </linearGradient>
+                   </defs>
                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-gray-700" />
                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                   <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                   <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$${val/1000}k`} />
                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} 
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }}
+                      formatter={(value: number) => formatCurrency(value)}
                    />
                    <Legend />
-                   <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#8b5cf6" strokeWidth={3} dot={{r:3}} activeDot={{r:6}} />
-                   <Line type="monotone" dataKey="saidas" name="Saídas" stroke="#ef4444" strokeWidth={3} dot={{r:3}} activeDot={{r:6}} />
-                </LineChart>
+                   <Area type="monotone" dataKey="entradaVal" name="Entradas (R$)" stroke="#10b981" fillOpacity={1} fill="url(#colorIn)" strokeWidth={2} />
+                   <Area type="monotone" dataKey="saidaVal" name="Saídas (R$)" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorOut)" strokeWidth={2} />
+                </AreaChart>
              </ResponsiveContainer>
            </div>
         </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Category Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Movimentação por Categoria</h3>
-          <div className="h-80">
+        {/* Stock Health Donut */}
+        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Saúde do Estoque</h3>
+          <p className="text-xs text-slate-500 mb-6">Baseado na Qtd Mínima definida.</p>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryChartData} barGap={8}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }} />
-                <Legend />
-                <Bar dataKey="entradas" name="Entradas" fill="#06b6d4" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="saidas" name="Saídas" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              </BarChart>
+              <PieChart>
+                <Pie
+                  data={healthData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {healthData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }} 
+                    itemStyle={{ color: '#333' }}
+                />
+                <Legend verticalAlign="bottom" height={36}/>
+              </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        {/* Top Consumo */}
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Maior Saída (Top 5)</h3>
-          <div className="space-y-3">
-            {filteredItems.sort((a, b) => b.saidas - a.saidas).slice(0, 5).map((item, idx) => (
-               <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                     <div className="flex-shrink-0 w-6 h-6 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xs font-bold">
-                       {idx + 1}
-                     </div>
-                     <div className="min-w-0">
-                        <p className="text-sm font-medium truncate dark:text-white" title={item.descricao}>{item.descricao}</p>
-                        <p className="text-xs text-gray-500">{item.codigo}</p>
-                     </div>
-                  </div>
-                  <span className="font-bold text-rose-500 text-sm">-{item.saidas}</span>
-               </div>
-            ))}
-             {filteredItems.length === 0 && <p className="text-gray-400 text-center text-sm py-4">Sem dados.</p>}
+          <div className="text-center mt-[-10px]">
+             <span className="text-3xl font-bold text-slate-800 dark:text-white">{data.length}</span>
+             <p className="text-xs text-slate-500">Total de Itens</p>
           </div>
         </div>
+
+        {/* ABC Analysis */}
+        <div className="lg:col-span-3 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Curva ABC (Pareto)</h3>
+           <p className="text-sm text-slate-500 mb-6">Classificação de itens por valor total investido. Classe A representa 80% do capital.</p>
+           
+           <div className="h-64">
+             <ResponsiveContainer width="100%" height="100%">
+                <BarChart layout="vertical" data={abcData} margin={{ left: 20, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
+                  <XAxis type="number" stroke="#94a3b8" fontSize={12} tickFormatter={(val) => `R$${val/1000}k`} />
+                  <YAxis dataKey="name" type="category" width={140} stroke="#94a3b8" fontSize={12} />
+                  <Tooltip 
+                      cursor={{fill: 'transparent'}} 
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }}
+                      formatter={(value: number) => formatCurrency(value)}
+                  />
+                  <Bar dataKey="valor" name="Valor Investido" radius={[0, 4, 4, 0]} barSize={30}>
+                    {abcData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+             </ResponsiveContainer>
+           </div>
+           <div className="grid grid-cols-3 gap-4 mt-4 text-center">
+              {abcData.map((c, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 dark:bg-slate-800 rounded-lg">
+                      <p className="text-xs text-gray-500">{c.name.split(' ')[0]} {c.name.split(' ')[1]}</p>
+                      <p className="font-bold text-lg text-slate-800 dark:text-white">{c.itens} itens</p>
+                      <p className="text-xs font-medium" style={{ color: c.color }}>{formatCurrency(c.valor)}</p>
+                  </div>
+              ))}
+           </div>
+        </div>
+
       </div>
     </div>
   );

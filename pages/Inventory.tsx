@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, X, Check } from 'lucide-react';
 import { InventoryItem } from '../types';
-import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface InventoryProps {
   data: InventoryItem[];
@@ -16,11 +15,9 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
   
   // Selection State
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [printContainer, setPrintContainer] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setPrintContainer(document.getElementById('print-root') || document.body);
-  }, []);
+  
+  // Print Preview State
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   
   const itemsPerPage = 15;
 
@@ -30,13 +27,22 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
 
   // Filter Logic
   const filteredData = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    
     return data.filter(item => {
+      // Função auxiliar para verificar se um campo contém o termo de busca
+      // Converte tudo para string para evitar erros com números ou nulos
+      const check = (val: string | number | undefined) => 
+        String(val || '').toLowerCase().includes(term);
+
       const matchesSearch = 
-        item.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.fornecedor && item.fornecedor.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.localizacao && item.localizacao.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        item.equipamento.toLowerCase().includes(searchTerm.toLowerCase());
+        !term || // Se não tiver termo, mostra tudo
+        check(item.codigo) ||
+        check(item.descricao) ||
+        check(item.equipamento) ||
+        check(item.localizacao) ||
+        check(item.fornecedor) ||
+        check(item.categoria);
       
       const matchesCategory = categoryFilter === 'Todos' || item.categoria === categoryFilter;
       const matchesEquipment = equipmentFilter === 'Todos' || item.equipamento === equipmentFilter;
@@ -95,13 +101,6 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handlePrintLabels = () => {
-    // Delay aumentado para 500ms para garantir que o DOM foi atualizado
-    setTimeout(() => {
-      window.print();
-    }, 500);
   };
 
   const handleDownloadZPL = () => {
@@ -181,7 +180,7 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                   Baixar ZPL
                 </button>
                 <button 
-                  onClick={handlePrintLabels}
+                  onClick={() => setShowPrintPreview(true)}
                   className="flex items-center px-4 py-2 bg-primary hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   <Printer className="w-4 h-4 mr-2" />
@@ -292,12 +291,37 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* --- PRINT PORTAL --- */}
-      {printContainer && createPortal(
-        <div className="print-portal">
-          {selectedItemsList.length > 0 && (
-            <div className="p-8">
-               {/* Grid configurado para folha A4, com margens e gap adequados */}
+      {/* --- PRINT PREVIEW OVERLAY --- */}
+      {showPrintPreview && (
+        <div className="print-overlay bg-white">
+          <div className="no-print fixed top-0 left-0 right-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-[10000]">
+             <div className="flex items-center">
+               <Printer className="mr-2" />
+               <span className="font-bold">Pré-visualização de Impressão</span>
+             </div>
+             <div className="flex gap-3">
+               <button 
+                 onClick={() => setShowPrintPreview(false)}
+                 className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded flex items-center"
+               >
+                 <X className="w-4 h-4 mr-2" />
+                 Cancelar
+               </button>
+               <button 
+                 onClick={() => window.print()}
+                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center"
+               >
+                 <Check className="w-4 h-4 mr-2" />
+                 Confirmar Impressão
+               </button>
+             </div>
+          </div>
+
+          {/* Espaçamento para a barra superior não cobrir o conteúdo na visualização em tela (na impressão a barra some) */}
+          <div className="no-print h-20"></div>
+
+          <div className="p-8 max-w-[210mm] mx-auto">
+               {/* Grid configurado para folha A4 */}
                <div className="grid grid-cols-3 gap-x-4 gap-y-6">
                 {selectedItemsList.map((item) => (
                   <div key={item.id} className="avoid-break border-2 border-gray-800 p-2 rounded flex flex-row items-center gap-2 bg-white h-[38mm] overflow-hidden relative">
@@ -328,7 +352,7 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                         </div>
                         
                         <div className="absolute bottom-1 right-1 opacity-80">
-                           <QRCodeCanvas 
+                           <QRCodeSVG 
                               value={`ID:${item.codigo}|LOC:${item.localizacao}`} 
                               size={42} 
                               level={"L"}
@@ -342,9 +366,7 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                 Impresso em {new Date().toLocaleString()} - Almoxarifado Pro
               </div>
             </div>
-          )}
-        </div>,
-        printContainer
+        </div>
       )}
 
     </div>

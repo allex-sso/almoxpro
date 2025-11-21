@@ -22,49 +22,55 @@
       };
     </script>
     <style>
-      /* Estilos de Impressão via Portal */
       @media screen {
-        .no-print {
-            display: block; /* Default behavior */
-        }
-        .print-only {
-            display: none;
+        .print-overlay {
+            /* Na tela, aparece como um modal fixo por cima de tudo */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 9999;
+            overflow-y: auto;
         }
       }
 
       @media print {
-        /* Oculta tudo por padrão */
+        /* Esconde tudo no body */
         body * {
           visibility: hidden;
         }
         
-        /* Reseta o body para garantir fluxo de página */
+        /* Reseta background e margens */
         html, body {
           background: white;
-          height: auto;
-          overflow: visible;
           margin: 0;
           padding: 0;
+          overflow: visible !important;
         }
 
-        #root {
-          display: none;
-        }
-
-        /* Exibe apenas a área de preview de impressão */
-        .print-preview, .print-preview * {
+        /* Torna visível APENAS o overlay de impressão e seus filhos */
+        .print-overlay, .print-overlay * {
           visibility: visible;
         }
 
-        .print-preview {
+        .print-overlay {
           position: absolute;
           left: 0;
           top: 0;
           width: 100%;
           margin: 0;
           padding: 0;
+          background: white;
+          display: block !important;
         }
 
+        /* Esconde botões de ação na hora de imprimir */
+        .no-print {
+            display: none !important;
+        }
+        
         /* Utilitários de quebra de página */
         .page-break {
           page-break-before: always;
@@ -73,24 +79,19 @@
           break-inside: avoid;
           page-break-inside: avoid;
         }
-        
-        .no-print {
-            display: none !important;
-        }
       }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
     "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
-    "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0",
-    "vite": "https://aistudiocdn.com/vite@^7.2.2",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4",
+    "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0"
   }
 }
 </script>
