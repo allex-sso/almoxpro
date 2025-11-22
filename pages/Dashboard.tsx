@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
   PieChart, Pie, Cell, BarChart, Bar
 } from 'recharts';
-import { DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, Package } from 'lucide-react';
+import { DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { DashboardStats, InventoryItem, Movement } from '../types';
 
@@ -112,7 +112,6 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [] }) => {
 
     // Calcula valor total do estoque atual (Snapshot)
     // FORÇA CÁLCULO FINANCEIRO SEMPRE para o primeiro card
-    // Mesmo que hasFinancialData seja false, tentamos somar o valorTotal. Se for 0, mostra R$ 0,00.
     const stockTotalFinancial = data.reduce((acc, i) => acc + i.valorTotal, 0);
     
     const criticalCount = healthData.find(d => d.name.includes('Crítico'))?.value || 0;
