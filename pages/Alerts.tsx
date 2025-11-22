@@ -242,7 +242,8 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   <Archive className="w-5 h-5 mr-2" />
                   <h3 className="font-semibold">Possível Excesso de Estoque</h3>
                </div>
-               <p className="text-xs text-gray-500 mb-4">Muitos itens ({'>'}50) e baixa saída ({'<'}2)</p>
+               {/* FIX: Using HTML entities for greater than/less than to avoid TS build errors */}
+               <p className="text-xs text-gray-500 mb-4">Muitos itens (&gt;50) e baixa saída (&lt;2)</p>
                <ul className="space-y-2 max-h-60 overflow-y-auto">
                   {overStockItems.slice(0, 10).map(item => (
                       <li key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 dark:bg-slate-800 rounded">
