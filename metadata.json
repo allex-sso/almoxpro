@@ -1,0 +1,5 @@
+{
+  "name": "Almoxarifado Pro",
+  "description": "Sistema completo de gestão de almoxarifado com integração ao Google Sheets, dashboard, inventário e gerador de etiquetas.",
+  "requestFramePermissions": []
+}
