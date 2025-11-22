@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, Moon, Sun, RefreshCw } from 'lucide-react';
 import Sidebar from './components/Sidebar';
@@ -21,12 +22,17 @@ const App: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
 
-  // Configuração com Persistência Robusta
+  // Configuração com Persistência Robusta e Suporte a Variáveis de Ambiente
   const [settings, setSettings] = useState<AppSettings>(() => {
+    // Tenta ler variáveis de ambiente (Vercel) ou usa strings vazias
+    const envInventory = import.meta.env.VITE_INVENTORY_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv';
+    const envIn = import.meta.env.VITE_IN_URL || '';
+    const envOut = import.meta.env.VITE_OUT_URL || '';
+
     const defaultSettings: AppSettings = {
-      inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
-      inUrl: '', 
-      outUrl: '', 
+      inventoryUrl: envInventory,
+      inUrl: envIn, 
+      outUrl: envOut, 
       refreshRate: 30, 
       darkMode: false,
     };
@@ -35,13 +41,16 @@ const App: React.FC = () => {
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
-        // Merge cuidadoso para garantir que campos novos não fiquem undefined se o salvo for antigo
+        
+        // Lógica inteligente: 
+        // Se o usuário nunca salvou um link específico, mas existe uma variável de ambiente, usa a variável.
+        // Se o usuário salvou algo, respeita o salvo (override).
         return { 
           ...defaultSettings, 
           ...parsed,
-          // Garante que inUrl e outUrl sejam strings, mesmo se não existirem no salvo
-          inUrl: parsed.inUrl !== undefined ? parsed.inUrl : defaultSettings.inUrl,
-          outUrl: parsed.outUrl !== undefined ? parsed.outUrl : defaultSettings.outUrl,
+          inventoryUrl: parsed.inventoryUrl || defaultSettings.inventoryUrl,
+          inUrl: parsed.inUrl || defaultSettings.inUrl,
+          outUrl: parsed.outUrl || defaultSettings.outUrl,
         };
       } catch (e) {
         console.error("Erro ao ler configurações salvas", e);
