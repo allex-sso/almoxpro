@@ -22,76 +22,41 @@
       };
     </script>
     <style>
-      @media screen {
-        .print-overlay {
-            /* Na tela, aparece como um modal fixo por cima de tudo */
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 9999;
-            overflow-y: auto;
-        }
+      /* Estilos globais para a interface de tela */
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-
-      @media print {
-        /* Esconde tudo no body */
-        body * {
-          visibility: hidden;
-        }
-        
-        /* Reseta background e margens */
-        html, body {
-          background: white;
-          margin: 0;
-          padding: 0;
-          overflow: visible !important;
-        }
-
-        /* Torna visível APENAS o overlay de impressão e seus filhos */
-        .print-overlay, .print-overlay * {
-          visibility: visible;
-        }
-
-        .print-overlay {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          margin: 0;
-          padding: 0;
-          background: white;
-          display: block !important;
-        }
-
-        /* Esconde botões de ação na hora de imprimir */
-        .no-print {
-            display: none !important;
-        }
-        
-        /* Utilitários de quebra de página */
-        .page-break {
-          page-break-before: always;
-        }
-        .avoid-break {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
+      
+      /* Scrollbar personalizada */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #475569;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
       }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>

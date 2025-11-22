@@ -21,32 +21,39 @@ const App: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
 
-  // Configuração com Persistência no LocalStorage
+  // Configuração com Persistência Robusta
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const savedSettings = localStorage.getItem('almox_settings');
-    if (savedSettings) {
-      try {
-        return JSON.parse(savedSettings);
-      } catch (e) {
-        console.error("Erro ao ler configurações salvas", e);
-      }
-    }
-    // Valores Padrão se não houver nada salvo
-    return {
+    const defaultSettings: AppSettings = {
       inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
       inUrl: '', 
       outUrl: '', 
       refreshRate: 30, 
       darkMode: false,
     };
+
+    const savedSettings = localStorage.getItem('almox_settings');
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        // Merge cuidadoso para garantir que campos novos não fiquem undefined se o salvo for antigo
+        return { 
+          ...defaultSettings, 
+          ...parsed,
+          // Garante que inUrl e outUrl sejam strings, mesmo se não existirem no salvo
+          inUrl: parsed.inUrl !== undefined ? parsed.inUrl : defaultSettings.inUrl,
+          outUrl: parsed.outUrl !== undefined ? parsed.outUrl : defaultSettings.outUrl,
+        };
+      } catch (e) {
+        console.error("Erro ao ler configurações salvas", e);
+      }
+    }
+    return defaultSettings;
   });
 
-  // Salva configurações sempre que mudarem
   useEffect(() => {
     localStorage.setItem('almox_settings', JSON.stringify(settings));
   }, [settings]);
 
-  // Theme
   useEffect(() => {
     if (settings.darkMode) {
       document.documentElement.classList.add('dark');
@@ -55,11 +62,13 @@ const App: React.FC = () => {
     }
   }, [settings.darkMode]);
 
+  // Helper para limpar código e garantir match (remove espaços, etc)
+  const cleanCode = (code: string) => code.trim().toLowerCase().replace(/\s/g, '');
+
   // --- DATA LOADING & MERGING ---
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // 1. Busca dados brutos em paralelo
       const [inventoryItems, inMoves, outMoves] = await Promise.all([
         fetchInventoryData(settings.inventoryUrl),
         settings.inUrl ? fetchMovements(settings.inUrl, 'entrada') : Promise.resolve([]),
@@ -69,47 +78,45 @@ const App: React.FC = () => {
       const allMoves = [...inMoves, ...outMoves].sort((a, b) => a.data.getTime() - b.data.getTime());
       setMovements(allMoves);
 
-      // 2. Cruzamento de Dados (Merge)
-      // Precisamos injetar o Fornecedor (das Entradas) e calcular totais (das movimentações)
+      // Processamento dos itens
       const enrichedItems = inventoryItems.map(item => {
-        // Filtra movimentos deste item
-        const itemMoves = allMoves.filter(m => m.codigo === item.codigo);
+        const itemCodeClean = cleanCode(item.codigo);
         
-        // Calcula totais REAIS baseados no histórico (Abas Entrada/Saída) para estatísticas
-        const totalInHistory = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0);
-        const totalOutHistory = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0);
+        // Filtra movimentos correspondentes
+        const itemMoves = allMoves.filter(m => cleanCode(m.codigo) === itemCodeClean);
+        
+        // Histórico de Entradas
+        const entriesDescending = inMoves
+            .filter(m => cleanCode(m.codigo) === itemCodeClean)
+            .sort((a, b) => b.data.getTime() - a.data.getTime()); // Mais recente primeiro
 
-        // Valores que constam na planilha principal (Snapshot)
-        const sheetStock = item.quantidadeAtual;
-        const sheetIn = item.entradas; 
-        const sheetOut = item.saidas;
+        // SMART STOCK: Cálculo para compensar LAG do Google Sheets (Opcional, mas mantido para robustez)
+        const histIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0);
+        const histOut = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0);
+        
+        // 1. Lógica de Preço: Pega o valor da última entrada que tenha preço > 0
+        // Isso ignora entradas de ajuste ou sem valor cadastrado
+        const validEntry = entriesDescending.find(e => e.valorUnitario && e.valorUnitario > 0);
+        const unitPrice = validEntry ? validEntry.valorUnitario : 0;
 
-        // Tenta encontrar fornecedor na última entrada registrada
-        const lastEntry = [...inMoves]
-          .filter(m => m.codigo === item.codigo && m.fornecedor)
-          .sort((a, b) => b.data.getTime() - a.data.getTime())[0];
+        // 2. Estoque Atual: Confia na planilha principal
+        const stockQty = item.quantidadeAtual;
 
-        // Encontra data da última movimentação qualquer
-        const lastMove = itemMoves[itemMoves.length - 1];
+        // 3. Valor Total: Qtd * Preço Unitário
+        const totalValue = stockQty * (unitPrice || 0);
+
+        // 4. Fornecedor: Se não tiver na principal, pega da última entrada
+        const supplier = item.fornecedor || (entriesDescending[0]?.fornecedor || '');
 
         return {
           ...item,
-          // IMPORTANTE: Retornando exatamente o valor da planilha principal para Estoque Atual
-          // Removemos a lógica de cálculo compensatório para evitar confusão.
-          quantidadeAtual: sheetStock,
-          
-          // Se não tiver na planilha principal, usa do histórico
-          fornecedor: item.fornecedor || lastEntry?.fornecedor || '', 
-          
-          // Para estatísticas de fluxo, priorizamos o histórico real se existir, senão usa a planilha
-          entradas: totalInHistory > 0 ? totalInHistory : sheetIn,
-          saidas: totalOutHistory > 0 ? totalOutHistory : sheetOut,
-          
-          // Atualiza valor total baseado no estoque da planilha
-          valorTotal: sheetStock * item.valorUnitario,
-
-          // Mesma lógica para data: usa a última calculada ou a que veio da planilha
-          ultimaMovimentacao: lastMove?.data || item.ultimaMovimentacao
+          quantidadeAtual: stockQty,
+          fornecedor: supplier,
+          valorUnitario: unitPrice || 0,
+          valorTotal: totalValue,
+          entradas: histIn, // Para estatísticas de fluxo
+          saidas: histOut,  // Para estatísticas de fluxo
+          ultimaMovimentacao: itemMoves[itemMoves.length - 1]?.data
         };
       });
 
@@ -130,7 +137,6 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.inventoryUrl, settings.inUrl, settings.outUrl, settings.refreshRate]);
 
-  // Stats
   const stats = useMemo(() => {
     return {
       totalItems: data.length,
@@ -169,7 +175,6 @@ const App: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
         <header className="app-header bg-white dark:bg-dark-card border-b border-gray-200 dark:border-gray-700 h-16 flex items-center justify-between px-4 sm:px-6 no-print">
           <div className="flex items-center">
             <button 

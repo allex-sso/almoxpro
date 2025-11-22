@@ -2,25 +2,80 @@ import { InventoryItem, Movement } from '../types';
 
 // --- UTILITÁRIOS DE PARSE ---
 
+// Função de normalização para remover acentos e caracteres especiais
+const normalizeStr = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
 const parseNumber = (value: string): number => {
   if (!value) return 0;
-  let clean = value.toString().replace(/[R$\s]/g, '');
-  if (clean.includes(',') && clean.includes('.')) {
-    clean = clean.replace(/\./g, '').replace(',', '.');
-  } else if (clean.includes(',')) {
-    clean = clean.replace(',', '.');
+  let str = value.toString().trim();
+  
+  // Remove símbolos de moeda e espaços
+  str = str.replace(/R\$\s?/gi, '').trim();
+  
+  // Verifica formato brasileiro (1.000,00)
+  // Se tem vírgula no final (decimal) e pontos no meio (milhar) ou apenas vírgula
+  if (str.includes(',') && !str.includes('.')) {
+     // Ex: 199,79 -> 199.79
+     str = str.replace(',', '.');
+  } else if (str.includes('.') && str.includes(',')) {
+     // Ex: 1.000,00
+     if (str.indexOf('.') < str.indexOf(',')) {
+        str = str.replace(/\./g, '').replace(',', '.');
+     }
   }
-  const num = parseFloat(clean);
+  
+  // Limpeza final para garantir que sobraram apenas números e ponto
+  str = str.replace(/[^0-9.-]/g, '');
+
+  const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
 };
 
-const parseCSVLine = (text: string): string[] => {
+// Converte unidades extensas para siglas
+const formatUnit = (raw: string): string => {
+  const val = normalizeStr(raw);
+  
+  if (!val) return 'uni'; // Padrão
+  
+  if (val.startsWith('unid') || val === 'und' || val === 'un') return 'uni';
+  if (val.startsWith('metr') || val === 'm' || val === 'mts') return 'mt';
+  if (val.startsWith('pec') || val.startsWith('pc')) return 'pç';
+  if (val.startsWith('caix') || val === 'cx') return 'cx';
+  if (val.startsWith('kilo') || val === 'kg') return 'kg';
+  if (val.startsWith('litr') || val === 'l' || val === 'lt') return 'lt';
+  if (val.startsWith('paco') || val === 'pct') return 'pct';
+  if (val.startsWith('rolo') || val === 'rl') return 'rl';
+  if (val.startsWith('par') || val === 'pr') return 'pr';
+  if (val.startsWith('jogo') || val === 'jg') return 'jg';
+  if (val.startsWith('lata') || val === 'lat') return 'lt';
+  if (val.startsWith('gal') || val === 'gl') return 'gl';
+
+  return raw.substring(0, 3).toLowerCase(); // Fallback: retorna as 3 primeiras letras
+};
+
+// Detecta se o CSV usa vírgula ou ponto e vírgula analisando várias linhas
+const detectDelimiter = (text: string): string => {
+  const lines = text.split('\n').slice(0, 10); // Analisa até 10 linhas
+  let commaCount = 0;
+  let semicolonCount = 0;
+
+  lines.forEach(line => {
+      commaCount += (line.match(/,/g) || []).length;
+      semicolonCount += (line.match(/;/g) || []).length;
+  });
+
+  return semicolonCount > commaCount ? ';' : ',';
+};
+
+const parseCSVLine = (text: string, delimiter: string): string[] => {
   const result: string[] = [];
   let cell = '';
   let inQuotes = false;
+  
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const nextChar = text[i + 1];
+    
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
         cell += '"';
@@ -28,7 +83,7 @@ const parseCSVLine = (text: string): string[] => {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       result.push(cell.trim());
       cell = '';
     } else {
@@ -46,7 +101,6 @@ const parseDate = (value: string): Date | null => {
   // Excel Serial Number (aprox)
   if (!isNaN(Number(value)) && !value.includes('/')) {
     const serial = Number(value);
-    // Ajuste básico para datas Excel (base 1900)
     const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
     return date;
   }
@@ -55,7 +109,6 @@ const parseDate = (value: string): Date | null => {
   if (value.includes('/')) {
     const parts = value.split('/');
     if (parts.length === 3) {
-      // Assume dia/mes/ano
       return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
     }
   }
@@ -69,7 +122,6 @@ const parseDate = (value: string): Date | null => {
 const fetchCSV = async (url: string): Promise<string[][]> => {
   if (!url || url.length < 10) return [];
   
-  // Adiciona timestamp para evitar cache do navegador/proxy
   const timestamp = new Date().getTime();
   let finalUrl = url.startsWith('http') 
     ? url 
@@ -85,8 +137,11 @@ const fetchCSV = async (url: string): Promise<string[][]> => {
     const response = await fetch(finalUrl);
     if (!response.ok) return [];
     const text = await response.text();
+    
+    const delimiter = detectDelimiter(text);
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-    return lines.map(parseCSVLine);
+    
+    return lines.map(line => parseCSVLine(line, delimiter));
   } catch (error) {
     console.error("Erro ao buscar CSV:", url, error);
     return [];
@@ -94,12 +149,21 @@ const fetchCSV = async (url: string): Promise<string[][]> => {
 };
 
 const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, headers: string[] } => {
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const rowLower = rows[i].map(c => c.toLowerCase().trim());
-    if (keywords.every(k => rowLower.some(h => h.includes(k)))) {
-      return { index: i, headers: rowLower };
+  for (let i = 0; i < Math.min(rows.length, 20); i++) { 
+    const rowNormalized = rows[i].map(c => normalizeStr(c));
+    // Verifica se TODOS os keywords estão presentes na linha
+    if (keywords.every(k => rowNormalized.some(h => h.includes(normalizeStr(k))))) {
+      return { index: i, headers: rowNormalized };
     }
   }
+  // Fallback: Tenta achar pelo menos UM keyword forte
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      const rowNormalized = rows[i].map(c => normalizeStr(c));
+      if (rowNormalized.some(h => h === normalizeStr(keywords[0]))) { 
+          return { index: i, headers: rowNormalized };
+      }
+  }
+
   return { index: -1, headers: [] };
 };
 
@@ -108,39 +172,77 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
 
-  // Procura cabeçalho com Data e Código
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['cód']);
-  // Se falhar com "data", tenta termos alternativos comuns
+  // Header Hunting
+  let headerIdx = -1;
+  let headers: string[] = [];
+
+  const checkRow = (row: string[]) => {
+      const normalized = row.map(c => normalizeStr(c));
+      const hasCode = normalized.some(h => h.includes('cod') || h.includes('item') || h.includes('produto'));
+      const hasData = normalized.some(h => h.includes('data') || h.includes('dia'));
+      return { match: hasCode && hasData, headers: normalized };
+  };
+
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const { match, headers: h } = checkRow(rows[i]);
+    if (match) {
+        headerIdx = i;
+        headers = h;
+        break;
+    }
+  }
+
   if (headerIdx === -1) return [];
 
-  const getIdx = (terms: string[]) => headers.findIndex(h => terms.some(t => h.includes(t)));
+  const findCol = (terms: string[], avoidTerms: string[] = []) => {
+      return headers.findIndex(h => {
+          const normalizedH = normalizeStr(h);
+          const matchesTerm = terms.some(t => normalizedH.includes(normalizeStr(t)));
+          const matchesAvoid = avoidTerms.some(t => normalizedH.includes(normalizeStr(t)));
+          return matchesTerm && !matchesAvoid;
+      });
+  };
+
+  const idxData = findCol(['data', 'dia', 'registro']);
+  const idxCodigo = findCol(['cód', 'cod', 'item']);
   
-  const idxData = getIdx(['data', 'registro', 'dia', 'movimentação']);
-  const idxCodigo = getIdx(['cód', 'cod', 'item', 'produto']);
-  const idxQtd = getIdx(['quant', 'qtd', 'montante']);
-  const idxForn = getIdx(['forn', 'fabricante', 'origem']); // Importante para Entradas
-  const idxObs = getIdx(['obs', 'descri']);
+  const qtdTerms = type === 'entrada' 
+    ? ['recebida', 'entrada', 'qtd', 'quant'] 
+    : ['retirada', 'saída', 'saida', 'qtd', 'quant'];
+  const idxQtd = findCol(qtdTerms);
+  
+  const idxForn = findCol(['fornecedor', 'fabricante']);
+  
+  // Lógica estrita para Valor Unitário: DEVE ter unit/preco/valor e NÃO PODE ter Total
+  const idxVal = findCol(['unit', 'vl. unit', 'vlr', 'preco'], ['total', 'bruto']);
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
-    if (!row[idxCodigo]) return null;
+    let codigo = (idxCodigo !== -1 ? row[idxCodigo] : row[0])?.trim();
+    if (!codigo) return null;
     
-    let codigo = row[idxCodigo].trim();
-    // Remove espaços extras que causam erro de "536" vs "536 "
-    codigo = codigo.replace(/\s+/g, '');
     if (/^\d$/.test(codigo)) codigo = `0${codigo}`;
 
     const data = idxData !== -1 ? parseDate(row[idxData]) : null;
-    // Se não achou data válida, usa data atual como fallback
     const finalDate = data || new Date(); 
+    
+    const rawQtd = idxQtd !== -1 ? row[idxQtd] : '0';
+    const qtd = parseNumber(rawQtd);
+
+    if (qtd === 0 && rawQtd === '') return null;
+    
+    let val = 0;
+    if (idxVal !== -1) {
+        val = parseNumber(row[idxVal]);
+    }
 
     return {
       id: `${type}-${i}`,
       tipo: type,
       data: finalDate,
       codigo: codigo,
-      quantidade: idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0,
+      quantidade: qtd,
       fornecedor: idxForn !== -1 ? row[idxForn] : undefined,
-      obs: idxObs !== -1 ? row[idxObs] : undefined
+      valorUnitario: val,
     };
   }).filter((m): m is Movement => m !== null);
 };
@@ -150,56 +252,45 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
 
-  // Header Hunting
   const { index: headerIdx, headers } = findHeaderRow(rows, ['cód']);
-  if (headerIdx === -1) return []; // Não achou estrutura válida
+  if (headerIdx === -1) return []; 
 
-  const getIdx = (terms: string[]) => headers.findIndex(h => terms.some(t => h.includes(t)));
-
-  const idxCodigo = getIdx(['cód', 'cod']);
-  const idxDesc = getIdx(['descri', 'nome']);
-  const idxEquip = getIdx(['equip', 'máquina']);
-  const idxLoc = getIdx(['local', 'prateleira', 'end']);
-  const idxForn = getIdx(['forn']); 
-  
-  // --- LÓGICA DE QUANTIDADE AJUSTADA ---
-  // 1. Prioridade absoluta para "Quantidade em Estoque" conforme solicitado
-  let idxQtd = getIdx(['quantidade em estoque', 'estoque atual', 'saldo atual', 'total em estoque']);
-  
-  // 2. Fallback inteligente: se não achar o nome exato, procura por "quantidade",
-  // mas EXCLUI colunas que tenham "entrada", "saida", "inicial" ou "minimo" no nome.
-  if (idxQtd === -1) {
-      idxQtd = headers.findIndex(h => {
-          const t = h.toLowerCase();
-          if (t.includes('min') || t.includes('mín') || t.includes('entrad') || t.includes('saíd') || t.includes('said') || t.includes('inicial')) return false;
-          return t.includes('quant') || t.includes('qtd') || t.includes('estoque') || t.includes('saldo');
+  const findCol = (priorityTerms: string[], avoidTerms: string[] = []) => {
+      return headers.findIndex(h => {
+          const normalizedH = normalizeStr(h);
+          const matchesTerm = priorityTerms.some(t => normalizedH.includes(normalizeStr(t)));
+          const matchesAvoid = avoidTerms.some(t => normalizedH.includes(normalizeStr(t)));
+          return matchesTerm && !matchesAvoid;
       });
-  }
-  // -------------------------------------
+  };
 
-  const idxMin = getIdx(['mínim', 'minim', 'min']);
-  const idxCat = getIdx(['categ', 'grupo']);
-  const idxVal = getIdx(['unit', 'valor']);
+  const idxCodigo = findCol(['cód', 'cod']);
+  const idxDesc = findCol(['descri', 'nome']);
+  const idxEquip = findCol(['equip', 'máquina']);
+  const idxLoc = findCol(['local', 'prateleira']);
+  const idxForn = findCol(['fornecedor']); 
+  const idxUnd = findCol(['medida', 'unidade', 'und', 'u.m.']); // Nova coluna Medida
   
-  // Lendo Entradas e Saídas diretamente da planilha principal como fallback
-  const idxEntradas = getIdx(['entradas', 'entrada', 'entrou', 'compra']);
-  const idxSaidas = getIdx(['saídas', 'saidas', 'saída', 'saida', 'consumo', 'venda']);
-  
-  // Data de atualização ou última movimentação na planilha principal
-  const idxData = getIdx(['data', 'última', 'ultima', 'movimentação', 'atualização']);
+  // Procura explicitamente por "Estoque" ou "Saldo"
+  let idxQtd = findCol(['quantidade em estoque', 'estoque atual', 'saldo atual']);
+  if (idxQtd === -1) {
+      idxQtd = findCol(['quant', 'qtd', 'estoque'], ['min', 'entrad', 'saíd', 'inicial']);
+  }
+
+  const idxMin = findCol(['mínim', 'minim', 'min']);
+  const idxCat = findCol(['categ', 'grupo']);
 
   return rows.slice(headerIdx + 1).map((row, index): InventoryItem | null => {
     let codigo = (idxCodigo !== -1 ? row[idxCodigo] : row[0])?.trim();
     if (!codigo) return null;
-    // Remove espaços extras e normaliza zeros
-    codigo = codigo.replace(/\s+/g, '');
+    
     if (/^\d$/.test(codigo)) codigo = `0${codigo}`;
 
     const qtd = idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0;
-    const valUnit = idxVal !== -1 ? parseNumber(row[idxVal]) : 0;
-
-    // Tenta ler data da planilha, se não existir, undefined
-    const rawDate = idxData !== -1 ? parseDate(row[idxData]) : undefined;
+    
+    // Leitura e formatação da unidade
+    const rawUnd = idxUnd !== -1 ? (row[idxUnd] || 'un.') : 'un.';
+    const unidadeFormatada = formatUnit(rawUnd);
 
     return {
       id: `item-${index}`,
@@ -210,16 +301,13 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
       fornecedor: idxForn !== -1 ? (row[idxForn] || '') : '', 
       quantidadeAtual: qtd,
       quantidadeMinima: idxMin !== -1 ? parseNumber(row[idxMin]) : 0,
-      
-      // Prioridade: O que está escrito na célula. Será sobrescrito pelo App.tsx se houver histórico calculado.
-      entradas: idxEntradas !== -1 ? parseNumber(row[idxEntradas]) : 0,
-      saidas: idxSaidas !== -1 ? parseNumber(row[idxSaidas]) : 0,
-      
+      unidade: unidadeFormatada,
+      entradas: 0, // Será calculado no App.tsx via histórico
+      saidas: 0,   // Será calculado no App.tsx via histórico
       categoria: idxCat !== -1 ? (row[idxCat] || 'Geral') : 'Geral',
-      valorUnitario: valUnit,
-      valorTotal: qtd * valUnit,
-      dataAtualizacao: new Date().toISOString(),
-      ultimaMovimentacao: rawDate
+      valorUnitario: 0, // Será preenchido via cruzamento com Entradas
+      valorTotal: 0,
+      dataAtualizacao: new Date().toISOString()
     };
   }).filter((i): i is InventoryItem => i !== null);
 };

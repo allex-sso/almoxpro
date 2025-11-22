@@ -13,8 +13,6 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
 
   const itemsPerPage = 10;
 
-  // Filtro rigoroso: Só mostra se o item tiver um mínimo definido na planilha (> 0)
-  // E se o estoque atual for menor ou igual a esse mínimo.
   const lowStockItems = data.filter(item => {
     if (!item.quantidadeMinima || item.quantidadeMinima <= 0) return false;
     return item.quantidadeAtual <= item.quantidadeMinima;
@@ -30,9 +28,113 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
     setOrderNotes(prev => ({ ...prev, [id]: value }));
   };
 
+  // --- NOVA LÓGICA DE IMPRESSÃO VIA IFRAME (CORRIGIDA) ---
+  const handlePrint = () => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const rowsHTML = lowStockItems.map(item => {
+        const note = orderNotes[item.id] || '';
+        const diff = item.quantidadeMinima - item.quantidadeAtual;
+        return `
+        <tr>
+            <td class="mono bold">${item.codigo}</td>
+            <td>${item.descricao}</td>
+            <td>${item.fornecedor || ''}</td>
+            <td class="center bold red">${item.quantidadeAtual}</td>
+            <td class="center">${item.quantidadeMinima}</td>
+            <td class="center bold bg-gray">${Math.max(0, diff)}</td>
+            <td>${note}</td>
+        </tr>
+        `;
+    }).join('');
+
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+
+    doc.open();
+    doc.write(`
+      <html>
+        <head>
+          <title>Requisição de Compras</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            body { font-family: sans-serif; padding: 40px; -webkit-print-color-adjust: exact; }
+            h1 { font-size: 24px; font-weight: bold; text-transform: uppercase; }
+            .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { background-color: #e5e7eb; border: 1px solid #9ca3af; padding: 8px; text-align: left; }
+            td { border: 1px solid #9ca3af; padding: 6px; }
+            .mono { font-family: monospace; font-size: 14px; }
+            .bold { font-weight: bold; }
+            .center { text-align: center; }
+            .red { color: #b91c1c; }
+            .bg-gray { background-color: #f3f4f6; }
+            .signatures { margin-top: 80px; display: flex; justify-content: space-between; padding: 0 50px; }
+            .sig-line { border-top: 1px solid #000; width: 250px; text-align: center; padding-top: 5px; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+           <div class="header">
+              <div>
+                 <h1>Requisição de Compras</h1>
+                 <p style="color: #666; font-size: 12px;">Relatório automático de reposição</p>
+              </div>
+              <div style="text-align: right; font-size: 12px;">
+                 <p>Data: ${dateStr}</p>
+                 <p><strong>Almoxarifado Central</strong></p>
+              </div>
+           </div>
+
+           <table>
+              <thead>
+                 <tr>
+                    <th style="width: 60px;">Cód.</th>
+                    <th>Descrição</th>
+                    <th style="width: 150px;">Fornecedor</th>
+                    <th style="width: 60px; text-align: center;">Atual</th>
+                    <th style="width: 60px; text-align: center;">Mín</th>
+                    <th style="width: 60px; text-align: center;">Repor</th>
+                    <th>Observação / Pedido</th>
+                 </tr>
+              </thead>
+              <tbody>
+                ${rowsHTML}
+              </tbody>
+           </table>
+
+           <div class="signatures">
+              <div class="sig-line">Solicitante</div>
+              <div class="sig-line">Gerência / Aprovação</div>
+           </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus(); // FOCO é fundamental para impressão programática funcionar
+        iframe.contentWindow.print();
+      }
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+           document.body.removeChild(iframe);
+        }
+      }, 2000);
+    }, 500);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      
       {/* --- SCREEN VIEW --- */}
       <div className="space-y-8">
         {/* Low Stock Alert Section */}
@@ -69,7 +171,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                             <th className="px-6 py-3">Fornecedor</th>
                             <th className="px-6 py-3 text-right">Mínimo</th>
                             <th className="px-6 py-3 text-right">Atual</th>
-                            <th className="px-6 py-3 w-1/4">Obs. / Pedido (Edite para Imprimir)</th>
+                            <th className="px-6 py-3 w-1/4">Obs. / Pedido</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -91,7 +193,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                                       <input 
                                         type="text" 
                                         className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded bg-white dark:bg-slate-700 dark:border-gray-600 dark:text-white focus:ring-1 focus:ring-red-500 outline-none"
-                                        placeholder="Ex: Marca X, Urgente..."
+                                        placeholder="Observação..."
                                         value={orderNotes[item.id] || ''}
                                         onChange={(e) => handleNoteChange(item.id, e.target.value)}
                                       />
@@ -133,6 +235,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
           </div>
         </div>
 
+        {/* Other alerts (Overstock / Dormant) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-dark-card rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                <div className="flex items-center mb-4 text-orange-600 dark:text-orange-400">
@@ -144,7 +247,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   {overStockItems.slice(0, 10).map(item => (
                       <li key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 dark:bg-slate-800 rounded">
                           <span className="dark:text-white truncate mr-2">{item.descricao}</span>
-                          <span className="font-mono text-orange-600">{item.quantidadeAtual} un.</span>
+                          <span className="font-mono text-orange-600">{item.quantidadeAtual} {item.unidade || 'un.'}</span>
                       </li>
                   ))}
                    {overStockItems.length === 0 && <li className="text-sm text-gray-400">Tudo normal.</li>}
@@ -170,11 +273,10 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* --- PRINT PREVIEW OVERLAY --- */}
+      {/* --- PREVIEW OVERLAY --- */}
       {showPrintPreview && (
-        <div className="print-overlay bg-white text-black">
-           {/* Barra de Controle */}
-           <div className="no-print fixed top-0 left-0 right-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-[10000]">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto">
+           <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50">
              <div className="flex items-center">
                <Printer className="mr-2" />
                <span className="font-bold">Pré-visualização de Requisição</span>
@@ -185,11 +287,11 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded flex items-center"
                >
                  <X className="w-4 h-4 mr-2" />
-                 Cancelar
+                 Voltar
                </button>
                <button 
-                 onClick={() => window.print()}
-                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center"
+                 onClick={handlePrint}
+                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center animate-pulse"
                >
                  <Check className="w-4 h-4 mr-2" />
                  Confirmar Impressão
@@ -197,76 +299,68 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
              </div>
           </div>
 
-          <div className="no-print h-20"></div>
+          {/* Visualização HTML para Conferência */}
+           <div className="p-8 max-w-[210mm] mx-auto bg-gray-50 min-h-screen shadow-inner">
+             <div className="bg-white p-10 shadow-lg">
+                <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end">
+                  <div>
+                    <h1 className="text-3xl font-bold uppercase tracking-wide text-black">Requisição de Compras</h1>
+                    <p className="text-sm text-gray-600 mt-1">Relatório automático de itens abaixo do estoque mínimo</p>
+                  </div>
+                  <div className="text-right text-black">
+                    <p className="text-sm">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                    <p className="text-sm font-bold">Almoxarifado Central</p>
+                  </div>
+              </div>
 
-           <div className="p-8 max-w-[210mm] mx-auto">
-            <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end">
-              <div>
-                 <h1 className="text-3xl font-bold uppercase tracking-wide">Requisição de Compras</h1>
-                 <p className="text-sm text-gray-600 mt-1">Relatório automático de itens abaixo do estoque mínimo</p>
+              <table className="w-full text-sm border-collapse border border-gray-400">
+                  <thead>
+                    <tr className="bg-gray-200 text-black">
+                        <th className="border border-gray-400 px-3 py-2 text-left w-16">Cód.</th>
+                        <th className="border border-gray-400 px-3 py-2 text-left">Descrição</th>
+                        <th className="border border-gray-400 px-3 py-2 text-left w-32">Fornecedor</th>
+                        <th className="border border-gray-400 px-3 py-2 text-center w-16">Atual</th>
+                        <th className="border border-gray-400 px-3 py-2 text-center w-16">Mín</th>
+                        <th className="border border-gray-400 px-3 py-2 text-center w-16">Repor</th>
+                        <th className="border border-gray-400 px-3 py-2 text-left">Observação / Pedido</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-black">
+                    {lowStockItems.map((item) => {
+                        const min = item.quantidadeMinima;
+                        const diff = min - item.quantidadeAtual;
+                        const note = orderNotes[item.id] || '';
+                        return (
+                          <tr key={item.id}>
+                              <td className="border border-gray-400 px-3 py-2 font-mono font-bold text-lg">{item.codigo}</td>
+                              <td className="border border-gray-400 px-3 py-2">
+                                <span className="font-bold block text-base">{item.descricao}</span>
+                              </td>
+                              <td className="border border-gray-400 px-3 py-2 text-xs font-medium">
+                                  {item.fornecedor}
+                              </td>
+                              <td className="border border-gray-400 px-3 py-2 text-center font-bold text-red-700">{item.quantidadeAtual}</td>
+                              <td className="border border-gray-400 px-3 py-2 text-center">{min}</td>
+                              <td className="border border-gray-400 px-3 py-2 text-center font-bold bg-gray-50">{Math.max(0, diff)}</td>
+                              <td className="border border-gray-400 px-3 py-2">{note}</td>
+                          </tr>
+                        );
+                    })}
+                  </tbody>
+              </table>
+              
+              <div className="mt-20 flex justify-between px-10 text-black">
+                  <div className="text-center">
+                    <div className="w-64 border-t border-black h-px"></div>
+                    <p className="text-sm mt-2">Solicitante</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-64 border-t border-black h-px"></div>
+                    <p className="text-sm mt-2">Gerência / Aprovação</p>
+                  </div>
               </div>
-              <div className="text-right">
-                 <p className="text-sm">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                 <p className="text-sm font-bold">Almoxarifado Central</p>
-              </div>
+             </div>
            </div>
-
-           <table className="w-full text-sm border-collapse border border-gray-400">
-              <thead>
-                 <tr className="bg-gray-200">
-                    <th className="border border-gray-400 px-3 py-2 text-left w-16">Cód.</th>
-                    <th className="border border-gray-400 px-3 py-2 text-left">Descrição</th>
-                    <th className="border border-gray-400 px-3 py-2 text-left w-32">Fornecedor</th>
-                    <th className="border border-gray-400 px-3 py-2 text-center w-16">Atual</th>
-                    <th className="border border-gray-400 px-3 py-2 text-center w-16">Mín</th>
-                    <th className="border border-gray-400 px-3 py-2 text-center w-16">Repor</th>
-                    <th className="border border-gray-400 px-3 py-2 text-left">Observação / Pedido</th>
-                 </tr>
-              </thead>
-              <tbody>
-                 {lowStockItems.map((item, index) => {
-                    const min = item.quantidadeMinima;
-                    const diff = min - item.quantidadeAtual;
-                    const note = orderNotes[item.id] || '';
-                    return (
-                       <tr key={item.id} className="avoid-break">
-                          <td className="border border-gray-400 px-3 py-2 font-mono font-bold text-lg">{item.codigo}</td>
-                          <td className="border border-gray-400 px-3 py-2">
-                             <span className="font-bold block text-base">{item.descricao}</span>
-                          </td>
-                          <td className="border border-gray-400 px-3 py-2 text-xs font-medium">
-                              {item.fornecedor}
-                          </td>
-                          <td className="border border-gray-400 px-3 py-2 text-center font-bold text-red-700">{item.quantidadeAtual}</td>
-                          <td className="border border-gray-400 px-3 py-2 text-center">{min}</td>
-                          <td className="border border-gray-400 px-3 py-2 text-center font-bold bg-gray-50">{Math.max(0, diff)}</td>
-                          <td className="border border-gray-400 px-3 py-2">
-                             {note ? (
-                               <span className="font-semibold">{note}</span>
-                             ) : (
-                               <div className="h-6"></div>
-                             )}
-                          </td>
-                       </tr>
-                    );
-                 })}
-                 {lowStockItems.length === 0 && (
-                   <tr><td colSpan={7} className="p-4 text-center italic">Nenhuma pendência.</td></tr>
-                 )}
-              </tbody>
-           </table>
-
-           <div className="mt-20 flex justify-between px-10 page-break-inside-avoid">
-              <div className="text-center">
-                 <div className="w-64 border-t border-black h-px"></div>
-                 <p className="text-sm mt-2">Solicitante</p>
-              </div>
-              <div className="text-center">
-                 <div className="w-64 border-t border-black h-px"></div>
-                 <p className="text-sm mt-2">Gerência / Aprovação</p>
-              </div>
-           </div>
-        </div>
         </div>
       )}
 

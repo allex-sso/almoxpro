@@ -30,13 +30,11 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
     const term = searchTerm.toLowerCase().trim();
     
     return data.filter(item => {
-      // Função auxiliar para verificar se um campo contém o termo de busca
-      // Converte tudo para string para evitar erros com números ou nulos
       const check = (val: string | number | undefined) => 
         String(val || '').toLowerCase().includes(term);
 
       const matchesSearch = 
-        !term || // Se não tiver termo, mostra tudo
+        !term || 
         check(item.codigo) ||
         check(item.descricao) ||
         check(item.equipamento) ||
@@ -68,9 +66,9 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
 
   const toggleSelectAll = () => {
     if (selectedItems.size === filteredData.length && filteredData.length > 0) {
-      setSelectedItems(new Set()); // Deselect All
+      setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(filteredData.map(i => i.id))); // Select All Visible
+      setSelectedItems(new Set(filteredData.map(i => i.id)));
     }
   };
 
@@ -105,11 +103,8 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
 
   const handleDownloadZPL = () => {
     if (selectedItems.size === 0) return;
-
     let zplContent = "^XA\n";
-    
     const selected = data.filter(item => selectedItems.has(item.id));
-    
     selected.forEach(item => {
       zplContent += `^XA
 ^FO30,30^BQN,2,6^FDQA,${item.codigo}^FS
@@ -119,7 +114,6 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
 ^FO220,230^A0N,25,25^FDLoc: ${item.localizacao || ''}^FS
 ^XZ\n`;
     });
-
     const blob = new Blob([zplContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -131,6 +125,147 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
   };
 
   const selectedItemsList = data.filter(item => selectedItems.has(item.id));
+
+  // --- IMPRESSÃO OTIMIZADA PARA A4 ---
+  const handlePrint = () => {
+    // 1. Criar iframe invisível
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    // 2. Gerar HTML das etiquetas
+    const labelsHTML = selectedItemsList.map(item => `
+      <div class="label-container">
+         <div class="code-section">
+           <span class="code-text">${item.codigo}</span>
+         </div>
+         <div class="info-section">
+            <p class="desc">${item.descricao}</p>
+            <div class="meta">
+               <p>EQ: <strong>${item.equipamento || 'N/D'}</strong></p>
+               ${item.localizacao ? `<p>LOCAL: <strong>${item.localizacao}</strong></p>` : ''}
+            </div>
+         </div>
+      </div>
+    `).join('');
+
+    // 3. Escrever documento com CSS Otimizado em MM
+    doc.open();
+    doc.write(`
+      <html>
+        <head>
+          <title>Imprimir Etiquetas</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            /* Configuração de Página A4 */
+            @page { size: A4; margin: 5mm; }
+            
+            body { 
+              margin: 0; 
+              padding: 5mm; 
+              font-family: sans-serif; 
+              -webkit-print-color-adjust: exact; 
+            }
+
+            /* Grid de 3 Colunas Otimizado */
+            .grid-container {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 5mm; /* Espaçamento entre etiquetas */
+              width: 100%;
+            }
+
+            /* Cartão da Etiqueta */
+            .label-container {
+              border: 1px dashed #d1d5db; /* Borda pontilhada leve para guia de corte */
+              border-radius: 4px;
+              padding: 4px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              height: 36mm; /* Altura fixa otimizada para caber mais por página */
+              overflow: hidden;
+              page-break-inside: avoid;
+              background: white;
+            }
+
+            /* Seção do Código (Esquerda) */
+            .code-section {
+              width: 35%;
+              height: 100%;
+              border-right: 1px solid #e5e7eb;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background-color: #f9fafb;
+            }
+            .code-text {
+              font-size: 2.2rem; /* Ajustado para caber no espaço */
+              font-weight: 900;
+              letter-spacing: -2px;
+            }
+
+            /* Seção de Informações (Direita) */
+            .info-section {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              height: 100%;
+              padding-top: 2px;
+              padding-bottom: 2px;
+            }
+            .desc {
+              font-size: 10px;
+              font-weight: bold;
+              text-transform: uppercase;
+              display: -webkit-box;
+              -webkit-line-clamp: 3;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              line-height: 1.2;
+            }
+            .meta p {
+              font-size: 9px;
+              margin: 0;
+              color: #374151;
+              line-height: 1.2;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="grid-container">
+            ${labelsHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    // 4. Acionar impressão com FOCO explícito
+    setTimeout(() => {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus(); 
+        iframe.contentWindow.print();
+      }
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+           document.body.removeChild(iframe);
+        }
+      }, 2000);
+    }, 500);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -255,13 +390,6 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                     </td>
                   </tr>
                 ))}
-                {paginatedData.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                      Nenhum item encontrado.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -269,32 +397,33 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
           {/* Pagination */}
           <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700">
             <span className="text-sm text-gray-700 dark:text-gray-400">
-              Mostrando <span className="font-semibold text-gray-900 dark:text-white">{(currentPage - 1) * itemsPerPage + 1}</span> a <span className="font-semibold text-gray-900 dark:text-white">{Math.min(currentPage * itemsPerPage, filteredData.length)}</span> de <span className="font-semibold text-gray-900 dark:text-white">{filteredData.length}</span>
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
             </span>
-            <div className="inline-flex mt-2 xs:mt-0">
+            <div className="inline-flex gap-2">
               <button 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="flex items-center justify-center px-3 h-8 text-sm font-medium text-white bg-primary rounded-l hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
               <button 
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="flex items-center justify-center px-3 h-8 text-sm font-medium text-white bg-primary border-l border-blue-700 rounded-r hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* --- PRINT PREVIEW OVERLAY --- */}
+      {/* --- PREVIEW OVERLAY (Tela Branca para Conferência) --- */}
       {showPrintPreview && (
-        <div className="print-overlay bg-white">
-          <div className="no-print fixed top-0 left-0 right-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-[10000]">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto">
+          {/* Header de Controle */}
+          <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50">
              <div className="flex items-center">
                <Printer className="mr-2" />
                <span className="font-bold">Pré-visualização de Impressão</span>
@@ -305,11 +434,11 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded flex items-center"
                >
                  <X className="w-4 h-4 mr-2" />
-                 Cancelar
+                 Voltar
                </button>
                <button 
-                 onClick={() => window.print()}
-                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center"
+                 onClick={handlePrint}
+                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center animate-pulse"
                >
                  <Check className="w-4 h-4 mr-2" />
                  Confirmar Impressão
@@ -317,23 +446,17 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
              </div>
           </div>
 
-          {/* Espaçamento para a barra superior não cobrir o conteúdo na visualização em tela (na impressão a barra some) */}
-          <div className="no-print h-20"></div>
-
-          <div className="p-8 max-w-[210mm] mx-auto">
-               {/* Grid configurado para folha A4 */}
+          {/* Visualização das Etiquetas (Apenas para o usuário ver o que vai ser impresso) */}
+          <div className="p-8 max-w-[210mm] mx-auto bg-gray-100 my-8 shadow-lg min-h-screen">
+               <p className="text-center text-gray-500 mb-4">Layout A4 - Exemplo Visual</p>
                <div className="grid grid-cols-3 gap-x-4 gap-y-6">
                 {selectedItemsList.map((item) => (
-                  <div key={item.id} className="avoid-break border-2 border-gray-800 p-2 rounded flex flex-row items-center gap-2 bg-white h-[38mm] overflow-hidden relative">
-                     
-                     {/* CÓDIGO GIGANTE */}
+                  <div key={item.id} className="border-2 border-gray-800 p-2 rounded flex flex-row items-center gap-2 bg-white h-[38mm] overflow-hidden relative">
                      <div className="flex items-center justify-center w-[35%] border-r-2 border-gray-300 h-full bg-gray-50">
                        <span className="text-5xl font-black text-black tracking-tighter leading-none">
                          {item.codigo}
                        </span>
                      </div>
-  
-                     {/* INFORMAÇÕES */}
                      <div className="flex flex-col flex-1 justify-between h-full py-1">
                         <div>
                            <p className="text-[11px] font-bold text-black leading-tight line-clamp-3 uppercase">
@@ -350,25 +473,16 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                              )}
                            </div>
                         </div>
-                        
-                        <div className="absolute bottom-1 right-1 opacity-80">
-                           <QRCodeSVG 
-                              value={`ID:${item.codigo}|LOC:${item.localizacao}`} 
-                              size={42} 
-                              level={"L"}
-                           />
+                        <div className="absolute bottom-1 right-1 opacity-50">
+                           <QRCodeSVG value={item.codigo} size={32} />
                         </div>
                      </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-8 text-center text-xs text-gray-400">
-                Impresso em {new Date().toLocaleString()} - Almoxarifado Pro
-              </div>
             </div>
         </div>
       )}
-
     </div>
   );
 };

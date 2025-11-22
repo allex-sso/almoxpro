@@ -7,6 +7,7 @@ export interface InventoryItem {
   localizacao: string;
   quantidadeAtual: number;
   quantidadeMinima: number;
+  unidade: string; // Nova coluna para Unidade de Medida
   entradas: number;
   saidas: number;
   categoria: string;
@@ -23,6 +24,7 @@ export interface Movement {
   quantidade: number;
   tipo: 'entrada' | 'saida';
   fornecedor?: string; // Apenas para entradas
+  valorUnitario?: number; // Novo campo para capturar preço da aba de Entradas
   obs?: string;
 }
 

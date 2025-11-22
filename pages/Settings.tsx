@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, Database, CheckCircle, AlertCircle } from 'lucide-react';
 import { AppSettings } from '../types';
 
@@ -10,6 +10,11 @@ interface SettingsProps {
 const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) => {
   const [localSettings, setLocalSettings] = useState(settings);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Sincroniza estado local se as props mudarem externamente
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
   const handleChange = (key: keyof AppSettings, value: any) => {
     setLocalSettings(prev => ({ ...prev, [key]: value }));
