@@ -1,8 +1,11 @@
 {
   "name": "almoxarifado-pro",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.3",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -39,7 +39,7 @@ const formatUnit = (raw: string): string => {
   
   if (val.startsWith('unid') || val === 'und' || val === 'un') return 'uni';
   if (val.startsWith('metr') || val === 'm' || val === 'mts') return 'mt';
-  if (val.startsWith('pec') || val.startsWith('pc')) return 'pç';
+  if (val.startsWith('pec') || val.startsWith('pc') || val === 'pç') return 'pç';
   if (val.startsWith('caix') || val === 'cx') return 'cx';
   if (val.startsWith('kilo') || val === 'kg') return 'kg';
   if (val.startsWith('litr') || val === 'l' || val === 'lt') return 'lt';
@@ -109,6 +109,7 @@ const parseDate = (value: string): Date | null => {
   if (value.includes('/')) {
     const parts = value.split('/');
     if (parts.length === 3) {
+      // Mês em JS começa em 0
       return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
     }
   }
@@ -120,35 +121,55 @@ const parseDate = (value: string): Date | null => {
 // --- FETCH PRINCIPAL ---
 
 const fetchCSV = async (url: string): Promise<string[][]> => {
-  if (!url || url.length < 10) return [];
+  // LIMPEZA AGRESSIVA DA URL: Remove espaços, quebras de linha e caracteres invisíveis
+  let targetUrl = url ? url.replace(/[\n\r\s]+/g, '').trim() : '';
   
-  const timestamp = new Date().getTime();
-  let finalUrl = url.startsWith('http') 
-    ? url 
-    : `https://docs.google.com/spreadsheets/d/${url}/export?format=csv`;
+  if (!targetUrl || targetUrl.length < 5) return [];
   
-  if (finalUrl.includes('?')) {
-    finalUrl += `&t=${timestamp}`;
-  } else {
-    finalUrl += `?t=${timestamp}`;
+  // Se for apenas o ID, constrói a URL
+  if (!targetUrl.startsWith('http')) {
+    targetUrl = `https://docs.google.com/spreadsheets/d/${targetUrl}/export?format=csv`;
   }
+  
+  // Cache busting para evitar dados antigos
+  const timestamp = Date.now();
+  const separator = targetUrl.includes('?') ? '&' : '?';
+  const finalUrl = `${targetUrl}${separator}t=${timestamp}`;
 
   try {
-    const response = await fetch(finalUrl);
-    if (!response.ok) return [];
+    const response = await fetch(finalUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/csv,text/plain;q=0.9,*/*;q=0.8',
+      },
+      cache: 'no-store'
+    });
+    
+    if (!response.ok) {
+      console.warn(`Falha ao buscar CSV [${response.status}]: ${targetUrl}`);
+      return [];
+    }
+    
     const text = await response.text();
+    
+    // Verifica se o Google retornou uma página de Login (HTML) em vez de CSV
+    if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('<html')) {
+      console.error("Erro: O link retornou HTML em vez de CSV. Verifique as permissões de compartilhamento (Publicar na Web).");
+      return [];
+    }
     
     const delimiter = detectDelimiter(text);
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
     
     return lines.map(line => parseCSVLine(line, delimiter));
   } catch (error) {
-    console.error("Erro ao buscar CSV:", url, error);
+    console.error("Erro de rede ao buscar CSV:", error);
     return [];
   }
 };
 
 const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, headers: string[] } => {
+  // Analisa até 20 linhas procurando o cabeçalho
   for (let i = 0; i < Math.min(rows.length, 20); i++) { 
     const rowNormalized = rows[i].map(c => normalizeStr(c));
     // Verifica se TODOS os keywords estão presentes na linha
@@ -172,14 +193,15 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
 
-  // Header Hunting
+  // Header Hunting Reforçado
   let headerIdx = -1;
   let headers: string[] = [];
 
+  // Procura linha que tenha CODIGO e DATA simultaneamente
   const checkRow = (row: string[]) => {
       const normalized = row.map(c => normalizeStr(c));
       const hasCode = normalized.some(h => h.includes('cod') || h.includes('item') || h.includes('produto'));
-      const hasData = normalized.some(h => h.includes('data') || h.includes('dia'));
+      const hasData = normalized.some(h => h.includes('data') || h.includes('dia') || h.includes('moviment') || h.includes('emissao'));
       return { match: hasCode && hasData, headers: normalized };
   };
 
@@ -194,6 +216,7 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
 
   if (headerIdx === -1) return [];
 
+  // Helpers de busca de coluna
   const findCol = (terms: string[], avoidTerms: string[] = []) => {
       return headers.findIndex(h => {
           const normalizedH = normalizeStr(h);
@@ -203,7 +226,7 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
       });
   };
 
-  const idxData = findCol(['data', 'dia', 'registro']);
+  const idxData = findCol(['data', 'dia', 'registro', 'emissao']);
   const idxCodigo = findCol(['cód', 'cod', 'item']);
   
   const qtdTerms = type === 'entrada' 
@@ -269,7 +292,7 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const idxEquip = findCol(['equip', 'máquina']);
   const idxLoc = findCol(['local', 'prateleira']);
   const idxForn = findCol(['fornecedor']); 
-  const idxUnd = findCol(['medida', 'unidade', 'und', 'u.m.']); // Nova coluna Medida
+  const idxUnd = findCol(['medida', 'unidade', 'und', 'u.m.']);
   
   // Procura explicitamente por "Estoque" ou "Saldo"
   let idxQtd = findCol(['quantidade em estoque', 'estoque atual', 'saldo atual']);
@@ -302,10 +325,10 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
       quantidadeAtual: qtd,
       quantidadeMinima: idxMin !== -1 ? parseNumber(row[idxMin]) : 0,
       unidade: unidadeFormatada,
-      entradas: 0, // Será calculado no App.tsx via histórico
-      saidas: 0,   // Será calculado no App.tsx via histórico
+      entradas: 0, // Será calculado no App.tsx
+      saidas: 0,   // Será calculado no App.tsx
       categoria: idxCat !== -1 ? (row[idxCat] || 'Geral') : 'Geral',
-      valorUnitario: 0, // Será preenchido via cruzamento com Entradas
+      valorUnitario: 0,
       valorTotal: 0,
       dataAtualizacao: new Date().toISOString()
     };
