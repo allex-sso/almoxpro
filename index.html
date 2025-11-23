@@ -45,6 +45,51 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
       }
+
+      /* --- CSS CRÍTICO DE IMPRESSÃO --- */
+      @media print {
+        /* Reseta restrições de altura e rolagem que SPAs usam */
+        html, body, #root {
+          height: auto !important;
+          width: 100% !important;
+          overflow: visible !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+
+        /* Esconde a interface do aplicativo explicitamente */
+        aside, header, nav, .no-print {
+          display: none !important;
+        }
+
+        /* Esconde tudo por padrão para garantir limpeza */
+        body * {
+          visibility: hidden;
+        }
+
+        /* Mostra apenas a área de impressão e seus filhos */
+        .printable-area, .printable-area * {
+          visibility: visible !important;
+        }
+
+        /* Posiciona a área de impressão no topo absoluto do papel */
+        .printable-area {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+
+        /* Ajustes de página */
+        @page {
+          margin: 5mm;
+          size: auto;
+        }
+      }
     </style>
 <script type="importmap">
 {
@@ -53,7 +98,7 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.0",
     "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.4",
     "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"

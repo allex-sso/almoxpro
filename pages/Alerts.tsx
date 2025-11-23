@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { AlertTriangle, Archive, TrendingDown, Printer, ChevronLeft, ChevronRight, Edit3, X, Check } from 'lucide-react';
+
+import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Archive, TrendingDown, Printer, ChevronLeft, ChevronRight, Edit3, X, Check, Save } from 'lucide-react';
 import { InventoryItem } from '../types';
 
 interface AlertsProps {
@@ -8,10 +9,20 @@ interface AlertsProps {
 
 const Alerts: React.FC<AlertsProps> = ({ data }) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [orderNotes, setOrderNotes] = useState<Record<string, string>>({});
+  // Inicializa notas buscando do LocalStorage ou vazio
+  const [orderNotes, setOrderNotes] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('almox_order_notes');
+    return saved ? JSON.parse(saved) : {};
+  });
+  
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const itemsPerPage = 10;
+
+  // Efeito para salvar automaticamente sempre que as notas mudarem
+  useEffect(() => {
+    localStorage.setItem('almox_order_notes', JSON.stringify(orderNotes));
+  }, [orderNotes]);
 
   const lowStockItems = data.filter(item => {
     if (!item.quantidadeMinima || item.quantidadeMinima <= 0) return false;
@@ -28,109 +39,12 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
     setOrderNotes(prev => ({ ...prev, [id]: value }));
   };
 
-  // --- NOVA LÓGICA DE IMPRESSÃO VIA IFRAME (CORRIGIDA) ---
+  // --- IMPRESSÃO NATIVA ---
   const handlePrint = () => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
-    const rowsHTML = lowStockItems.map(item => {
-        const note = orderNotes[item.id] || '';
-        const diff = item.quantidadeMinima - item.quantidadeAtual;
-        return `
-        <tr>
-            <td class="mono bold">${item.codigo}</td>
-            <td>${item.descricao}</td>
-            <td>${item.fornecedor || ''}</td>
-            <td class="center bold red">${item.quantidadeAtual}</td>
-            <td class="center">${item.quantidadeMinima}</td>
-            <td class="center bold bg-gray">${Math.max(0, diff)}</td>
-            <td>${note}</td>
-        </tr>
-        `;
-    }).join('');
-
-    const dateStr = new Date().toLocaleDateString('pt-BR');
-
-    doc.open();
-    doc.write(`
-      <html>
-        <head>
-          <title>Requisição de Compras</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            body { font-family: sans-serif; padding: 40px; -webkit-print-color-adjust: exact; }
-            h1 { font-size: 24px; font-weight: bold; text-transform: uppercase; }
-            .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th { background-color: #e5e7eb; border: 1px solid #9ca3af; padding: 8px; text-align: left; }
-            td { border: 1px solid #9ca3af; padding: 6px; }
-            .mono { font-family: monospace; font-size: 14px; }
-            .bold { font-weight: bold; }
-            .center { text-align: center; }
-            .red { color: #b91c1c; }
-            .bg-gray { background-color: #f3f4f6; }
-            .signatures { margin-top: 80px; display: flex; justify-content: space-between; padding: 0 50px; }
-            .sig-line { border-top: 1px solid #000; width: 250px; text-align: center; padding-top: 5px; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-           <div class="header">
-              <div>
-                 <h1>Requisição de Compras</h1>
-                 <p style="color: #666; font-size: 12px;">Relatório automático de reposição</p>
-              </div>
-              <div style="text-align: right; font-size: 12px;">
-                 <p>Data: ${dateStr}</p>
-                 <p><strong>Almoxarifado Central</strong></p>
-              </div>
-           </div>
-
-           <table>
-              <thead>
-                 <tr>
-                    <th style="width: 60px;">Cód.</th>
-                    <th>Descrição</th>
-                    <th style="width: 150px;">Fornecedor</th>
-                    <th style="width: 60px; text-align: center;">Atual</th>
-                    <th style="width: 60px; text-align: center;">Mín</th>
-                    <th style="width: 60px; text-align: center;">Repor</th>
-                    <th>Observação / Pedido</th>
-                 </tr>
-              </thead>
-              <tbody>
-                ${rowsHTML}
-              </tbody>
-           </table>
-
-           <div class="signatures">
-              <div class="sig-line">Solicitante</div>
-              <div class="sig-line">Gerência / Aprovação</div>
-           </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
+     // Pequeno delay para garantir que o navegador renderize o overlay antes de imprimir
     setTimeout(() => {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.focus(); // FOCO é fundamental para impressão programática funcionar
-        iframe.contentWindow.print();
-      }
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-           document.body.removeChild(iframe);
-        }
-      }, 2000);
-    }, 500);
+      window.print();
+    }, 100);
   };
 
   return (
@@ -151,14 +65,19 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                     </p>
                 </div>
             </div>
-            <button 
-              onClick={() => setShowPrintPreview(true)}
-              disabled={lowStockItems.length === 0}
-              className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Printer className="w-4 h-4 mr-2" />
-              Imprimir Requisição
-            </button>
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-red-400 italic hidden md:block mr-2">
+                    * As observações são salvas automaticamente
+                </span>
+                <button 
+                onClick={() => setShowPrintPreview(true)}
+                disabled={lowStockItems.length === 0}
+                className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimir Requisição
+                </button>
+            </div>
           </div>
           
           <div className="bg-white dark:bg-dark-card rounded-lg overflow-hidden shadow-sm border border-red-100 dark:border-red-900/50">
@@ -188,12 +107,12 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                                   <td className="px-6 py-4 text-right text-gray-500 dark:text-gray-400">{item.quantidadeMinima}</td>
                                   <td className="px-6 py-4 text-right font-bold text-red-600 dark:text-red-400">{item.quantidadeAtual}</td>
                                   <td className="px-6 py-4">
-                                    <div className="relative">
-                                      <Edit3 className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                    <div className="relative group">
+                                      <Edit3 className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400 group-hover:text-red-500 transition-colors" />
                                       <input 
                                         type="text" 
-                                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded bg-white dark:bg-slate-700 dark:border-gray-600 dark:text-white focus:ring-1 focus:ring-red-500 outline-none"
-                                        placeholder="Observação..."
+                                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded bg-white dark:bg-slate-700 dark:border-gray-600 dark:text-white focus:ring-1 focus:ring-red-500 outline-none transition-all"
+                                        placeholder="Digite para salvar..."
                                         value={orderNotes[item.id] || ''}
                                         onChange={(e) => handleNoteChange(item.id, e.target.value)}
                                       />
@@ -242,11 +161,10 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   <Archive className="w-5 h-5 mr-2" />
                   <h3 className="font-semibold">Possível Excesso de Estoque</h3>
                </div>
-               {/* SUBSTITUIÇÃO DE SIMBOLOS POR TEXTO PARA CORRIGIR ERRO DE BUILD */}
                <p className="text-xs text-gray-500 mb-4">Muitos itens (acima de 50) e baixa saída (abaixo de 2)</p>
-               <ul className="space-y-2 max-h-60 overflow-y-auto">
+               <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-thin">
                   {overStockItems.slice(0, 10).map(item => (
-                      <li key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 dark:bg-slate-800 rounded">
+                      <li key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 dark:bg-slate-800 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
                           <span className="dark:text-white truncate mr-2">{item.descricao}</span>
                           <span className="font-mono text-orange-600">{item.quantidadeAtual} {item.unidade || 'un.'}</span>
                       </li>
@@ -261,9 +179,9 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   <h3 className="font-semibold">Itens Sem Movimentação</h3>
                </div>
                <p className="text-xs text-gray-500 mb-4">Sem entradas ou saídas recentes</p>
-               <ul className="space-y-2 max-h-60 overflow-y-auto">
+               <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-thin">
                   {dormantItems.slice(0, 10).map(item => (
-                      <li key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 dark:bg-slate-800 rounded">
+                      <li key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 dark:bg-slate-800 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
                           <span className="dark:text-white truncate mr-2">{item.descricao}</span>
                           <span className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">Parado</span>
                       </li>
@@ -274,10 +192,10 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* --- PREVIEW OVERLAY --- */}
+      {/* --- PREVIEW OVERLAY (Com classe .printable-area) --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-50 bg-white overflow-auto">
-           <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col">
+           <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
              <div className="flex items-center">
                <Printer className="mr-2" />
                <span className="font-bold">Pré-visualização de Requisição</span>
@@ -300,9 +218,9 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
              </div>
           </div>
 
-          {/* Visualização HTML para Conferência */}
-           <div className="p-8 max-w-[210mm] mx-auto bg-gray-50 min-h-screen shadow-inner">
-             <div className="bg-white p-10 shadow-lg">
+          {/* ÁREA IMPRESSA: Adicionada a classe 'printable-area' */}
+           <div className="printable-area p-8 max-w-[210mm] mx-auto bg-white min-h-screen">
+             <div className="bg-white p-10 shadow-none">
                 <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end">
                   <div>
                     <h1 className="text-3xl font-bold uppercase tracking-wide text-black">Requisição de Compras</h1>
@@ -310,7 +228,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   </div>
                   <div className="text-right text-black">
                     <p className="text-sm">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                    <p className="text-sm font-bold">Almoxarifado Central</p>
+                    <p className="text-sm font-bold">Almoxarifado de Peças</p>
                   </div>
               </div>
 

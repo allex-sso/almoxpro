@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Save, Database, CheckCircle, AlertCircle } from 'lucide-react';
 import { AppSettings } from '../types';
 
@@ -10,11 +11,19 @@ interface SettingsProps {
 const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) => {
   const [localSettings, setLocalSettings] = useState(settings);
   const [showSuccess, setShowSuccess] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sincroniza estado local se as props mudarem externamente
   useEffect(() => {
     setLocalSettings(settings);
   }, [settings]);
+
+  // Limpeza do timer ao desmontar o componente para evitar memory leaks
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleChange = (key: keyof AppSettings, value: any) => {
     setLocalSettings(prev => ({ ...prev, [key]: value }));
@@ -23,20 +32,28 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) =
   const handleSave = () => {
     onUpdateSettings(localSettings);
     setShowSuccess(true);
+    
+    // Limpa timer anterior se houver cliques rápidos
+    if (timerRef.current) clearTimeout(timerRef.current);
+
     // Esconde a mensagem após 3 segundos
-    setTimeout(() => setShowSuccess(false), 3000);
+    timerRef.current = setTimeout(() => {
+      setShowSuccess(false);
+    }, 3000);
   };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300 relative">
       
-      {/* Success Toast */}
+      {/* Success Toast Notification */}
       {showSuccess && (
-        <div className="fixed top-20 right-6 z-50 bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-xl flex items-center animate-in slide-in-from-right-5 fade-in duration-300">
-            <CheckCircle className="w-6 h-6 mr-3" />
+        <div className="fixed top-20 right-6 z-50 bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-xl flex items-center animate-in slide-in-from-right-5 fade-in duration-300 border border-emerald-400">
+            <div className="bg-white/20 p-2 rounded-full mr-3">
+              <CheckCircle className="w-6 h-6 text-white" />
+            </div>
             <div>
-                <h4 className="font-bold">Sucesso!</h4>
-                <p className="text-sm text-emerald-50">Configurações salvas. Os dados serão recarregados.</p>
+                <h4 className="font-bold text-lg">Sucesso!</h4>
+                <p className="text-sm text-emerald-50 font-medium">Configurações salvas com sucesso.</p>
             </div>
         </div>
       )}
@@ -68,7 +85,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) =
             </label>
             <input 
               type="text"
-              value={localSettings.inventoryUrl}
+              value={localSettings.inventoryUrl || ''}
               onChange={(e) => handleChange('inventoryUrl', e.target.value)}
               className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 outline-none text-sm transition-shadow"
               placeholder="https://docs.google.com...output=csv"
@@ -85,7 +102,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) =
             </div>
             <input 
               type="text"
-              value={localSettings.inUrl}
+              value={localSettings.inUrl || ''}
               onChange={(e) => handleChange('inUrl', e.target.value)}
               className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 outline-none text-sm transition-shadow"
               placeholder="https://docs.google.com...output=csv"
@@ -99,7 +116,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) =
             </label>
             <input 
               type="text"
-              value={localSettings.outUrl}
+              value={localSettings.outUrl || ''}
               onChange={(e) => handleChange('outUrl', e.target.value)}
               className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 outline-none text-sm transition-shadow"
               placeholder="https://docs.google.com...output=csv"

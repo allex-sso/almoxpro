@@ -1,13 +1,15 @@
+
 import React, { useState, useMemo } from 'react';
-import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, X, Check } from 'lucide-react';
+import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, X, Check, PackageX, Loader2 } from 'lucide-react';
 import { InventoryItem } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface InventoryProps {
   data: InventoryItem[];
+  isLoading?: boolean;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ data }) => {
+const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todos');
   const [equipmentFilter, setEquipmentFilter] = useState('Todos');
@@ -15,6 +17,10 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
   
   // Selection State
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  
+  // States de Feedback
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [isGeneratingZPL, setIsGeneratingZPL] = useState(false);
   
   // Print Preview State
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -74,8 +80,12 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
 
   const isAllSelected = filteredData.length > 0 && selectedItems.size === filteredData.length;
 
-  const handleExportCSV = () => {
-    const headers = ["Código", "Descrição", "Equipamento", "Localização", "Fornecedor", "Qtd Atual", "Categoria", "Valor Unit", "Valor Total"];
+  const handleExportCSV = async () => {
+    setIsExportingCSV(true);
+    // Simula delay para feedback visual claro (1.5s)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const headers = ["Código", "Descrição", "Equipamento", "Localização", "Fornecedor", "Quantidade em Estoque", "Medida", "Categoria", "Valor Unit", "Valor Total"];
     const csvContent = [
       headers.join(";"),
       ...filteredData.map(item => [
@@ -85,6 +95,7 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
         item.localizacao || "N/D",
         item.fornecedor || "N/D",
         item.quantidadeAtual,
+        item.unidade || "un.",
         item.categoria,
         item.valorUnitario.toFixed(2).replace('.', ','),
         item.valorTotal.toFixed(2).replace('.', ',')
@@ -99,173 +110,86 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setIsExportingCSV(false);
   };
 
-  const handleDownloadZPL = () => {
+  const handleDownloadZPL = async () => {
     if (selectedItems.size === 0) return;
-    let zplContent = "^XA\n";
+    setIsGeneratingZPL(true);
+    // Simula delay para feedback visual claro (1.5s)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Helper para remover acentos (ZPL puro pode ter problemas com UTF-8 dependendo da impressora)
+    const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    let zplContent = "";
     const selected = data.filter(item => selectedItems.has(item.id));
+    
     selected.forEach(item => {
-      zplContent += `^XA
-^FO30,30^BQN,2,6^FDQA,${item.codigo}^FS
-^FO220,40^A0N,130,130^FD${item.codigo}^FS
-^FO220,160^A0N,30,30^FD${item.descricao.substring(0, 30)}^FS
-^FO220,200^A0N,25,25^FDEquip: ${item.equipamento || 'N/D'}^FS
-^FO220,230^A0N,25,25^FDLoc: ${item.localizacao || ''}^FS
-^XZ\n`;
+      const cod = normalize(item.codigo);
+      const desc = normalize(item.descricao);
+      const equip = normalize(item.equipamento || 'N/D');
+      const loc = normalize(item.localizacao || '');
+      const date = new Date().toLocaleDateString('pt-BR');
+
+      // Layout otimizado para etiquetas 4x2 polegadas (aprox 100mm x 50mm)
+      // Densidade padrão de 203dpi (8 pontos/mm) -> Largura ~812 dots
+      zplContent += `
+^XA
+^PW812
+^LL406
+^FO10,10^GB790,386,4^FS
+^FO40,40^BQN,2,9^FDQA,${cod}^FS
+^FO310,50^A0N,110,110^FD${cod}^FS
+^FO310,150^GB460,2,2^FS
+^FO310,170^A0N,30,30^FB460,2,0,L,0^FD${desc}^FS
+^FO310,250^A0N,25,25^FDEq: ${equip}^FS
+^FO310,280^A0N,25,25^FDLoc: ${loc}^FS
+^FO310,340^A0N,20,20^FD${date}^FS
+^XZ`;
     });
+
     const blob = new Blob([zplContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "etiquetas_zpl.txt");
+    link.setAttribute("download", "etiquetas_almoxarifado_zpl.txt");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setIsGeneratingZPL(false);
   };
 
   const selectedItemsList = data.filter(item => selectedItems.has(item.id));
 
-  // --- IMPRESSÃO OTIMIZADA PARA A4 ---
+  // --- IMPRESSÃO VIA CSS NATIVO ---
   const handlePrint = () => {
-    // 1. Criar iframe invisível
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
-    // 2. Gerar HTML das etiquetas
-    const labelsHTML = selectedItemsList.map(item => `
-      <div class="label-container">
-         <div class="code-section">
-           <span class="code-text">${item.codigo}</span>
+  // --- SKELETON LOADING ---
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+         <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex gap-4">
+            <div className="h-10 flex-1 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
          </div>
-         <div class="info-section">
-            <p class="desc">${item.descricao}</p>
-            <div class="meta">
-               <p>EQ: <strong>${item.equipamento || 'N/D'}</strong></p>
-               ${item.localizacao ? `<p>LOCAL: <strong>${item.localizacao}</strong></p>` : ''}
-            </div>
+         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-4">
+            {[1,2,3,4,5,6,7,8].map(i => (
+                <div key={i} className="flex gap-4">
+                    <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    <div className="h-8 flex-1 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                </div>
+            ))}
          </div>
       </div>
-    `).join('');
-
-    // 3. Escrever documento com CSS Otimizado em MM
-    doc.open();
-    doc.write(`
-      <html>
-        <head>
-          <title>Imprimir Etiquetas</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            /* Configuração de Página A4 */
-            @page { size: A4; margin: 5mm; }
-            
-            body { 
-              margin: 0; 
-              padding: 5mm; 
-              font-family: sans-serif; 
-              -webkit-print-color-adjust: exact; 
-            }
-
-            /* Grid de 3 Colunas Otimizado */
-            .grid-container {
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              gap: 5mm; /* Espaçamento entre etiquetas */
-              width: 100%;
-            }
-
-            /* Cartão da Etiqueta */
-            .label-container {
-              border: 1px dashed #d1d5db; /* Borda pontilhada leve para guia de corte */
-              border-radius: 4px;
-              padding: 4px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              height: 36mm; /* Altura fixa otimizada para caber mais por página */
-              overflow: hidden;
-              page-break-inside: avoid;
-              background: white;
-            }
-
-            /* Seção do Código (Esquerda) */
-            .code-section {
-              width: 35%;
-              height: 100%;
-              border-right: 1px solid #e5e7eb;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background-color: #f9fafb;
-            }
-            .code-text {
-              font-size: 2.2rem; /* Ajustado para caber no espaço */
-              font-weight: 900;
-              letter-spacing: -2px;
-            }
-
-            /* Seção de Informações (Direita) */
-            .info-section {
-              flex: 1;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              height: 100%;
-              padding-top: 2px;
-              padding-bottom: 2px;
-            }
-            .desc {
-              font-size: 10px;
-              font-weight: bold;
-              text-transform: uppercase;
-              display: -webkit-box;
-              -webkit-line-clamp: 3;
-              -webkit-box-orient: vertical;
-              overflow: hidden;
-              line-height: 1.2;
-            }
-            .meta p {
-              font-size: 9px;
-              margin: 0;
-              color: #374151;
-              line-height: 1.2;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="grid-container">
-            ${labelsHTML}
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
-    // 4. Acionar impressão com FOCO explícito
-    setTimeout(() => {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.focus(); 
-        iframe.contentWindow.print();
-      }
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-           document.body.removeChild(iframe);
-        }
-      }, 2000);
-    }, 500);
-  };
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -273,17 +197,25 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
       {/* --- SCREEN VIEW --- */}
       <div className="space-y-6">
         {/* Filters Bar */}
-        <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="flex flex-1 gap-4 w-full md:w-auto flex-wrap">
+        <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center sticky top-0 z-20">
+          <div className="flex flex-1 gap-4 w-full md:w-auto flex-wrap items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input 
                 type="text"
                 placeholder="Buscar código, nome, local..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white"
+                className="w-full pl-10 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white transition-shadow"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <button 
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             
             <select 
@@ -308,15 +240,16 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
               <>
                 <button 
                   onClick={handleDownloadZPL}
-                  className="flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded-lg transition-colors"
+                  disabled={isGeneratingZPL}
+                  className="flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
                   title="Baixar arquivo para impressora térmica (Zebra/Argox)"
                 >
-                  <Tag className="w-4 h-4 mr-2" />
-                  Baixar ZPL
+                  {isGeneratingZPL ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Tag className="w-4 h-4 mr-2" />}
+                  {isGeneratingZPL ? 'Gerando...' : 'Baixar ZPL'}
                 </button>
                 <button 
                   onClick={() => setShowPrintPreview(true)}
-                  className="flex items-center px-4 py-2 bg-primary hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex items-center px-4 py-2 bg-primary hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
                 >
                   <Printer className="w-4 h-4 mr-2" />
                   Imprimir ({selectedItems.size})
@@ -325,33 +258,36 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
             )}
             <button 
               onClick={handleExportCSV}
-              className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+              disabled={isExportingCSV}
+              className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <Download className="w-4 h-4 mr-2" />
-              CSV
+              {isExportingCSV ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {isExportingCSV ? 'Exportando...' : 'CSV'}
             </button>
           </div>
         </div>
 
         {/* Table */}
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300">
+          {filteredData.length > 0 ? (
+          <div className="overflow-x-auto max-h-[70vh]">
+            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 relative">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 w-4">
                     <input 
                       type="checkbox" 
                       checked={isAllSelected}
                       onChange={toggleSelectAll}
-                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600"
+                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
                     />
                   </th>
                   <th className="px-6 py-3">Código</th>
                   <th className="px-6 py-3">Descrição</th>
                   <th className="px-6 py-3">Equipamento</th>
                   <th className="px-6 py-3">Localização</th>
-                  <th className="px-6 py-3 text-right">Qtd</th>
+                  <th className="px-6 py-3 text-right">Quantidade em Estoque</th>
+                  <th className="px-6 py-3 text-center">Medida</th>
                   <th className="px-6 py-3 text-right">Valor Unit.</th>
                   <th className="px-6 py-3 text-center">Categoria</th>
                 </tr>
@@ -364,27 +300,30 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
                         type="checkbox" 
                         checked={selectedItems.has(item.id)}
                         onChange={() => toggleSelection(item.id)}
-                        className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600"
+                        className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
                       />
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{item.codigo}</td>
-                    <td className="px-6 py-4">{item.descricao}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap font-mono">{item.codigo}</td>
+                    <td className="px-6 py-4 max-w-xs truncate" title={item.descricao}>{item.descricao}</td>
                     <td className="px-6 py-4">
                       {item.equipamento ? (
-                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                        <span className="bg-blue-100 text-blue-800 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                           {item.equipamento}
                         </span>
                       ) : (
-                        <span className="text-gray-400 italic">N/D</span>
+                        <span className="text-gray-400 italic text-xs">N/D</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 font-mono text-slate-600 dark:text-slate-300">
+                    <td className="px-6 py-4 font-mono text-slate-600 dark:text-slate-300 text-xs">
                       {item.localizacao || '-'}
                     </td>
-                    <td className="px-6 py-4 text-right font-bold">{item.quantidadeAtual}</td>
-                    <td className="px-6 py-4 text-right">R$ {item.valorUnitario.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right font-bold text-slate-800 dark:text-white">{item.quantidadeAtual}</td>
+                    <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 text-xs uppercase">
+                        {item.unidade || 'un.'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono text-xs">R$ {item.valorUnitario.toFixed(2)}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300">
+                      <span className="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
                         {item.categoria}
                       </span>
                     </td>
@@ -393,9 +332,25 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
               </tbody>
             </table>
           </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
+                <PackageX className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
+                <h3 className="text-lg font-medium mb-1">Nenhum item encontrado</h3>
+                <p className="text-sm">Tente ajustar os filtros ou a busca.</p>
+                {searchTerm && (
+                    <button 
+                        onClick={() => setSearchTerm('')}
+                        className="mt-4 text-primary hover:underline text-sm"
+                    >
+                        Limpar busca
+                    </button>
+                )}
+            </div>
+          )}
 
           {/* Pagination */}
-          <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700">
+          {filteredData.length > 0 && (
+          <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
             <span className="text-sm text-gray-700 dark:text-gray-400">
               Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
             </span>
@@ -403,27 +358,28 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
               <button 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
+                className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button 
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
+                className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
+          )}
         </div>
       </div>
 
-      {/* --- PREVIEW OVERLAY (Tela Branca para Conferência) --- */}
+      {/* --- PREVIEW OVERLAY --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-50 bg-white overflow-auto">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col">
           {/* Header de Controle */}
-          <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50">
+          <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
              <div className="flex items-center">
                <Printer className="mr-2" />
                <span className="font-bold">Pré-visualização de Impressão</span>
@@ -446,12 +402,11 @@ const Inventory: React.FC<InventoryProps> = ({ data }) => {
              </div>
           </div>
 
-          {/* Visualização das Etiquetas (Apenas para o usuário ver o que vai ser impresso) */}
-          <div className="p-8 max-w-[210mm] mx-auto bg-gray-100 my-8 shadow-lg min-h-screen">
-               <p className="text-center text-gray-500 mb-4">Layout A4 - Exemplo Visual</p>
+          {/* ÁREA IMPRESSA */}
+          <div className="printable-area p-8 max-w-[210mm] mx-auto bg-white min-h-screen">
                <div className="grid grid-cols-3 gap-x-4 gap-y-6">
                 {selectedItemsList.map((item) => (
-                  <div key={item.id} className="border-2 border-gray-800 p-2 rounded flex flex-row items-center gap-2 bg-white h-[38mm] overflow-hidden relative">
+                  <div key={item.id} className="border-2 border-gray-800 p-2 rounded flex flex-row items-center gap-2 bg-white h-[38mm] overflow-hidden relative page-break-inside-avoid">
                      <div className="flex items-center justify-center w-[35%] border-r-2 border-gray-300 h-full bg-gray-50">
                        <span className="text-5xl font-black text-black tracking-tighter leading-none">
                          {item.codigo}

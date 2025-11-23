@@ -20,14 +20,17 @@ const App: React.FC = () => {
   const [data, setData] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [isLoading, setIsLoading] = useState(false);
+  
+  // Loading States
+  const [isLoading, setIsLoading] = useState(false); // Carregamento inicial/manual (tela cheia)
+  const [isSyncing, setIsSyncing] = useState(false); // Sincronização em background (discreto)
 
   // Configuração com Persistência Robusta e Suporte a Variáveis de Ambiente
   const [settings, setSettings] = useState<AppSettings>(() => {
     // Tenta ler variáveis de ambiente (Vercel) ou usa strings vazias
-    const envInventory = import.meta.env.VITE_INVENTORY_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv';
-    const envIn = import.meta.env.VITE_IN_URL || '';
-    const envOut = import.meta.env.VITE_OUT_URL || '';
+    const envInventory = (import.meta as any).env?.VITE_INVENTORY_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv';
+    const envIn = (import.meta as any).env?.VITE_IN_URL || '';
+    const envOut = (import.meta as any).env?.VITE_OUT_URL || '';
 
     const defaultSettings: AppSettings = {
       inventoryUrl: envInventory,
@@ -75,8 +78,14 @@ const App: React.FC = () => {
   const cleanCode = (code: string) => code.trim().toLowerCase().replace(/\s/g, '');
 
   // --- DATA LOADING & MERGING ---
-  const loadData = async () => {
-    setIsLoading(true);
+  // isBackground = true significa que é uma atualização automática (não mostra loading screen)
+  const loadData = async (isBackground = false) => {
+    if (isBackground) {
+      setIsSyncing(true);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const [inventoryItems, inMoves, outMoves] = await Promise.all([
         fetchInventoryData(settings.inventoryUrl),
@@ -106,7 +115,18 @@ const App: React.FC = () => {
         // 1. Lógica de Preço: Pega o valor da última entrada que tenha preço > 0
         // Isso ignora entradas de ajuste ou sem valor cadastrado
         const validEntry = entriesDescending.find(e => e.valorUnitario && e.valorUnitario > 0);
-        const unitPrice = validEntry ? validEntry.valorUnitario : 0;
+        
+        // Fallback para preço: Se não tiver Unitário, tenta (Total / Qtd) se existir na entrada
+        let unitPrice = 0;
+        if (validEntry) {
+            unitPrice = validEntry.valorUnitario;
+        } else {
+            // Tenta achar uma entrada que tenha Total e Qtd
+            const entryWithTotal = entriesDescending.find(e => e.valorTotal && e.valorTotal > 0 && e.quantidade > 0);
+            if (entryWithTotal) {
+                unitPrice = entryWithTotal.valorTotal / entryWithTotal.quantidade;
+            }
+        }
 
         // 2. Estoque Atual: Confia na planilha principal
         const stockQty = item.quantidadeAtual;
@@ -136,12 +156,19 @@ const App: React.FC = () => {
       console.error("Erro ao carregar dados:", err);
     } finally {
       setIsLoading(false);
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, settings.refreshRate * 1000);
+    // Carregamento inicial (mostra loading screen)
+    loadData(false);
+
+    // Configura atualização automática (background, silenciosa)
+    const interval = setInterval(() => {
+      loadData(true);
+    }, settings.refreshRate * 1000);
+
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.inventoryUrl, settings.inUrl, settings.outUrl, settings.refreshRate]);
@@ -158,9 +185,9 @@ const App: React.FC = () => {
   const renderPage = () => {
     switch (currentPage) {
       case Page.DASHBOARD:
-        return <Dashboard data={data} stats={stats} movements={movements} />;
+        return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading} />;
       case Page.INVENTORY:
-        return <Inventory data={data} />;
+        return <Inventory data={data} isLoading={isLoading} />;
       case Page.CONSUMPTION:
         return <Consumption data={data} />;
       case Page.ALERTS:
@@ -168,7 +195,7 @@ const App: React.FC = () => {
       case Page.SETTINGS:
         return <SettingsPage settings={settings} onUpdateSettings={setSettings} />;
       default:
-        return <Dashboard data={data} stats={stats} movements={movements} />;
+        return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading} />;
     }
   };
 
@@ -203,14 +230,19 @@ const App: React.FC = () => {
 
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex flex-col items-end mr-2">
-               <span className="text-xs text-slate-500 dark:text-slate-400">Última atualização</span>
+               <div className="flex items-center gap-2">
+                 {isSyncing && <span className="flex w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>}
+                 <span className="text-xs text-slate-500 dark:text-slate-400">
+                   {isSyncing ? 'Sincronizando...' : 'Última atualização'}
+                 </span>
+               </div>
                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                  {lastUpdated.toLocaleTimeString()}
                </span>
             </div>
             <button 
-              onClick={loadData} 
-              className={`p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isLoading ? 'animate-spin' : ''}`}
+              onClick={() => loadData(false)} // Clique manual ainda mostra loading para feedback visual
+              className={`p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isLoading || isSyncing ? 'animate-spin' : ''}`}
               title="Forçar atualização"
             >
               <RefreshCw className="h-5 w-5" />
