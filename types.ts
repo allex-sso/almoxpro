@@ -1,3 +1,4 @@
+
 export interface InventoryItem {
   id: string;
   codigo: string;
@@ -25,6 +26,7 @@ export interface Movement {
   tipo: 'entrada' | 'saida';
   fornecedor?: string; // Apenas para entradas
   valorUnitario?: number; // Novo campo para capturar preço da aba de Entradas
+  valorTotal?: number; // Campo de backup para cálculo reverso
   obs?: string;
 }
 

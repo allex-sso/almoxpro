@@ -119,12 +119,13 @@ const App: React.FC = () => {
         // Fallback para preço: Se não tiver Unitário, tenta (Total / Qtd) se existir na entrada
         let unitPrice = 0;
         if (validEntry) {
-            unitPrice = validEntry.valorUnitario;
+            unitPrice = validEntry.valorUnitario ?? 0;
         } else {
             // Tenta achar uma entrada que tenha Total e Qtd
             const entryWithTotal = entriesDescending.find(e => e.valorTotal && e.valorTotal > 0 && e.quantidade > 0);
             if (entryWithTotal) {
-                unitPrice = entryWithTotal.valorTotal / entryWithTotal.quantidade;
+                // Casting seguro porque já verificamos a existência
+                unitPrice = (entryWithTotal.valorTotal!) / entryWithTotal.quantidade;
             }
         }
 

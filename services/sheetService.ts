@@ -1,3 +1,4 @@
+
 import { InventoryItem, Movement } from '../types';
 
 // --- UTILITÁRIOS DE PARSE ---
@@ -239,6 +240,9 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   // Lógica estrita para Valor Unitário: DEVE ter unit/preco/valor e NÃO PODE ter Total
   const idxVal = findCol(['unit', 'vl. unit', 'vlr', 'preco'], ['total', 'bruto']);
 
+  // Lógica de Backup: Valor Total
+  const idxTotal = findCol(['valor total', 'vl. total', 'total']);
+
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     let codigo = (idxCodigo !== -1 ? row[idxCodigo] : row[0])?.trim();
     if (!codigo) return null;
@@ -257,6 +261,11 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
     if (idxVal !== -1) {
         val = parseNumber(row[idxVal]);
     }
+    
+    let total = 0;
+    if (idxTotal !== -1) {
+        total = parseNumber(row[idxTotal]);
+    }
 
     return {
       id: `${type}-${i}`,
@@ -266,6 +275,7 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
       quantidade: qtd,
       fornecedor: idxForn !== -1 ? row[idxForn] : undefined,
       valorUnitario: val,
+      valorTotal: total
     };
   }).filter((m): m is Movement => m !== null);
 };

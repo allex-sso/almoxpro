@@ -22,7 +22,8 @@
     "types.ts",
     "components",
     "pages",
-    "services"
+    "services",
+    "vite-env.d.ts"
   ],
   "exclude": ["node_modules", "dist", "vite.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
