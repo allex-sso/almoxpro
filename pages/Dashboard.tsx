@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
-  PieChart, Pie, Cell, BarChart, Bar
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
+  PieChart, Pie, Cell
 } from 'recharts';
 import { DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, Filter, X } from 'lucide-react';
 import StatCard from '../components/StatCard';
@@ -12,15 +12,12 @@ interface DashboardProps {
   data: InventoryItem[];
   stats: DashboardStats;
   movements?: Movement[];
-  isLoading?: boolean; // Nova prop para controlar o estado visual
+  isLoading?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading = false }) => {
-  // Estados para o filtro "Real" (Aplicado)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
-  // Estados temporários para inputs (enquanto digita/escolhe)
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
 
@@ -36,7 +33,6 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     setEndDate('');
   };
 
-  // Verifica se temos dados financeiros (se algum item tem preço > 0)
   const hasFinancialData = useMemo(() => {
     return data.some(i => i.valorUnitario > 0);
   }, [data]);
@@ -78,6 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       return true;
     });
 
+    // Mapa de preço unitário ATUAL dos itens para usar nas SAÍDAS
     const priceMap = new Map<string, number>();
     data.forEach(i => {
       priceMap.set(i.codigo, i.valorUnitario || 0);
@@ -89,29 +86,36 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     const grouped: Record<string, { date: string, entrada: number, saida: number }> = {};
 
     filteredMovements.forEach(m => {
-      if (m.tipo === 'entrada') countIn += 1;
+      if (m.tipo === 'entrada') countIn += 1; 
       if (m.tipo === 'saida') countOut += 1;
 
-      let unitVal = 0;
-      if (hasFinancialData) {
-          if (m.tipo === 'entrada') {
-              const mvVal = m.valorUnitario;
-              unitVal = (mvVal && mvVal > 0) ? mvVal : (priceMap.get(m.codigo) || 0);
-          } else {
-              unitVal = priceMap.get(m.codigo) || 0;
-          }
-      } else {
-          unitVal = 1; 
+      const qty = Number(m.quantidade) || 0;
+      let flowValue = 0;
+      
+      const dateKey = m.data.toLocaleDateString('pt-BR');
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = { date: dateKey, entrada: 0, saida: 0 };
       }
 
-      const qty = Number(m.quantidade) || 0;
-      const totalValue = unitVal * qty;
+      if (m.tipo === 'entrada') {
+          // Entradas: Soma o Valor Total (mais preciso financeiramente)
+          // Se Valor Total não existir, usa unitário * qtd como fallback
+          if (m.valorTotal && m.valorTotal > 0) {
+            flowValue = m.valorTotal;
+          } else {
+             const unitPrice = m.valorUnitario || 0;
+             flowValue = qty * unitPrice;
+          }
+          grouped[dateKey].entrada += flowValue;
 
-      const dateKey = m.data.toLocaleDateString('pt-BR');
-      if (!grouped[dateKey]) grouped[dateKey] = { date: dateKey, entrada: 0, saida: 0 };
-      
-      if (m.tipo === 'entrada') grouped[dateKey].entrada += totalValue;
-      if (m.tipo === 'saida') grouped[dateKey].saida += totalValue;
+      } else {
+          // Saídas: Quantidade * Preço Unitário do Item (recuperado do cadastro)
+          // Esse preço unitário já foi corrigido no App.tsx (seja direto ou calculado)
+          const currentUnitDetails = priceMap.get(m.codigo) || 0;
+          flowValue = qty * currentUnitDetails;
+          grouped[dateKey].saida += flowValue;
+      }
     });
 
     const sortedFlow = Object.values(grouped).sort((a, b) => {
@@ -122,7 +126,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
     });
 
-    const stockTotalFinancial = data.reduce((acc, i) => acc + i.valorTotal, 0);
+    const stockTotalFinancial = data.reduce((acc, i) => acc + (i.valorTotal || 0), 0);
     const criticalCount = healthData.find(d => d.name.includes('Crítico'))?.value || 0;
 
     return {
@@ -135,15 +139,14 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
         }
     };
 
-  }, [movements, data, startDate, endDate, hasFinancialData, healthData]);
+  }, [movements, data, startDate, endDate, healthData]);
 
-  // --- ABC ANALYSIS ---
   const abcData = useMemo(() => {
     const sorted = hasFinancialData 
-        ? [...data].sort((a, b) => b.valorTotal - a.valorTotal)
+        ? [...data].sort((a, b) => (b.valorTotal || 0) - (a.valorTotal || 0))
         : [...data].sort((a, b) => (b.entradas + b.saidas) - (a.entradas + a.saidas));
     
-    const totalMetric = sorted.reduce((acc, i) => acc + (hasFinancialData ? i.valorTotal : (i.entradas + i.saidas)), 0);
+    const totalMetric = sorted.reduce((acc, i) => acc + (hasFinancialData ? (i.valorTotal || 0) : (i.entradas + i.saidas)), 0);
     
     let accum = 0;
     let countA = 0, valA = 0;
@@ -151,7 +154,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     let countC = 0, valC = 0;
 
     sorted.forEach(item => {
-      const metric = hasFinancialData ? item.valorTotal : (item.entradas + item.saidas);
+      const metric = hasFinancialData ? (item.valorTotal || 0) : (item.entradas + item.saidas);
       accum += metric;
       const percentage = totalMetric > 0 ? accum / totalMetric : 0;
       
@@ -172,7 +175,6 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(val)
       : val.toLocaleString('pt-BR');
 
-  // --- SKELETON LOADING COMPONENT ---
   if (isLoading) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
@@ -183,17 +185,14 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
           </div>
           <div className="h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-32 bg-gray-200 dark:bg-gray-700 rounded-2xl animate-pulse"></div>
           ))}
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 h-80 bg-gray-200 dark:bg-gray-700 rounded-2xl animate-pulse"></div>
           <div className="h-80 bg-gray-200 dark:bg-gray-700 rounded-2xl animate-pulse"></div>
-          <div className="lg:col-span-3 h-64 bg-gray-200 dark:bg-gray-700 rounded-2xl animate-pulse"></div>
         </div>
       </div>
     );
@@ -205,11 +204,10 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Painel Executivo</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {hasFinancialData ? 'Análise financeira e operacional.' : 'Análise operacional e volumétrica (Sem valores cadastrados).'}
+            {hasFinancialData ? 'Análise financeira e operacional.' : 'Análise operacional (Sem valores cadastrados).'}
           </p>
         </div>
         
-        {/* Painel de Filtros de Data */}
         <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3">
            <div className="flex items-center gap-2 px-2">
               <Calendar className="w-4 h-4 text-slate-400" />
@@ -261,15 +259,15 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
             color="blue" 
         />
         <StatCard 
-            title="Itens com Entrada" 
-            value={formatMetric(totals.in, false)} 
+            title="Entradas (Itens)" 
+            value={totals.in.toLocaleString()} 
             icon={TrendingUp} 
             color="green" 
             trendUp={true}
         />
         <StatCard 
-            title="Itens com Saída" 
-            value={formatMetric(totals.out, false)} 
+            title="Saídas (Itens)" 
+            value={totals.out.toLocaleString()} 
             icon={TrendingDown} 
             color="purple" 
             trendUp={false}
@@ -288,34 +286,24 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
            <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center">
                  <Activity className="w-5 h-5 mr-2 text-primary" />
-                 {hasFinancialData ? 'Fluxo Financeiro (R$)' : 'Fluxo de Movimentação (Qtd)'}
+                 Fluxo Financeiro (R$)
               </h3>
            </div>
            <div className="h-80">
              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={flowData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                   <defs>
-                     <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
-                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                       <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                     </linearGradient>
-                     <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
-                       <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
-                       <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                     </linearGradient>
-                   </defs>
+                <BarChart data={flowData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-gray-700" />
                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => val >= 1000 ? `${val/1000}k` : `${val}`} />
                    <Tooltip 
                       contentStyle={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                       itemStyle={{ color: '#fff' }}
-                      formatter={(value: number) => formatMetric(value, hasFinancialData)}
+                      formatter={(value: number) => formatMetric(value, true)}
                    />
                    <Legend />
-                   <Area type="monotone" dataKey="entrada" name="Entradas" stroke="#10b981" fillOpacity={1} fill="url(#colorIn)" strokeWidth={2} />
-                   <Area type="monotone" dataKey="saida" name="Saídas" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorOut)" strokeWidth={2} />
-                </AreaChart>
+                   <Bar dataKey="entrada" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} />
+                   <Bar dataKey="saida" name="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
              </ResponsiveContainer>
            </div>
         </div>
@@ -338,26 +326,6 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
              <span className="text-3xl font-bold text-slate-800 dark:text-white">{data.length}</span>
              <p className="text-xs text-slate-500">Itens Totais</p>
           </div>
-        </div>
-
-        <div className="lg:col-span-3 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Curva ABC ({hasFinancialData ? 'Valor' : 'Movimentação'})</h3>
-           <p className="text-sm text-slate-500 mb-6">
-             {hasFinancialData ? 'Classificação por valor investido.' : 'Classificação por volume de movimentação (Peças).'}
-           </p>
-           <div className="h-64">
-             <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={abcData} margin={{ left: 20, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                  <XAxis type="number" stroke="#94a3b8" fontSize={12} tickFormatter={(val) => val >= 1000 ? `${val/1000}k` : `${val}`} />
-                  <YAxis dataKey="name" type="category" width={140} stroke="#94a3b8" fontSize={12} />
-                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} itemStyle={{ color: '#fff' }} formatter={(value: number) => formatMetric(value, hasFinancialData)} />
-                  <Bar dataKey="valor" name="Volume" radius={[0, 4, 4, 0]} barSize={30}>
-                    {abcData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                  </Bar>
-                </BarChart>
-             </ResponsiveContainer>
-           </div>
         </div>
       </div>
     </div>
