@@ -1,4 +1,4 @@
 
 // Arquivo mantido vazio para evitar erros de build e conflitos
-// Hash refresh: 66 - Print Style Fix
+// Hash refresh: 67 - Remove Print Margins
 export {};

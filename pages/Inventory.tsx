@@ -124,10 +124,10 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
     const selected = data.filter(item => selectedItems.has(item.id));
     
     // ZPL CONFIGURADO PARA ETIQUETAS QUADRADAS 50mm x 50mm (Aprox 400x400 dots)
-    // LAYOUT VERTICAL: CÓDIGO GRANDE NO TOPO, QR PEQUENO NO MEIO, DESCRIÇÃO GRANDE EMBAIXO
+    // LAYOUT VERTICAL: CÓDIGO GRANDE NO TOPO, QR PEQUENO NO MEIO, DESCRIÇÃO EMBAIXO
     selected.forEach(item => {
       const cod = normalize(item.codigo);
-      const desc = normalize(item.descricao).substring(0, 40); // Mais caracteres permitidos
+      const desc = normalize(item.descricao).substring(0, 40);
       const equip = normalize(item.equipamento).substring(0, 25);
 
       zplContent += `
@@ -136,12 +136,12 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
 ^LL400
 ^FO10,10^GB380,380,2^FS
 
-^FO0,20^A0N,100,90^FB400,1,0,C,0^FD${cod}^FS
+^FO0,20^A0N,110,100^FB400,1,0,C,0^FD${cod}^FS
 
-^FO160,120^BQN,2,4^FDQA,${cod}^FS
+^FO140,130^BQN,2,4^FDQA,${cod}^FS
 
-^FO10,260^A0N,40,40^FB380,2,0,C,0^FD${desc}^FS
-^FO10,350^A0N,30,30^FB380,1,0,C,0^FD${equip}^FS
+^FO10,270^A0N,40,40^FB380,2,0,C,0^FD${desc}^FS
+^FO10,360^A0N,30,30^FB380,1,0,C,0^FD${equip}^FS
 ^XZ`;
     });
 
@@ -378,7 +378,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
           <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
              <div className="flex items-center">
                <Printer className="mr-2" />
-               <span className="font-bold">Pré-visualização: Impressão Térmica (Rolo)</span>
+               <span className="font-bold">Pré-visualização: Impressão Térmica (Rolo 50x50mm)</span>
              </div>
              <div className="flex gap-3">
                <button 
@@ -399,7 +399,8 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
           </div>
 
           {/* ÁREA IMPRESSA - ETIQUETAS EM ROLO (QUADRADA 50x50mm) */}
-          <div className="printable-area bg-gray-200 min-h-screen p-8 flex flex-col items-center gap-8">
+          {/* Removido p-8 e gap-8 para permitir fluxo contínuo. Alinhamento centralizado. */}
+          <div className="printable-area bg-gray-200 min-h-screen flex flex-col items-center">
                {selectedItemsList.map((item) => (
                   // ETIQUETA INDIVIDUAL (50mm x 50mm)
                   // Medida fixa em pixels para tela: 189px aprox
@@ -407,7 +408,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
                   // Uso de flex-shrink-0 para evitar esmagamento pelo flexbox do container
                   <div 
                     key={item.id} 
-                    className="bg-white border-2 border-gray-800 flex flex-col items-center justify-between py-2 px-1 break-after-page page-break-after-always overflow-hidden flex-shrink-0 box-border"
+                    className="bg-white border border-gray-300 flex flex-col items-center justify-between py-2 px-1 break-after-page page-break-after-always overflow-hidden flex-shrink-0 box-border"
                     style={{ width: '189px', height: '189px', minWidth: '189px', minHeight: '189px' }}
                   >
                      
@@ -419,12 +420,12 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
                      </div>
                      
                      {/* MEIO: QR CODE (REDUZIDO PARA 42px) */}
-                     <div className="flex-1 flex items-center justify-center py-2">
+                     <div className="flex-1 flex items-center justify-center py-1">
                        <QRCodeSVG value={item.codigo} size={42} />
                      </div>
                      
                      {/* BASE: DESCRIÇÃO (AUMENTADA e NEGRITO) */}
-                     <div className="w-full text-center pb-2 px-1">
+                     <div className="w-full text-center pb-1 px-1">
                         <p className="text-xs font-bold text-black uppercase leading-tight line-clamp-2">
                           {item.descricao}
                         </p>
