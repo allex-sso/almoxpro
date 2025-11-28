@@ -238,7 +238,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
 
       {/* --- PREVIEW OVERLAY (Com classe .printable-area) --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col print-mode-wrapper">
            <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
              <div className="flex items-center">
                <Printer className="mr-2" />
@@ -254,7 +254,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                </button>
                <button 
                  onClick={handlePrint}
-                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center animate-pulse"
+                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold flex items-center"
                >
                  <Check className="w-4 h-4 mr-2" />
                  Confirmar Impressão

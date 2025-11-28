@@ -73,16 +73,35 @@
         .printable-area, .printable-area * {
           visibility: visible !important;
         }
+        
+        /* CLASSE MÁGICA: Destrava overlays fixos para permitir impressão de múltiplas páginas */
+        .print-mode-wrapper {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+          z-index: 9999 !important;
+          background: white !important;
+          visibility: visible !important;
+        }
+        .print-mode-wrapper * {
+          visibility: visible !important;
+        }
 
         /* Posiciona a área de impressão no topo absoluto do papel */
         .printable-area {
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
           width: 100% !important;
           margin: 0 !important;
           padding: 0 !important;
           background: white !important;
+        }
+        
+        /* Quebra de página para etiquetas */
+        .break-after-page {
+          page-break-after: always;
+          break-after: page;
         }
 
         /* Ajustes de página */
