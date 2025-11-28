@@ -20,6 +20,8 @@ const App: React.FC = () => {
   const [movements, setMovements] = useState<Movement[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
+  // isLoading: Mostra SKELETON (Tela cheia de carregamento)
+  // isSyncing: Mostra apenas bolinha discreta no topo
   const [isLoading, setIsLoading] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -40,6 +42,8 @@ const App: React.FC = () => {
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
+        // MERGE ROBUSTO: Garante que campos novos (inUrl/outUrl) não fiquem undefined
+        // se o usuário tiver uma config antiga salva no localStorage.
         return { 
           inventoryUrl: parsed.inventoryUrl ?? defaultSettings.inventoryUrl,
           inUrl: parsed.inUrl ?? defaultSettings.inUrl,
@@ -69,8 +73,13 @@ const App: React.FC = () => {
   const cleanCode = (code: string) => code.trim().toLowerCase().replace(/\s/g, '');
 
   const loadData = async (isBackground = false) => {
-    if (isBackground) setIsSyncing(true);
-    else setIsLoading(true);
+    // Se for background (auto-refresh), NÃO ativa isLoading para não piscar a tela com skeleton.
+    // Apenas ativa isSyncing para mostrar feedback discreto no header.
+    if (isBackground) {
+        setIsSyncing(true);
+    } else {
+        setIsLoading(true);
+    }
 
     try {
       const [inventoryItems, inMoves, outMoves] = await Promise.all([
@@ -94,7 +103,7 @@ const App: React.FC = () => {
         const histIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0);
         const histOut = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0);
         
-        // --- LÓGICA DE OURO DE PREÇO ---
+        // --- LÓGICA DE OURO DE PREÇO (RESTAURADA) ---
         // 1. Tenta pegar o 'Valor Unitário' explícito da última entrada válida
         let validEntry = entriesDescending.find(e => e.valorUnitario && e.valorUnitario > 0);
         

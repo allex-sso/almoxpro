@@ -16,8 +16,11 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading = false }) => {
+  // Estados para o filtro REAL (aplicado)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Estados temporários para os inputs (enquanto o usuário digita)
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
 
@@ -31,6 +34,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     setTempEnd('');
     setStartDate('');
     setEndDate('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      applyFilters();
+    }
   };
 
   const hasFinancialData = useMemo(() => {
@@ -64,13 +73,25 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
   // --- CÁLCULO DE TOTAIS E FLUXO ---
   const { flowData, totals } = useMemo(() => {
     const filteredMovements = movements.filter(m => {
+      if (!m.data) return false;
+      
       const moveTime = m.data.getTime();
-      if (startDate && moveTime < new Date(startDate).getTime()) return false;
-      if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59);
-          if (moveTime > end.getTime()) return false;
+      
+      // Lógica de Filtro de Data Robusta (Fuso Horário Local)
+      if (startDate) {
+          const [sy, sm, sd] = startDate.split('-').map(Number);
+          // Cria data no início do dia (00:00:00) usando hora local
+          const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0).getTime();
+          if (moveTime < start) return false;
       }
+      
+      if (endDate) {
+          const [ey, em, ed] = endDate.split('-').map(Number);
+          // Cria data no final do dia (23:59:59.999) usando hora local
+          const end = new Date(ey, em - 1, ed, 23, 59, 59, 999).getTime();
+          if (moveTime > end) return false;
+      }
+      
       return true;
     });
 
@@ -99,11 +120,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       }
 
       if (m.tipo === 'entrada') {
-          // Entradas: Soma o Valor Total (mais preciso financeiramente)
-          // Se Valor Total não existir, usa unitário * qtd como fallback
+          // Entradas: Usa estritamente o Valor Total lido da planilha (Soma dos totais)
+          // Isso garante precisão com o que está na nota fiscal
           if (m.valorTotal && m.valorTotal > 0) {
             flowValue = m.valorTotal;
           } else {
+             // Fallback apenas se não houver total: Qtd * Unitário
              const unitPrice = m.valorUnitario || 0;
              flowValue = qty * unitPrice;
           }
@@ -111,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
 
       } else {
           // Saídas: Quantidade * Preço Unitário do Item (recuperado do cadastro)
-          // Esse preço unitário já foi corrigido no App.tsx (seja direto ou calculado)
+          // Esse preço unitário já foi corrigido no App.tsx para refletir o valor real
           const currentUnitDetails = priceMap.get(m.codigo) || 0;
           flowValue = qty * currentUnitDetails;
           grouped[dateKey].saida += flowValue;
@@ -126,7 +148,14 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
     });
 
+    // Se estiver filtrado por data, recalcula os totais baseados no filtro.
+    // Se não tiver filtro, usa o total geral do estoque para o card de Valor.
+    const isFiltered = startDate || endDate;
+    
+    // O Card "Valor em Estoque" deve sempre mostrar o valor ATUAL do estoque físico,
+    // independente do fluxo de entrada/saída histórico filtrado.
     const stockTotalFinancial = data.reduce((acc, i) => acc + (i.valorTotal || 0), 0);
+    
     const criticalCount = healthData.find(d => d.name.includes('Crítico'))?.value || 0;
 
     return {
@@ -140,35 +169,6 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     };
 
   }, [movements, data, startDate, endDate, healthData]);
-
-  const abcData = useMemo(() => {
-    const sorted = hasFinancialData 
-        ? [...data].sort((a, b) => (b.valorTotal || 0) - (a.valorTotal || 0))
-        : [...data].sort((a, b) => (b.entradas + b.saidas) - (a.entradas + a.saidas));
-    
-    const totalMetric = sorted.reduce((acc, i) => acc + (hasFinancialData ? (i.valorTotal || 0) : (i.entradas + i.saidas)), 0);
-    
-    let accum = 0;
-    let countA = 0, valA = 0;
-    let countB = 0, valB = 0;
-    let countC = 0, valC = 0;
-
-    sorted.forEach(item => {
-      const metric = hasFinancialData ? (item.valorTotal || 0) : (item.entradas + item.saidas);
-      accum += metric;
-      const percentage = totalMetric > 0 ? accum / totalMetric : 0;
-      
-      if (percentage <= 0.8) { countA++; valA += metric; }
-      else if (percentage <= 0.95) { countB++; valB += metric; }
-      else { countC++; valC += metric; }
-    });
-
-    return [
-      { name: 'Classe A (80%)', itens: countA, valor: valA, color: '#3b82f6' },
-      { name: 'Classe B (15%)', itens: countB, valor: valB, color: '#6366f1' },
-      { name: 'Classe C (5%)', itens: countC, valor: valC, color: '#94a3b8' },
-    ];
-  }, [data, hasFinancialData]);
 
   const formatMetric = (val: number, isFinancial: boolean) => 
     isFinancial 
@@ -208,6 +208,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
           </p>
         </div>
         
+        {/* FILTROS DE DATA COM BOTÃO APLICAR */}
         <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3">
            <div className="flex items-center gap-2 px-2">
               <Calendar className="w-4 h-4 text-slate-400" />
@@ -220,6 +221,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
                className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" 
                value={tempStart} 
                onChange={e => setTempStart(e.target.value)} 
+               onKeyDown={handleKeyDown}
              />
              <span className="text-slate-300">-</span>
              <input 
@@ -227,6 +229,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
                className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" 
                value={tempEnd} 
                onChange={e => setTempEnd(e.target.value)} 
+               onKeyDown={handleKeyDown}
              />
            </div>
 
@@ -236,7 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
                className="flex items-center px-3 py-1.5 bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
              >
                <Filter className="w-3 h-3 mr-1" />
-               Aplicar
+               Aplicar Filtro
              </button>
              {(startDate || endDate) && (
                <button 
@@ -301,8 +304,8 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
                       formatter={(value: number) => formatMetric(value, true)}
                    />
                    <Legend />
-                   <Bar dataKey="entrada" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} />
-                   <Bar dataKey="saida" name="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                   <Bar dataKey="entrada" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                   <Bar dataKey="saida" name="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
                 </BarChart>
              </ResponsiveContainer>
            </div>

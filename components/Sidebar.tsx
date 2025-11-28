@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LayoutDashboard, Package, TrendingDown, AlertTriangle, Settings, Box } from 'lucide-react';
 import { Page } from '../types';

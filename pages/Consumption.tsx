@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie } from 'recharts';
 import { Filter, DollarSign, Users, Wrench } from 'lucide-react';
@@ -9,15 +10,23 @@ interface ConsumptionProps {
 
 const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
   const [categoryFilter, setCategoryFilter] = useState('Todos');
+  const [equipmentFilter, setEquipmentFilter] = useState('Todos');
 
-  // Extract categories
+  // Extract categories and equipments
   const categories = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.categoria).filter(Boolean)))], [data]);
+  const equipments = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.equipamento).filter(Boolean)))], [data]);
 
   // Filter Data
   const filteredData = useMemo(() => {
-     if (categoryFilter === 'Todos') return data;
-     return data.filter(item => item.categoria === categoryFilter);
-  }, [data, categoryFilter]);
+     let res = data;
+     if (categoryFilter !== 'Todos') {
+         res = res.filter(item => item.categoria === categoryFilter);
+     }
+     if (equipmentFilter !== 'Todos') {
+         res = res.filter(item => item.equipamento === equipmentFilter);
+     }
+     return res;
+  }, [data, categoryFilter, equipmentFilter]);
 
   // 1. COST BY EQUIPMENT (Financeiro)
   const costByEquipment = useMemo(() => {
@@ -69,14 +78,25 @@ const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
            <p className="text-sm text-slate-500">Onde o dinheiro está sendo gasto e principais parceiros.</p>
         </div>
         
-        <div className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-             <Filter className="w-4 h-4 text-gray-400 ml-2 mr-2" />
+        <div className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm gap-2">
+             <Filter className="w-4 h-4 text-gray-400 ml-2" />
+             
+             {/* Filtro de Categoria */}
              <select 
-              className="px-3 py-1.5 rounded-md bg-transparent text-sm focus:outline-none dark:text-white font-medium"
+              className="px-3 py-1.5 rounded-md bg-transparent text-sm focus:outline-none dark:text-white font-medium border-r border-gray-200 dark:border-gray-700"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+
+            {/* Filtro de Equipamento */}
+            <select 
+              className="px-3 py-1.5 rounded-md bg-transparent text-sm focus:outline-none dark:text-white font-medium"
+              value={equipmentFilter}
+              onChange={(e) => setEquipmentFilter(e.target.value)}
+            >
+              {equipments.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
         </div>
       </div>

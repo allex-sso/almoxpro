@@ -135,24 +135,42 @@ const parseDate = (value: string): Date | null => {
 };
 
 const fetchCSV = async (url: string): Promise<string[][]> => {
-  let targetUrl = url ? url.replace(/[\n\r\s]+/g, '').trim() : '';
+  // Limpeza agressiva da URL para remover espaços invisíveis
+  let targetUrl = url ? url.trim() : '';
+  
   if (!targetUrl || targetUrl.length < 5) return [];
+  
   if (!targetUrl.startsWith('http')) {
+    // Tenta corrigir IDs soltos transformando em link de exportação
     targetUrl = `https://docs.google.com/spreadsheets/d/${targetUrl}/export?format=csv`;
   }
+
   const timestamp = Date.now();
   const separator = targetUrl.includes('?') ? '&' : '?';
   const finalUrl = `${targetUrl}${separator}t=${timestamp}`;
 
   try {
+    // Importante: NÃO enviar headers customizados (como Accept) para Google Sheets.
+    // Isso dispara um preflight CORS (OPTIONS) que o Google bloqueia.
+    // O modo 'cors' é padrão, e credentials 'omit' evita envio de cookies desnecessários.
     const response = await fetch(finalUrl, {
       method: 'GET',
-      headers: { 'Accept': 'text/csv,text/plain;q=0.9,*/*;q=0.8' },
-      cache: 'no-store'
+      cache: 'no-store',
+      credentials: 'omit'
     });
-    if (!response.ok) return [];
+
+    if (!response.ok) {
+      console.warn(`Falha ao buscar CSV (${response.status}):`, finalUrl);
+      return [];
+    }
+
     const text = await response.text();
-    if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('<html')) return [];
+    
+    // Verificação se retornou HTML (página de login) em vez de CSV
+    if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('<html')) {
+        console.warn("A URL retornou uma página HTML em vez de CSV. Verifique se a planilha está 'Publicada na Web'.");
+        return [];
+    }
     
     const delimiter = detectDelimiter(text);
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
@@ -289,7 +307,8 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   if (idxQtd === -1) idxQtd = findCol(['quant', 'qtd', 'estoque'], ['min', 'entrad', 'saíd']);
 
   const idxMin = findCol(['mínim', 'minim', 'min']);
-  const idxCat = findCol(['categ', 'grupo']);
+  // Adicionando mais termos para categoria
+  const idxCat = findCol(['categ', 'grupo', 'família', 'tipo', 'classe']);
 
   return rows.slice(headerIdx + 1).map((row, index): InventoryItem | null => {
     let codigo = (idxCodigo !== -1 ? row[idxCodigo] : row[0])?.trim();

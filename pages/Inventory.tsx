@@ -116,36 +116,32 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
   const handleDownloadZPL = async () => {
     if (selectedItems.size === 0) return;
     setIsGeneratingZPL(true);
-    // Simula delay para feedback visual claro (1.5s)
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Helper para remover acentos (ZPL puro pode ter problemas com UTF-8 dependendo da impressora)
     const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     let zplContent = "";
     const selected = data.filter(item => selectedItems.has(item.id));
     
+    // ZPL CONFIGURADO PARA ETIQUETAS QUADRADAS 50mm x 50mm (Aprox 400x400 dots)
+    // LAYOUT VERTICAL: CÓDIGO GRANDE NO TOPO, QR PEQUENO NO MEIO, DESCRIÇÃO GRANDE EMBAIXO
     selected.forEach(item => {
       const cod = normalize(item.codigo);
-      const desc = normalize(item.descricao);
-      const equip = normalize(item.equipamento || 'N/D');
-      const loc = normalize(item.localizacao || '');
-      const date = new Date().toLocaleDateString('pt-BR');
+      const desc = normalize(item.descricao).substring(0, 40); // Mais caracteres permitidos
+      const equip = normalize(item.equipamento).substring(0, 25);
 
-      // Layout otimizado para etiquetas 4x2 polegadas (aprox 100mm x 50mm)
-      // Densidade padrão de 203dpi (8 pontos/mm) -> Largura ~812 dots
       zplContent += `
 ^XA
-^PW812
-^LL406
-^FO10,10^GB790,386,4^FS
-^FO40,40^BQN,2,9^FDQA,${cod}^FS
-^FO310,50^A0N,110,110^FD${cod}^FS
-^FO310,150^GB460,2,2^FS
-^FO310,170^A0N,30,30^FB460,2,0,L,0^FD${desc}^FS
-^FO310,250^A0N,25,25^FDEq: ${equip}^FS
-^FO310,280^A0N,25,25^FDLoc: ${loc}^FS
-^FO310,340^A0N,20,20^FD${date}^FS
+^PW400
+^LL400
+^FO10,10^GB380,380,2^FS
+
+^FO0,20^A0N,100,90^FB400,1,0,C,0^FD${cod}^FS
+
+^FO160,120^BQN,2,4^FDQA,${cod}^FS
+
+^FO10,260^A0N,40,40^FB380,2,0,C,0^FD${desc}^FS
+^FO10,350^A0N,30,30^FB380,1,0,C,0^FD${equip}^FS
 ^XZ`;
     });
 
@@ -153,7 +149,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "etiquetas_almoxarifado_zpl.txt");
+    link.setAttribute("download", "etiquetas_50x50_zpl.txt");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -245,7 +241,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
                   title="Baixar arquivo para impressora térmica (Zebra/Argox)"
                 >
                   {isGeneratingZPL ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Tag className="w-4 h-4 mr-2" />}
-                  {isGeneratingZPL ? 'Gerando...' : 'Baixar ZPL'}
+                  {isGeneratingZPL ? 'Gerando...' : 'ZPL (50x50mm)'}
                 </button>
                 <button 
                   onClick={() => setShowPrintPreview(true)}
@@ -382,7 +378,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
           <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
              <div className="flex items-center">
                <Printer className="mr-2" />
-               <span className="font-bold">Pré-visualização de Impressão</span>
+               <span className="font-bold">Pré-visualização: Impressão Térmica (Rolo)</span>
              </div>
              <div className="flex gap-3">
                <button 
@@ -402,39 +398,42 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
              </div>
           </div>
 
-          {/* ÁREA IMPRESSA */}
-          <div className="printable-area p-8 max-w-[210mm] mx-auto bg-white min-h-screen">
-               <div className="grid grid-cols-3 gap-x-4 gap-y-6">
-                {selectedItemsList.map((item) => (
-                  <div key={item.id} className="border-2 border-gray-800 p-2 rounded flex flex-row items-center gap-2 bg-white h-[38mm] overflow-hidden relative page-break-inside-avoid">
-                     <div className="flex items-center justify-center w-[35%] border-r-2 border-gray-300 h-full bg-gray-50">
-                       <span className="text-5xl font-black text-black tracking-tighter leading-none">
-                         {item.codigo}
-                       </span>
+          {/* ÁREA IMPRESSA - ETIQUETAS EM ROLO (QUADRADA 50x50mm) */}
+          <div className="printable-area bg-gray-200 min-h-screen p-8 flex flex-col items-center gap-8">
+               {selectedItemsList.map((item) => (
+                  // ETIQUETA INDIVIDUAL (50mm x 50mm)
+                  // Medida fixa em pixels para tela: 189px aprox
+                  // Layout ajustado para textos maiores e QR menor
+                  // Uso de flex-shrink-0 para evitar esmagamento pelo flexbox do container
+                  <div 
+                    key={item.id} 
+                    className="bg-white border-2 border-gray-800 flex flex-col items-center justify-between py-2 px-1 break-after-page page-break-after-always overflow-hidden flex-shrink-0 box-border"
+                    style={{ width: '189px', height: '189px', minWidth: '189px', minHeight: '189px' }}
+                  >
+                     
+                     {/* TOPO: CÓDIGO GIGANTE */}
+                     <div className="w-full text-center mt-0">
+                        <span className="text-6xl font-black text-black tracking-tighter leading-none block">
+                          {item.codigo}
+                        </span>
                      </div>
-                     <div className="flex flex-col flex-1 justify-between h-full py-1">
-                        <div>
-                           <p className="text-[11px] font-bold text-black leading-tight line-clamp-3 uppercase">
-                             {item.descricao}
-                           </p>
-                           <div className="mt-1">
-                             <p className="text-[9px] text-gray-600 truncate">
-                               EQ: <span className="font-semibold">{item.equipamento || 'N/D'}</span>
-                             </p>
-                             {item.localizacao && (
-                               <p className="text-[9px] text-black truncate font-bold">
-                                 LOCAL: {item.localizacao}
-                               </p>
-                             )}
-                           </div>
-                        </div>
-                        <div className="absolute bottom-1 right-1 opacity-50">
-                           <QRCodeSVG value={item.codigo} size={32} />
-                        </div>
+                     
+                     {/* MEIO: QR CODE (REDUZIDO PARA 42px) */}
+                     <div className="flex-1 flex items-center justify-center py-2">
+                       <QRCodeSVG value={item.codigo} size={42} />
+                     </div>
+                     
+                     {/* BASE: DESCRIÇÃO (AUMENTADA e NEGRITO) */}
+                     <div className="w-full text-center pb-2 px-1">
+                        <p className="text-xs font-bold text-black uppercase leading-tight line-clamp-2">
+                          {item.descricao}
+                        </p>
+                        <p className="text-[10px] font-bold text-gray-700 uppercase leading-none mt-1">
+                          {item.equipamento}
+                        </p>
                      </div>
                   </div>
-                ))}
-              </div>
+               ))}
             </div>
         </div>
       )}

@@ -15,6 +15,9 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
     return saved ? JSON.parse(saved) : {};
   });
   
+  // Estado de Seleção para Alertas
+  const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set());
+  
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const itemsPerPage = 10;
@@ -39,6 +42,31 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
     setOrderNotes(prev => ({ ...prev, [id]: value }));
   };
 
+  // Handlers de Seleção
+  const toggleSelection = (id: string) => {
+    const newSelection = new Set(selectedAlerts);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedAlerts(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedAlerts.size === lowStockItems.length && lowStockItems.length > 0) {
+      setSelectedAlerts(new Set());
+    } else {
+      setSelectedAlerts(new Set(lowStockItems.map(i => i.id)));
+    }
+  };
+
+  const isAllSelected = lowStockItems.length > 0 && selectedAlerts.size === lowStockItems.length;
+
+  // Itens a serem impressos (Apenas os selecionados, ou todos se nenhum selecionado - OPCIONAL: Aqui forçamos selecionar)
+  // Lógica atual: O botão habilita se houver seleção. Se clicar, imprime os selecionados.
+  const itemsToPrint = lowStockItems.filter(item => selectedAlerts.has(item.id));
+
   // --- IMPRESSÃO NATIVA ---
   const handlePrint = () => {
      // Pequeno delay para garantir que o navegador renderize o overlay antes de imprimir
@@ -61,7 +89,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                 <div>
                     <h3 className="text-lg font-bold text-red-800 dark:text-red-300">Reposição Necessária</h3>
                     <p className="text-sm text-red-600 dark:text-red-400">
-                      Itens abaixo da Quantidade Mínima definida na planilha.
+                      Selecione os itens abaixo para gerar a requisição de compra.
                     </p>
                 </div>
             </div>
@@ -71,11 +99,11 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                 </span>
                 <button 
                 onClick={() => setShowPrintPreview(true)}
-                disabled={lowStockItems.length === 0}
+                disabled={selectedAlerts.size === 0}
                 className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                 <Printer className="w-4 h-4 mr-2" />
-                Imprimir Requisição
+                Imprimir Selecionados ({selectedAlerts.size})
                 </button>
             </div>
           </div>
@@ -85,6 +113,14 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                 <table className="w-full text-sm text-left">
                     <thead className="bg-red-100/50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 uppercase text-xs">
                         <tr>
+                            <th className="px-4 py-3 w-4">
+                                <input 
+                                type="checkbox" 
+                                checked={isAllSelected}
+                                onChange={toggleSelectAll}
+                                className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                                />
+                            </th>
                             <th className="px-6 py-3">Código</th>
                             <th className="px-6 py-3">Descrição</th>
                             <th className="px-6 py-3">Fornecedor</th>
@@ -96,7 +132,15 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                         {paginatedItems.map(item => {
                              return (
-                              <tr key={item.id} className="hover:bg-red-50/50 dark:hover:bg-slate-800/50">
+                              <tr key={item.id} className={`transition-colors ${selectedAlerts.has(item.id) ? 'bg-red-50 dark:bg-red-900/30' : 'hover:bg-red-50/50 dark:hover:bg-slate-800/50'}`}>
+                                  <td className="px-4 py-4">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedAlerts.has(item.id)}
+                                        onChange={() => toggleSelection(item.id)}
+                                        className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                                    />
+                                  </td>
                                   <td className="px-6 py-4 font-medium dark:text-white">{item.codigo}</td>
                                   <td className="px-6 py-4 dark:text-gray-300">
                                     <div className="font-medium">{item.descricao}</div>
@@ -122,7 +166,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                              );
                         })}
                          {lowStockItems.length === 0 && (
-                            <tr><td colSpan={6} className="p-6 text-center text-gray-500">Nenhum item com "Quantidade Mínima" preenchida na planilha precisa de reposição.</td></tr>
+                            <tr><td colSpan={7} className="p-6 text-center text-gray-500">Nenhum item com "Quantidade Mínima" preenchida na planilha precisa de reposição.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -245,7 +289,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                     </tr>
                   </thead>
                   <tbody className="text-black">
-                    {lowStockItems.map((item) => {
+                    {itemsToPrint.map((item) => {
                         const min = item.quantidadeMinima;
                         const diff = min - item.quantidadeAtual;
                         const note = orderNotes[item.id] || '';

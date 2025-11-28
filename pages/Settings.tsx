@@ -11,6 +11,8 @@ interface SettingsProps {
 const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) => {
   const [localSettings, setLocalSettings] = useState(settings);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  // Uso de ReturnType<typeof setTimeout> para compatibilidade universal (Node/Browser)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sincroniza estado local se as props mudarem externamente
@@ -18,7 +20,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) =
     setLocalSettings(settings);
   }, [settings]);
 
-  // Limpeza do timer ao desmontar o componente para evitar memory leaks
+  // Limpeza do timer ao desmontar o componente
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
