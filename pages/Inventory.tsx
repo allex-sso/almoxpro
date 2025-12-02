@@ -125,6 +125,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
     
     // ZPL CONFIGURADO PARA ETIQUETAS QUADRADAS 50mm x 50mm (Aprox 400x400 dots)
     // LAYOUT VERTICAL: CÓDIGO GRANDE NO TOPO, QR PEQUENO NO MEIO, DESCRIÇÃO EMBAIXO
+    // Fonte aumentada para textos e QR reduzido (Mag 4)
     selected.forEach(item => {
       const cod = normalize(item.codigo);
       const desc = normalize(item.descricao).substring(0, 40);
@@ -140,8 +141,8 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
 
 ^FO140,130^BQN,2,4^FDQA,${cod}^FS
 
-^FO10,270^A0N,40,40^FB380,2,0,C,0^FD${desc}^FS
-^FO10,360^A0N,30,30^FB380,1,0,C,0^FD${equip}^FS
+^FO10,250^A0N,40,40^FB380,2,0,C,0^FD${desc}^FS
+^FO10,340^A0N,30,30^FB380,1,0,C,0^FD${equip}^FS
 ^XZ`;
     });
 
@@ -399,17 +400,19 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
           </div>
 
           {/* ÁREA IMPRESSA - ETIQUETAS EM ROLO (QUADRADA 50x50mm) */}
-          {/* Removido p-8 e gap-8 para permitir fluxo contínuo. Alinhamento centralizado. */}
-          <div className="printable-area bg-gray-200 min-h-screen flex flex-col items-center">
+          {/* REMOVIDO PADDING, MARGINS E MIN-HEIGHT PARA NÃO QUEBRAR PÁGINA */}
+          <div className="printable-area flex flex-col items-center bg-white">
                {selectedItemsList.map((item) => (
                   // ETIQUETA INDIVIDUAL (50mm x 50mm)
                   // Medida fixa em pixels para tela: 189px aprox
                   // Layout ajustado para textos maiores e QR menor
                   // Uso de flex-shrink-0 para evitar esmagamento pelo flexbox do container
+                  // REMOVIDA BORDA para impressão térmica
+                  // REMOVIDA QUEBRA DE PÁGINA FORÇADA (deixa o driver decidir)
                   <div 
                     key={item.id} 
-                    className="bg-white border border-gray-300 flex flex-col items-center justify-between py-2 px-1 break-after-page page-break-after-always overflow-hidden flex-shrink-0 box-border"
-                    style={{ width: '189px', height: '189px', minWidth: '189px', minHeight: '189px' }}
+                    className="flex flex-col items-center justify-between py-2 px-1 overflow-hidden flex-shrink-0 box-border"
+                    style={{ width: '189px', height: '188px', minWidth: '189px', minHeight: '188px' }}
                   >
                      
                      {/* TOPO: CÓDIGO GIGANTE */}
@@ -429,7 +432,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
                         <p className="text-xs font-bold text-black uppercase leading-tight line-clamp-2">
                           {item.descricao}
                         </p>
-                        <p className="text-[10px] font-bold text-gray-700 uppercase leading-none mt-1">
+                        <p className="text-[10px] font-bold text-black uppercase leading-none mt-1">
                           {item.equipamento}
                         </p>
                      </div>
