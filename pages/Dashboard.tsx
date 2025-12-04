@@ -202,7 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Painel Executivo</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             {hasFinancialData ? 'Análise financeira e operacional.' : 'Análise operacional (Sem valores cadastrados).'}
           </p>

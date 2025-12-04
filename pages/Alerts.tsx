@@ -77,6 +77,14 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Header Title */}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Alertas de Estoque</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          Monitore itens críticos e gera requisições de compra.
+        </p>
+      </div>
+
       {/* --- SCREEN VIEW --- */}
       <div className="space-y-8">
         {/* Low Stock Alert Section */}

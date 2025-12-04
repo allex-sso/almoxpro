@@ -191,6 +191,14 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
+      {/* Header Title */}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Inventário</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          Gerencie todos os itens do estoque e gere etiquetas.
+        </p>
+      </div>
+      
       {/* --- SCREEN VIEW --- */}
       <div className="space-y-6">
         {/* Filters Bar */}

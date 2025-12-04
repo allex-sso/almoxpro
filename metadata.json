@@ -1,5 +1,5 @@
 {
-  "name": "Almoxarifado Pro",
+  "name": "Alumasa - Controle de Almoxarifado",
   "description": "Sistema completo de gestão de almoxarifado com integração ao Google Sheets, dashboard, inventário e gerador de etiquetas.",
   "requestFramePermissions": []
 }

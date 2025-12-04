@@ -187,12 +187,8 @@ const App: React.FC = () => {
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500">
               <Menu className="h-6 w-6" />
             </button>
-            <h2 className="ml-4 lg:ml-0 text-lg font-semibold text-slate-800 dark:text-white truncate">
-              {currentPage === Page.DASHBOARD && 'Visão Geral'}
-              {currentPage === Page.INVENTORY && 'Inventário Geral'}
-              {currentPage === Page.CONSUMPTION && 'Análise de Consumo'}
-              {currentPage === Page.ALERTS && 'Alertas de Estoque'}
-              {currentPage === Page.SETTINGS && 'Configurações'}
+            <h2 className="ml-4 lg:ml-0 text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wide">
+              Controle do Almoxarifado
             </h2>
           </div>
           <div className="flex items-center space-x-4">

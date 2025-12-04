@@ -74,7 +74,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
       {/* Header & Filter */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Análise de Custos</h2>
+           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Análise de Consumo</h1>
            <p className="text-sm text-slate-500">Onde o dinheiro está sendo gasto e principais parceiros.</p>
         </div>
         

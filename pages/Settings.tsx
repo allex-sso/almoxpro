@@ -47,6 +47,14 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) =
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300 relative">
       
+      {/* Header Title */}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Configurações</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          Ajuste as conexões e preferências do sistema.
+        </p>
+      </div>
+
       {/* Success Toast Notification */}
       {showSuccess && (
         <div className="fixed top-20 right-6 z-50 bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-xl flex items-center animate-in slide-in-from-right-5 fade-in duration-300 border border-emerald-400">
