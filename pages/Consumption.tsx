@@ -86,7 +86,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
     data.forEach(d => itemDescMap.set(d.codigo, d.descricao));
 
     // Agrupamento
-    const grouped: Record<string, { totalQty: number, items: Record<string, number>, lastDate: Date }> = {};
+    const grouped: Record<string, { totalQty: number, count: number, items: Record<string, number>, lastDate: Date }> = {};
 
     movements.forEach(m => {
         if (m.tipo !== 'saida' || !m.responsavel) return;
@@ -96,10 +96,11 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
         const name = rawName.replace(/(^\w|\s\w)/g, m => m.toUpperCase());
 
         if (!grouped[name]) {
-            grouped[name] = { totalQty: 0, items: {}, lastDate: m.data };
+            grouped[name] = { totalQty: 0, count: 0, items: {}, lastDate: m.data };
         }
 
         grouped[name].totalQty += m.quantidade;
+        grouped[name].count += 1; // Incrementa contagem de requisições (linhas)
         
         // Mantém a data mais recente
         if (m.data > grouped[name].lastDate) {
@@ -129,6 +130,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
             return {
                 name,
                 totalQty: stats.totalQty,
+                requestCount: stats.count,
                 topItem: topItemDesc,
                 topItemQty: maxQtd,
                 lastWithdrawal: stats.lastDate
@@ -141,7 +143,9 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
   const responsibleChartData = useMemo(() => {
       return responsibleStats.slice(0, 10).map(r => ({
           name: r.name,
-          value: r.totalQty
+          value: r.totalQty,
+          // Propriedades extras para custom tooltip se necessário
+          requests: r.requestCount
       }));
   }, [responsibleStats]);
 
@@ -308,6 +312,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                     <tr>
                         <th className="px-6 py-4">Responsável</th>
                         <th className="px-6 py-4 text-center">Total Itens</th>
+                        <th className="px-6 py-4 text-center">Qtd. Requisições</th>
                         <th className="px-6 py-4">Principal Item Solicitado</th>
                     </tr>
                 </thead>
@@ -318,6 +323,9 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                             <td className="px-6 py-4 text-center font-bold text-purple-600 dark:text-purple-400">
                                 {item.totalQty}
                             </td>
+                            <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">
+                                {item.requestCount}
+                            </td>
                             <td className="px-6 py-4 text-xs">
                                 <div className="font-medium text-slate-700 dark:text-slate-200">{item.topItem}</div>
                                 <span className="text-gray-400">({item.topItemQty} un.)</span>
@@ -325,7 +333,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                         </tr>
                     ))}
                     {responsibleStats.length === 0 && (
-                            <tr><td colSpan={3} className="p-8 text-center text-gray-400">Nenhum dado de responsável encontrado. Verifique se a coluna "Responsável" ou "Solicitante" existe na aba de Saídas.</td></tr>
+                            <tr><td colSpan={4} className="p-8 text-center text-gray-400">Nenhum dado de responsável encontrado. Verifique se a coluna "Responsável" ou "Solicitante" existe na aba de Saídas.</td></tr>
                     )}
                 </tbody>
             </table>
