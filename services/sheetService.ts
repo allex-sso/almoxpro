@@ -310,30 +310,62 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   // Adicionando mais termos para categoria
   const idxCat = findCol(['categ', 'grupo', 'família', 'tipo', 'classe']);
 
-  return rows.slice(headerIdx + 1).map((row, index): InventoryItem | null => {
+  // --- ALTERAÇÃO IMPORTANTE: AGRUPAMENTO POR CÓDIGO ---
+  // Em vez de mapear linha a linha, usamos um Map para garantir que códigos iguais
+  // sejam tratados como o mesmo item (somando quantidades e mesclando dados).
+  
+  const itemMap = new Map<string, InventoryItem>();
+
+  rows.slice(headerIdx + 1).forEach((row) => {
     let codigo = (idxCodigo !== -1 ? row[idxCodigo] : row[0])?.trim();
-    if (!codigo) return null;
-    if (/^\d$/.test(codigo)) codigo = `0${codigo}`;
+    if (!codigo) return; // Pula linha se não tiver código
+    
+    // Remove aspas extras que podem vir do CSV
+    codigo = codigo.replace(/^"|"$/g, '');
+    
+    if (/^\d$/.test(codigo)) codigo = `0${codigo}`; // Padroniza 0 à esquerda para 1 digito
 
     const qtd = idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0;
     const rawUnd = idxUnd !== -1 ? (row[idxUnd] || 'un.') : 'un.';
+    const descricao = idxDesc !== -1 ? row[idxDesc] : '';
+    const equipamento = idxEquip !== -1 ? (row[idxEquip] || 'N/D') : 'N/D';
+    const localizacao = idxLoc !== -1 ? (row[idxLoc] || '') : '';
+    const fornecedor = idxForn !== -1 ? (row[idxForn] || '') : '';
+    const qtdMin = idxMin !== -1 ? parseNumber(row[idxMin]) : 0;
+    const categoria = idxCat !== -1 ? (row[idxCat] || 'Geral') : 'Geral';
 
-    return {
-      id: `item-${index}`,
-      codigo,
-      descricao: idxDesc !== -1 ? row[idxDesc] : '',
-      equipamento: idxEquip !== -1 ? (row[idxEquip] || 'N/D') : 'N/D',
-      localizacao: idxLoc !== -1 ? (row[idxLoc] || '') : '',
-      fornecedor: idxForn !== -1 ? (row[idxForn] || '') : '', 
-      quantidadeAtual: qtd,
-      quantidadeMinima: idxMin !== -1 ? parseNumber(row[idxMin]) : 0,
-      unidade: formatUnit(rawUnd),
-      entradas: 0, 
-      saidas: 0,   
-      categoria: idxCat !== -1 ? (row[idxCat] || 'Geral') : 'Geral',
-      valorUnitario: 0,
-      valorTotal: 0,
-      dataAtualizacao: new Date().toISOString()
-    };
-  }).filter((i): i is InventoryItem => i !== null);
+    if (itemMap.has(codigo)) {
+        // Se o código já existe, SOMAMOS a quantidade (Ex: mesmo item em dois locais)
+        const existing = itemMap.get(codigo)!;
+        existing.quantidadeAtual += qtd;
+        
+        // Opcional: Se a nova linha tiver dados que a anterior não tinha, podemos preencher
+        if (!existing.descricao && descricao) existing.descricao = descricao;
+        if ((!existing.localizacao || existing.localizacao === '') && localizacao) existing.localizacao = localizacao;
+        // Se tiver locais diferentes, concatena? Por enquanto mantemos o primeiro ou o mais completo.
+        
+    } else {
+        // Se é novo, cria
+        itemMap.set(codigo, {
+            id: codigo, // O ID AGORA É O CÓDIGO (Chave Única Real)
+            codigo,
+            descricao,
+            equipamento,
+            localizacao,
+            fornecedor, 
+            quantidadeAtual: qtd,
+            quantidadeMinima: qtdMin,
+            unidade: formatUnit(rawUnd),
+            entradas: 0, 
+            saidas: 0,   
+            categoria,
+            valorUnitario: 0,
+            valorTotal: 0,
+            dataAtualizacao: new Date().toISOString()
+        });
+    }
+  });
+
+  // Retorna os valores únicos do mapa
+  return Array.from(itemMap.values());
 };

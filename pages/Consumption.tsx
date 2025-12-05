@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie } from 'recharts';
-import { Filter, DollarSign, Users, Wrench } from 'lucide-react';
+import { Filter, DollarSign, Users, Wrench, PackageMinus } from 'lucide-react';
 import { InventoryItem } from '../types';
 
 interface ConsumptionProps {
@@ -28,7 +28,23 @@ const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
      return res;
   }, [data, categoryFilter, equipmentFilter]);
 
-  // 1. COST BY EQUIPMENT (Financeiro)
+  // 1. TOP ITEMS CONSUMED (Quantidade Física) - NOVO
+  const topConsumedItems = useMemo(() => {
+    return [...filteredData]
+      .sort((a, b) => b.saidas - a.saidas)
+      .slice(0, 10)
+      .map(item => ({
+        name: item.descricao,
+        // Cria um nome curto para o eixo Y do gráfico
+        shortName: item.descricao.length > 25 ? item.descricao.substring(0, 25) + '...' : item.descricao,
+        value: item.saidas,
+        code: item.codigo,
+        unit: item.unidade
+      }))
+      .filter(i => i.value > 0);
+  }, [filteredData]);
+
+  // 2. COST BY EQUIPMENT (Financeiro)
   const costByEquipment = useMemo(() => {
     const map: Record<string, number> = {};
     filteredData.forEach(item => {
@@ -45,7 +61,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
       .slice(0, 10); // Top 10
   }, [filteredData]);
 
-  // 2. TOP SUPPLIERS (Volume de Compras/Estoque)
+  // 3. TOP SUPPLIERS (Volume de Compras/Estoque)
   const supplierData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredData.forEach(item => {
@@ -67,6 +83,22 @@ const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
+
+  // Custom Tooltip para o gráfico de Quantidade
+  const CustomQuantityTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white dark:bg-slate-800 p-3 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg">
+          <p className="font-bold text-slate-800 dark:text-white mb-1">{data.code} - {data.name}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Quantidade Retirada: <span className="font-bold text-orange-600">{data.value} {data.unit || 'un.'}</span>
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -99,6 +131,33 @@ const Consumption: React.FC<ConsumptionProps> = ({ data }) => {
               {equipments.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
         </div>
+      </div>
+
+      {/* --- CHART 0: TOP CONSUMED ITEMS (QUANTITY) --- */}
+      <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+          <div className="flex items-center mb-6">
+            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg mr-3">
+                <PackageMinus className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Itens Mais Consumidos</h3>
+                <p className="text-xs text-slate-500">Top 10 itens com maior saída (Quantidade física)</p>
+            </div>
+          </div>
+          
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topConsumedItems} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="shortName" type="category" width={150} stroke="#64748b" tick={{fontSize: 11, fontWeight: 500}} />
+                <Tooltip content={<CustomQuantityTooltip />} cursor={{fill: 'transparent'}} />
+                <Bar dataKey="value" name="Qtd. Retirada" radius={[0, 4, 4, 0]} barSize={20} fill="#f97316">
+                    {/* Opcional: Gradiente ou cores diferentes */}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
