@@ -240,6 +240,9 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   const idxQtd = findCol(qtdTerms);
   
   const idxForn = findCol(['fornecedor', 'fabricante']);
+
+  // --- NOVA COLUNA: Responsável (Geralmente na saída) ---
+  const idxResp = findCol(['responsável', 'responsavel', 'retirado por', 'solicitante', 'destino', 'funcionário', 'funcionario', 'equipe']);
   
   // Colunas financeiras (Importante: ler Total e Unitário separadamente)
   const idxValUnit = findCol(['valor unitário', 'valor unitario', 'vl. unit', 'preco unit'], ['total', 'bruto', 'ean', 'barras', 'cnpj', 'nota']);
@@ -276,6 +279,7 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
       codigo: codigo,
       quantidade: qtd,
       fornecedor: idxForn !== -1 ? row[idxForn] : undefined,
+      responsavel: idxResp !== -1 ? row[idxResp] : undefined, // Popula o responsável
       valorUnitario: valUnit,
       valorTotal: valTotal // Passa o valor total lido para ser usado no fallback
     };

@@ -25,6 +25,7 @@ export interface Movement {
   quantidade: number;
   tipo: 'entrada' | 'saida';
   fornecedor?: string; // Apenas para entradas
+  responsavel?: string; // Novo campo para identificar quem retirou
   valorUnitario?: number; // Novo campo para capturar preço da aba de Entradas
   valorTotal?: number; // Campo de backup para cálculo reverso
   obs?: string;

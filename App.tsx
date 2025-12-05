@@ -169,7 +169,7 @@ const App: React.FC = () => {
     switch (currentPage) {
       case Page.DASHBOARD: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading} />;
       case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
-      case Page.CONSUMPTION: return <Consumption data={data} />;
+      case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
       case Page.ALERTS: return <Alerts data={data} />;
       case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} />;
       default: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading} />;
