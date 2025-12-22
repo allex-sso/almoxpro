@@ -409,12 +409,8 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ data, isLoading }) =>
                           </span>
                        </td>
                        <td className="px-6 py-4 text-center">
-                          <span className={`text-[10px] px-2 py-1 rounded-lg font-black uppercase ${
-                             os.status.toLowerCase().includes('conclu') || os.status.toLowerCase().includes('final')
-                             ? 'bg-emerald-100 text-emerald-700' 
-                             : 'bg-amber-100 text-amber-700'
-                          }`}>
-                             {os.status}
+                          <span className="text-[10px] px-2 py-1 rounded-lg font-black uppercase bg-emerald-100 text-emerald-700">
+                             Finalizado
                           </span>
                        </td>
                     </tr>
