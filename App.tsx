@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Menu, Moon, Sun, RefreshCw } from 'lucide-react';
+import { Menu, Moon, Sun, RefreshCw, WifiOff } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import { AppSettings, InventoryItem, Movement, Page, ServiceOrder } from './types';
 import { fetchInventoryData, fetchMovements, fetchServiceOrders } from './services/sheetService';
@@ -17,33 +17,52 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.DASHBOARD);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  const [data, setData] = useState<InventoryItem[]>([]);
-  const [movements, setMovements] = useState<Movement[]>([]);
-  const [osData, setOsData] = useState<ServiceOrder[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  // Estados de dados com inicialização via Cache para evitar "gráficos zerados"
+  const [data, setData] = useState<InventoryItem[]>(() => {
+    const cached = localStorage.getItem('alumasa_cache_inventory');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [movements, setMovements] = useState<Movement[]>(() => {
+    const cached = localStorage.getItem('alumasa_cache_movements');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return parsed.map((m: any) => ({ ...m, data: new Date(m.data) }));
+    }
+    return [];
+  });
+  const [osData, setOsData] = useState<ServiceOrder[]>(() => {
+    const cached = localStorage.getItem('alumasa_cache_os');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return parsed.map((os: any) => ({ 
+        ...os, 
+        dataAbertura: new Date(os.dataAbertura),
+        dataInicio: os.dataInicio ? new Date(os.dataInicio) : undefined,
+        dataFim: os.dataFim ? new Date(os.dataFim) : undefined
+      }));
+    }
+    return [];
+  });
+
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => {
+    const saved = localStorage.getItem('alumasa_cache_time');
+    return saved ? new Date(saved) : new Date();
+  });
   
   const [isLoading, setIsLoading] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
-    // Função auxiliar para acesso seguro a variáveis de ambiente
     const getEnv = (key: string): string | undefined => {
       try {
-        // Tenta buscar no import.meta.env (Padrão Vite)
-        // @ts-ignore - Pode não existir em tempo de execução dependendo do bundler
         if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-          // @ts-ignore
           return import.meta.env[key];
         }
-        // Tenta buscar no process.env (Padrão Node/Ambiente Injetado)
-        // @ts-ignore
         if (typeof process !== 'undefined' && process.env && process.env[key]) {
-          // @ts-ignore
-          return process.env[key];
+          return (process.env as any)[key];
         }
-      } catch (e) {
-        // Silencioso
-      }
+      } catch (e) {}
       return undefined;
     };
 
@@ -60,13 +79,7 @@ const App: React.FC = () => {
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
-        return { 
-          ...defaultSettings, 
-          ...parsed,
-          // Mantém URLs padrão caso as salvas estejam vazias ou o link atual seja o padrão antigo
-          osUrl: parsed.osUrl || defaultSettings.osUrl,
-          inventoryUrl: parsed.inventoryUrl || defaultSettings.inventoryUrl
-        };
+        return { ...defaultSettings, ...parsed };
       } catch (e) {
         console.error("Erro ao ler configurações", e);
       }
@@ -88,6 +101,7 @@ const App: React.FC = () => {
   const loadData = async (isBackground = false) => {
     if (isBackground) setIsSyncing(true);
     else setIsLoading(true);
+    setSyncError(false);
 
     try {
       const [inventoryItems, inMoves, outMoves, osList] = await Promise.all([
@@ -97,10 +111,13 @@ const App: React.FC = () => {
         settings.osUrl ? fetchServiceOrders(settings.osUrl) : Promise.resolve([])
       ]);
 
-      const allMoves = [...inMoves, ...outMoves].sort((a, b) => a.data.getTime() - b.data.getTime());
-      setMovements(allMoves);
-      setOsData(osList);
+      // Validação Crítica: Se os dados principais vierem vazios mas o cache tem dados, não sobrescreve
+      if (inventoryItems.length === 0 && data.length > 0) {
+        throw new Error("Resposta vazia da planilha. Mantendo dados do cache.");
+      }
 
+      const allMoves = [...inMoves, ...outMoves].sort((a, b) => a.data.getTime() - b.data.getTime());
+      
       const enrichedItems = inventoryItems.map(item => {
         const itemCodeClean = cleanCode(item.codigo);
         const itemMoves = allMoves.filter(m => cleanCode(m.codigo) === itemCodeClean);
@@ -120,11 +137,21 @@ const App: React.FC = () => {
         };
       });
 
+      // Atualiza Estados
       setData(enrichedItems);
+      setMovements(allMoves);
+      setOsData(osList);
       setLastUpdated(new Date());
 
+      // Salva no Cache para a próxima abertura do app
+      localStorage.setItem('alumasa_cache_inventory', JSON.stringify(enrichedItems));
+      localStorage.setItem('alumasa_cache_movements', JSON.stringify(allMoves));
+      localStorage.setItem('alumasa_cache_os', JSON.stringify(osList));
+      localStorage.setItem('alumasa_cache_time', new Date().toISOString());
+
     } catch (err) {
-      console.error("Erro ao carregar dados:", err);
+      console.error("Falha na sincronização:", err);
+      setSyncError(true);
     } finally {
       setIsLoading(false);
       setIsSyncing(false);
@@ -132,7 +159,8 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData(false);
+    // Carrega dados. Se o cache existir, ele já está na tela, o loadData só vai atualizar.
+    loadData(data.length > 0); 
     const interval = setInterval(() => loadData(true), settings.refreshRate * 1000);
     return () => clearInterval(interval);
   }, [settings.inventoryUrl, settings.inUrl, settings.outUrl, settings.osUrl, settings.refreshRate]);
@@ -146,15 +174,21 @@ const App: React.FC = () => {
     };
   }, [data]);
 
+  const isDataStale = useMemo(() => {
+    const now = new Date();
+    const diff = (now.getTime() - lastUpdated.getTime()) / (1000 * 60);
+    return diff > 5; // Considerar defasado após 5 minutos
+  }, [lastUpdated]);
+
   const renderPage = () => {
     switch (currentPage) {
-      case Page.DASHBOARD: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading} />;
-      case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
+      case Page.DASHBOARD: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading && data.length === 0} />;
+      case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading && data.length === 0} />;
       case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
-      case Page.SERVICE_ORDERS: return <ServiceOrdersPage data={osData} isLoading={isLoading} />;
+      case Page.SERVICE_ORDERS: return <ServiceOrdersPage data={osData} isLoading={isLoading && osData.length === 0} />;
       case Page.ALERTS: return <Alerts data={data} />;
       case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} />;
-      default: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading} />;
+      default: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading && data.length === 0} />;
     }
   };
 
@@ -167,16 +201,28 @@ const App: React.FC = () => {
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400">
               <Menu className="h-6 w-6" />
             </button>
-            <h2 className="ml-4 lg:ml-0 text-lg font-bold uppercase tracking-wide">Alumasa - Gestão de Ativos</h2>
+            <h2 className="ml-4 lg:ml-0 text-lg font-bold uppercase tracking-wide flex items-center gap-3">
+              Alumasa - Gestão de Ativos
+              {syncError && <WifiOff className="w-4 h-4 text-red-500 animate-pulse" title="Erro de Sincronização" />}
+            </h2>
           </div>
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex flex-col items-end mr-2">
-               <span className="text-xs text-slate-500">{isSyncing ? 'Sincronizando...' : `Atualizado: ${lastUpdated.toLocaleTimeString()}`}</span>
+               <span className={`text-[10px] font-bold uppercase tracking-widest ${isDataStale ? 'text-amber-500' : 'text-slate-400'}`}>
+                 {isSyncing ? 'Sincronizando...' : `Última carga: ${lastUpdated.toLocaleTimeString()}`}
+               </span>
+               {isDataStale && !isSyncing && <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">Tentando atualizar automaticamente...</span>}
             </div>
-            <button onClick={() => loadData(false)} className={`p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 ${isLoading || isSyncing ? 'animate-spin' : ''}`}>
+            
+            <button 
+              onClick={() => loadData(false)} 
+              title="Sincronizar Manualmente"
+              className={`p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${isLoading || isSyncing ? 'animate-spin text-primary' : 'text-slate-400'}`}
+            >
               <RefreshCw className="h-5 w-5" />
             </button>
-            <button onClick={() => setSettings(s => ({ ...s, darkMode: !s.darkMode }))} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+            
+            <button onClick={() => setSettings(s => ({ ...s, darkMode: !s.darkMode }))} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
               {settings.darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
           </div>
