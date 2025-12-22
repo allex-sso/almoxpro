@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Package, TrendingDown, AlertTriangle, Settings } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings } from 'lucide-react';
 import { Page } from '../types';
 
 interface SidebarProps {
@@ -10,7 +10,6 @@ interface SidebarProps {
   toggleOpen: () => void;
 }
 
-// Componente SVG da Logo Alumasa otimizado para React e Themes (currentColor)
 const AlumasaLogo = ({ className }: { className?: string }) => (
   <svg 
     version="1.1" 
@@ -31,23 +30,6 @@ const AlumasaLogo = ({ className }: { className?: string }) => (
     <path d="M461.02,82.26c9.25,0,16.76,7.5,16.76,16.76c0,9.26-7.5,16.76-16.76,16.76c-9.25,0-16.76-7.5-16.76-16.76 C444.26,89.77,451.77,82.26,461.02,82.26" />
     <path d="M471.98,10.43c1.99,0,3.76,1.26,4.41,3.14l35.18,101.65c0.49,1.43,0.27,3-0.61,4.23 c-0.87,1.23-2.29,1.96-3.8,1.96h-11.35c-1.99,0-3.76-1.26-4.41-3.14l-30.39-87.79l-30.39,87.79c-0.65,1.88-2.42,3.14-4.41,3.14 h-11.35c-1.51,0-2.92-0.73-3.8-1.96c-0.87-1.23-1.1-2.8-0.61-4.23l35.19-101.65c0.65-1.88,2.42-3.14,4.41-3.14H471.98z" />
     <path d="M573.96,51.46h-21.68c-3.75,0-7.21-2-9.08-5.24c-1.88-3.24-1.88-7.24,0-10.49c1.87-3.24,5.33-5.24,9.08-5.24 h38.26c2.58,0,4.67-2.09,4.67-4.66V15.09c0-1.23-0.49-2.42-1.37-3.3c-0.88-0.87-2.06-1.36-3.3-1.36h-38.26 c-10.92,0-21,5.82-26.45,15.27c-5.45,9.45-5.45,21.09,0,30.54c5.46,9.45,15.54,15.27,26.45,15.27h21.68 c8.24,0,14.93,6.68,14.93,14.93c0,8.24-6.69,14.92-14.93,14.92h-47.54c-2.58,0-4.67,2.09-4.67,4.66v10.73 c0,1.23,0.49,2.42,1.37,3.3c0.88,0.87,2.06,1.36,3.3,1.36h47.54c19.31,0,34.97-15.66,34.97-34.97 C608.93,67.11,593.27,51.46,573.96,51.46" />
-    <path d="M368.42,144.4h5.44l9.21,22.25h-5.54l-2.13-5.17h-8.47l-2.13-5.17h-5.57L368.42,144.4z M367.99,157.51h6.34 l-3.17-7.77L367.99,157.51z" />
-    <path d="M388.76,144.4v12.48c0.13,3.7,0.2,3.94,1.1,4.84c0.9,0.77,1.97,0.97,4.87,0.97h4.54v3.97h-5.04 c-4.37,0.07-5.84-0.3-7.74-1.77c-1.97-1.77-2.44-3.34-2.47-8.01V144.4H388.76z" />
-    <path d="M405.9,157.74c0,2.1,0.3,3.14,1.17,3.97c0.87,0.83,2.37,1.37,3.9,1.37c2.1,0,3.8-0.77,4.4-2 c0.33-0.67,0.47-1.63,0.47-3.34V144.4h4.74v13.11c0,3.44-0.7,5.61-2.24,7.01c-1.8,1.57-4.17,2.3-7.47,2.3 c-3.44,0-5.91-0.73-7.51-2.27c-1.67-1.57-2.2-3.2-2.2-6.71V144.4h4.74V157.74z" />
-    <polygon points="437.02,161.78 442.86,144.4 449.76,144.4 449.76,166.65 445.26,166.65 445.26,149.94 439.42,166.65 434.55,166.65 429.05,149.94 429.05,166.65 424.54,166.65 424.54,144.4 431.48,144.4" />
-    <path d="M453.97,144.4h4.74v22.25h-4.74V144.4z M457.51,142.73h-2.87l2.57-4.1h3.84L457.51,142.73z" />
-    <polygon points="467.39,166.65 462.89,166.65 462.89,144.4 468.92,144.4 477.8,160.98 477.8,144.4 482.3,144.4 482.3,166.65 476.5,166.65 467.39,150.34" />
-    <rect x="486.49" y="144.4" width="4.74" height="22.25" />
-    <path d="M513.97,147.47c1.47,1.8,2.3,4.8,2.3,8.37c0,3.8-1.17,6.94-3.27,8.74c-1.67,1.4-4.27,2.2-7.37,2.2 c-4.17,0-7.5-1.33-9.24-3.7c-1.37-1.87-2.07-4.37-2.07-7.44c0-4.14,1.1-7.34,3.17-9.07c1.73-1.5,4.54-2.34,7.81-2.34 C509.13,144.23,512.3,145.4,513.97,147.47 M500.63,150.14c-0.73,1.1-1.1,2.9-1.1,5.34c0,5.2,1.8,7.57,5.8,7.57 c3.94,0,5.74-2.37,5.74-7.51c0-5.21-1.77-7.54-5.74-7.54C503.23,148,501.56,148.77,500.63,150.14" />
-    <path d="M544.66,148.37h-6.17c-3.34,0.03-4.34,0.33-5.37,1.64c-0.67,0.93-0.84,1.5-0.97,3.6h12.51v3.97h-12.51 c0.37,3.87,1.97,5.1,6.54,5.1h5.97v3.97h-6.17c-4.54,0-6.84-0.6-8.54-2.27c-2.03-1.97-3.17-5.17-3.17-8.97 c0-3.87,1.2-6.9,3.57-9.04c1.64-1.47,3.2-1.97,6.31-1.97h8.01V148.37z" />
-    <path d="M561.47,166.65h-4.74V144.4h11.11c3.8,0,5.2,0.4,6.64,1.9c1.37,1.43,2.1,3.3,2.1,5.34 c0,2.27-0.87,4.4-2.34,5.7c-1.3,1.17-2.57,1.53-5.17,1.53h-7.61V166.65z M567.91,154.91c1.2,0,1.94-0.17,2.43-0.57 c0.63-0.5,1.03-1.6,1.03-2.87c0-1.44-0.57-2.47-1.57-2.87c-0.4-0.17-0.97-0.23-1.8-0.23h-6.54v6.54H567.91z" />
-    <path d="M583.68,144.4v12.48c0.13,3.7,0.2,3.94,1.1,4.84c0.9,0.77,1.97,0.97,4.87,0.97h4.54v3.97h-5.04 c-4.37,0.07-5.84-0.3-7.74-1.77c-1.97-1.77-2.43-3.34-2.47-8.01V144.4H583.68z" />
-    <path d="M604.68,144.4h5.44l9.21,22.25h-5.54l-2.13-5.17h-8.47l-2.13,5.17h-5.57L604.68,144.4z M604.24,157.51h6.34 l-3.17-7.77L604.24,157.51z M608.61,142.73h-2.94l3.07-4.1h4.04L608.61,142.73z" />
-    <path d="M621.47,162.68h10.14c1.7,0,2.67-0.13,3.24-0.5c0.77-0.44,1.17-1.17,1.17-2.07c0-1-0.5-1.9-1.37-2.33 c-0.5-0.3-1.37-0.43-2.47-0.43h-4.1c-2.57,0-4.3-0.43-5.44-1.37c-1.4-1.17-2.23-3-2.23-5c0-2.77,1.47-5.21,3.67-6.04 c1.07-0.4,2.24-0.53,4.97-0.53h11.01v3.97h-9.94c-2.07,0-2.84,0.07-3.37,0.33c-0.7,0.4-1.1,1.13-1.1,2.14c0,0.87,0.37,1.6,1,2.03 c0.6,0.37,1.33,0.5,3.07,0.5h3.57c3.2,0,4.9,0.47,6.2,1.7c1.1,1.03,1.8,3,1.8,5.04c0,2.3-1.03,4.4-2.67,5.54 c-1.13,0.77-2.54,1-5.97,1h-11.18V162.68z" />
-    <polygon points="642.3,148.37 642.3,144.4 661.48,144.4 661.48,148.37 654.14,148.37 654.14,166.65 649.4,166.65 649.4,148.37" />
-    <rect x="663.66" y="144.4" width="4.74" height="22.25" />
-    <path d="M689.58,166.65h-7.74c-3.67,0-5.44-0.5-7.17-2c-2.07-1.8-3.17-4.97-3.17-9.08c0-4.9,1.7-8.54,4.67-10.07 c1.33-0.67,3.57-1.1,5.87-1.1h7.54v3.97h-6.97c-2.17,0-3.64,0.53-4.67,1.7c-0.77,0.9-1.2,2.67-1.2,5.07c0,3.13,0.67,5.47,1.9,6.47 c0.9,0.7,2.27,1.07,4.14,1.07h6.8V166.65z" />
-    <path d="M710.54,147.47c1.47,1.8,2.3,4.8,2.3,8.37c0,3.8-1.17,6.94-3.27,8.74c-1.67,1.4-4.27,2.2-7.37,2.2 c-4.17,0-7.5-1.33-9.24-3.7c-1.37-1.87-2.07-4.37-2.07-7.44c0-4.14,1.1-7.34,3.17-9.07c1.73-1.5,4.54-2.34,7.81-2.34 C705.71,144.23,708.87,145.4,710.54,147.47 M697.2,150.14c-0.73,1.1-1.1,2.9-1.1,5.34c0,5.2,1.8,7.57,5.8,7.57 c3.94,0,5.74-2.37,5.74-7.51c0-5.21-1.77-7.54-5.74-7.54C699.8,148,698.13,148.77,697.2,150.14" />
   </svg>
 );
 
@@ -56,29 +38,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
     { id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard },
     { id: Page.INVENTORY, label: 'Inventário', icon: Package },
     { id: Page.CONSUMPTION, label: 'Consumo', icon: TrendingDown },
+    { id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList }, // Novo Item
     { id: Page.ALERTS, label: 'Alertas', icon: AlertTriangle },
     { id: Page.SETTINGS, label: 'Configurações', icon: Settings },
   ];
 
   return (
     <>
-      {/* Mobile overlay */}
       <div 
-        className={`fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/50 z-20 lg:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={toggleOpen}
       />
-
-      {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white dark:bg-dark-card border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} no-print`}>
+      <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white dark:bg-dark-card border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} no-print`}>
         <div className="h-full flex flex-col">
-          {/* LOGO AREA */}
-          <div className="h-auto py-6 px-6 border-b border-gray-200 dark:border-gray-700 flex flex-col justify-center items-center">
-            {/* Logo Alumasa SVG */}
-            <div className="text-slate-800 dark:text-white">
-              <AlumasaLogo className="h-10 w-auto" />
-            </div>
+          <div className="py-6 px-6 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center">
+            <AlumasaLogo className="h-8 w-auto text-slate-800 dark:text-white" />
           </div>
-
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -96,22 +71,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
                       : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary dark:text-blue-400' : 'text-slate-400'}`} />
+                  <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary' : 'text-slate-400'}`} />
                   {item.label}
                 </button>
               );
             })}
           </nav>
-
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Status da Conexão</p>
-              <div className="flex items-center">
-                <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                <span className="text-xs font-medium text-green-600 dark:text-green-400">Online (Sync Auto)</span>
-              </div>
-            </div>
-          </div>
         </div>
       </aside>
     </>

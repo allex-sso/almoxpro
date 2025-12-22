@@ -4,18 +4,18 @@ export interface InventoryItem {
   codigo: string;
   descricao: string;
   equipamento: string;
-  fornecedor: string; // Preenchido via cruzamento de dados ou planilha
+  fornecedor: string;
   localizacao: string;
   quantidadeAtual: number;
   quantidadeMinima: number;
-  unidade: string; // Nova coluna para Unidade de Medida
+  unidade: string;
   entradas: number;
   saidas: number;
   categoria: string;
   valorUnitario: number;
   valorTotal: number;
   dataAtualizacao: string;
-  ultimaMovimentacao?: Date; // Data da última entrada ou saída encontrada
+  ultimaMovimentacao?: Date;
 }
 
 export interface Movement {
@@ -24,17 +24,32 @@ export interface Movement {
   codigo: string;
   quantidade: number;
   tipo: 'entrada' | 'saida';
-  fornecedor?: string; // Apenas para entradas
-  responsavel?: string; // Novo campo para identificar quem retirou
-  valorUnitario?: number; // Novo campo para capturar preço da aba de Entradas
-  valorTotal?: number; // Campo de backup para cálculo reverso
+  fornecedor?: string;
+  responsavel?: string;
+  valorUnitario?: number;
+  valorTotal?: number;
   obs?: string;
 }
 
+export interface ServiceOrder {
+  id: string;
+  numero: string;
+  dataAbertura: Date;
+  dataInicio?: Date;
+  dataFim?: Date;
+  profissional: string;
+  equipamento: string;
+  setor: string;
+  status: string;
+  horas: number;
+  descricao: string;
+}
+
 export interface AppSettings {
-  inventoryUrl: string; // URL Estoque Atual
-  inUrl: string;        // URL Entradas
-  outUrl: string;       // URL Saídas
+  inventoryUrl: string;
+  inUrl: string;
+  outUrl: string;
+  osUrl: string; // URL da planilha de OS
   refreshRate: number;
   darkMode: boolean;
 }
@@ -50,6 +65,7 @@ export enum Page {
   DASHBOARD = 'dashboard',
   INVENTORY = 'inventory',
   CONSUMPTION = 'consumption',
+  SERVICE_ORDERS = 'service_orders', // Nova página
   ALERTS = 'alerts',
   SETTINGS = 'settings',
 }
