@@ -28,7 +28,6 @@ const parseDurationToHours = (value: string): number => {
   if (!value) return 0;
   const str = value.toString().trim();
   
-  // Se contiver ":", tenta tratar como HH:MM
   if (str.includes(':')) {
     const parts = str.split(':').map(p => parseInt(p, 10) || 0);
     if (parts.length >= 2) {
@@ -39,7 +38,6 @@ const parseDurationToHours = (value: string): number => {
     }
   }
   
-  // Caso contrário, tenta parse numérico normal
   return parseNumber(value);
 };
 
@@ -94,13 +92,11 @@ const parseDate = (value: string): Date | null => {
   let date: Date | null = null;
   const trimmedValue = value.trim();
 
-  // Caso 1: Serial do Excel (Número puro)
   if (!isNaN(Number(trimmedValue)) && !trimmedValue.includes('/')) {
     const serial = Number(trimmedValue);
     if (serial < 1000) return null; 
     date = new Date(Math.round((serial - 25569) * 86400 * 1000));
   } 
-  // Caso 2: Formato com "/" (ex: DD/MM/YYYY HH:mm:ss)
   else if (trimmedValue.includes('/')) {
     const parts = trimmedValue.split(' ');
     const datePart = parts[0];
@@ -123,7 +119,6 @@ const parseDate = (value: string): Date | null => {
       }
     }
   } 
-  // Caso 3: ISO ou outro formato padrão do JS
   else {
     const d = new Date(trimmedValue);
     if (!isNaN(d.getTime())) date = d;
@@ -169,16 +164,22 @@ const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, h
   return { index: -1, headers: [] };
 };
 
-// findCol otimizado para evitar correspondências parciais curtas
+/**
+ * Encontra o índice da melhor coluna baseada em uma lista de termos prioritários.
+ * A função agora itera pelos termos primeiro, garantindo que o termo mais específico
+ * seja encontrado antes de um termo genérico, independente da ordem das colunas na planilha.
+ */
 const findBestCol = (headers: string[], terms: string[]) => {
-  return headers.findIndex(h => {
-    const hNorm = normalizeStr(h);
-    return terms.some(t => {
-      const tNorm = normalizeStr(t);
-      if (tNorm.length <= 2) return hNorm === tNorm; // Exato para termos curtos (ex: OS)
-      return hNorm.includes(tNorm);
+  for (const term of terms) {
+    const tNorm = normalizeStr(term);
+    const foundIndex = headers.findIndex(h => {
+      const hNorm = normalizeStr(h);
+      if (tNorm.length <= 2) return hNorm === tNorm;
+      return hNorm === tNorm || hNorm.includes(tNorm);
     });
-  });
+    if (foundIndex !== -1) return foundIndex;
+  }
+  return -1;
 };
 
 export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Promise<Movement[]> => {
@@ -227,7 +228,10 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const idxLoc = findBestCol(headers, ['local']);
   const idxForn = findBestCol(headers, ['fornecedor']); 
   const idxUnd = findBestCol(headers, ['unid', 'und', 'medida']);
-  const idxQtd = findBestCol(headers, ['estoque atual', 'saldo', 'quantidade']);
+  
+  // Refinada a busca pela coluna de Quantidade para evitar conflito com 'Quantidade Inicial'
+  const idxQtd = findBestCol(headers, ['quantidade em estoque', 'estoque atual', 'saldo atual', 'saldo', 'estoque', 'quantidade']);
+  
   const idxMin = findBestCol(headers, ['minim']);
   const idxCat = findBestCol(headers, ['categ', 'grupo']);
 
@@ -264,11 +268,10 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
     const { index: headerIdx, headers } = findHeaderRow(rows, ['abertura', 'os', 'profissional', 'setor']);
     if (headerIdx === -1) return [];
 
-    // Prioridade total para "Ordem de Serviço" exato para evitar pegar "Descrição"
     const idxNum = findBestCol(headers, ['ordem de servico', 'numero os', 'numero', 'os']);
     const idxAbertura = findBestCol(headers, ['abertura', 'criado em', 'data']);
-    const idxInicio = findBestCol(headers, ['inicio', 'atendimento']);
-    const idxFim = findBestCol(headers, ['fim', 'conclusao', 'fechamento']);
+    const idxInicio = findBestCol(headers, ['inicio', 'atendimento', 'inicio manutencao']);
+    const idxFim = findBestCol(headers, ['fim', 'conclusao', 'fechamento', 'fim manutencao']);
     const idxProf = findBestCol(headers, ['profissional', 'tecnico', 'responsavel', 'nome']);
     const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'ativo']);
     const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);

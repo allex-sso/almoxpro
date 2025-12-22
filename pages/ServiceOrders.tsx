@@ -68,8 +68,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ data, isLoading }) =>
           responseCount++;
         }
       }
-      if (os.dataInicio && os.dataFim) {
-        const diff = (os.dataFim.getTime() - os.dataInicio.getTime()) / (1000 * 60 * 60);
+      
+      // Cálculo de execução mais resiliente para estatísticas gerais
+      const startForExec = os.dataInicio || os.dataAbertura;
+      if (startForExec && os.dataFim) {
+        const diff = (os.dataFim.getTime() - startForExec.getTime()) / (1000 * 60 * 60);
         if (diff >= 0 && diff < 1000) {
           executionSum += diff;
           executionCount++;
@@ -123,12 +126,28 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ data, isLoading }) =>
         return matchesSearch && matchesMonth;
       })
       .map(os => {
+        // T. Resposta: Abertura -> Início
         const responseH = (os.dataAbertura && os.dataInicio) 
           ? (os.dataInicio.getTime() - os.dataAbertura.getTime()) / (1000 * 60 * 60) 
           : null;
-        const executionH = (os.dataInicio && os.dataFim) 
-          ? (os.dataFim.getTime() - os.dataInicio.getTime()) / (1000 * 60 * 60) 
-          : null;
+        
+        // T. Execução: Lógica resiliente
+        let executionH: number | null = null;
+        if (os.dataFim) {
+          // 1. Tenta Início -> Fim
+          if (os.dataInicio) {
+            executionH = (os.dataFim.getTime() - os.dataInicio.getTime()) / (1000 * 60 * 60);
+          } 
+          // 2. Fallback: Abertura -> Fim (se início for nulo)
+          else {
+            executionH = (os.dataFim.getTime() - os.dataAbertura.getTime()) / (1000 * 60 * 60);
+          }
+        }
+        
+        // 3. Fallback Final: Se o cálculo der erro ou nulo, tenta usar a coluna 'horas' se for > 0
+        if ((executionH === null || executionH <= 0) && os.horas > 0) {
+            executionH = os.horas;
+        }
 
         return {
           ...os,
@@ -385,7 +404,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ data, isLoading }) =>
                           </span>
                        </td>
                        <td className="px-6 py-4 text-center">
-                          <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                          <span className={`text-xs font-mono font-bold ${os.executionVal ? 'text-slate-600 dark:text-slate-300' : 'text-amber-500'}`}>
                              {os.executionTime}
                           </span>
                        </td>
