@@ -1,8 +1,6 @@
 
 import { InventoryItem, Movement, ServiceOrder } from '../types';
 
-// --- UTILITÁRIOS DE PARSE ---
-
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
 
 const parseNumber = (value: string): number => {
@@ -21,13 +19,9 @@ const parseNumber = (value: string): number => {
   return isNaN(num) ? 0 : num;
 };
 
-/**
- * Converte formatos de tempo (HH:MM ou HH:MM:SS) para valor decimal de horas
- */
 const parseDurationToHours = (value: string): number => {
   if (!value) return 0;
   const str = value.toString().trim();
-  
   if (str.includes(':')) {
     const parts = str.split(':').map(p => parseInt(p, 10) || 0);
     if (parts.length >= 2) {
@@ -37,7 +31,6 @@ const parseDurationToHours = (value: string): number => {
       return h + (m / 60) + (s / 3600);
     }
   }
-  
   return parseNumber(value);
 };
 
@@ -93,6 +86,7 @@ const parseDate = (value: string): Date | null => {
   
   let date: Date | null = null;
   const trimmedValue = value.trim();
+  const currentYear = new Date().getFullYear();
 
   if (!isNaN(Number(trimmedValue)) && !trimmedValue.includes('/')) {
     const serial = Number(trimmedValue);
@@ -126,7 +120,8 @@ const parseDate = (value: string): Date | null => {
     if (!isNaN(d.getTime())) date = d;
   }
 
-  if (!date || isNaN(date.getTime()) || date.getFullYear() < 2000 || date.getFullYear() > 2100) {
+  // REJEIÇÃO DE DATAS INVÁLIDAS: Limite de sanidade (de 2000 até o ano que vem)
+  if (!date || isNaN(date.getTime()) || date.getFullYear() < 2000 || date.getFullYear() > currentYear + 1) {
     return null;
   }
   
@@ -166,9 +161,6 @@ const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, h
   return { index: -1, headers: [] };
 };
 
-/**
- * Encontra o índice da melhor coluna baseada em uma lista de termos prioritários.
- */
 const findBestCol = (headers: string[], terms: string[]) => {
   for (const term of terms) {
     const tNorm = normalizeStr(term);
@@ -261,7 +253,6 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
 export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> => {
     const rows = await fetchCSV(url);
     if (rows.length === 0) return [];
-    
     const { index: headerIdx, headers } = findHeaderRow(rows, ['abertura', 'os', 'profissional', 'setor']);
     if (headerIdx === -1) return [];
 
