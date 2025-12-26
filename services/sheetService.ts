@@ -3,6 +3,17 @@ import { InventoryItem, Movement, ServiceOrder } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
 
+// Função para padronizar códigos (ex: 1 -> 01)
+const formatCodigo = (code: string | undefined): string => {
+  if (!code) return "";
+  const trimmed = code.toString().trim();
+  // Se for um único dígito de 0 a 9, adiciona o zero à esquerda
+  if (trimmed.length === 1 && trimmed >= '0' && trimmed <= '9') {
+    return `0${trimmed}`;
+  }
+  return trimmed;
+};
+
 const parseNumber = (value: string): number => {
   if (!value) return 0;
   let str = value.toString().trim();
@@ -191,7 +202,10 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     const rawDate = idxData !== -1 ? parseDate(row[idxData]) : null;
     if (!rawDate) return null;
-    const codigo = (idxCodigo !== -1 ? row[idxCodigo] : row[0])?.trim();
+    // Aplicamos formatCodigo para garantir consistência no vínculo com o inventário
+    const rawCode = idxCodigo !== -1 ? row[idxCodigo] : row[0];
+    const codigo = formatCodigo(rawCode);
+    
     const qtd = idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0;
     if (qtd === 0) return null;
     return {
@@ -226,8 +240,10 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
 
   const itemMap = new Map<string, InventoryItem>();
   rows.slice(headerIdx + 1).forEach((row) => {
-    let codigo = row[idxCodigo]?.trim();
+    // Aplicamos formatCodigo aqui (1 -> 01)
+    const codigo = formatCodigo(row[idxCodigo]);
     if (!codigo) return;
+    
     const item: InventoryItem = {
         id: codigo,
         codigo,
