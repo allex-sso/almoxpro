@@ -43,11 +43,13 @@ const parseDurationToHours = (value: string): number => {
 
 const formatUnit = (raw: string): string => {
   const val = normalizeStr(raw);
-  if (!val) return 'uni';
-  if (val.startsWith('unid') || val === 'und' || val === 'un') return 'uni';
+  if (!val) return 'un';
+  if (val.startsWith('unid') || val === 'und' || val === 'un' || val === 'unidade') return 'un';
   if (val.startsWith('metr') || val === 'm' || val === 'mts') return 'mt';
-  if (val.startsWith('pec') || val.startsWith('pc') || val === 'pç') return 'pç';
-  return raw.substring(0, 3).toLowerCase();
+  if (val.startsWith('pec') || val.startsWith('pc') || val === 'pç' || val === 'peca') return 'pç';
+  if (val.startsWith('quilo') || val === 'kg') return 'kg';
+  if (val.startsWith('litro') || val === 'lt' || val === 'l') return 'lt';
+  return raw.substring(0, 2).toLowerCase();
 };
 
 const detectDelimiter = (text: string): string => {
@@ -166,8 +168,6 @@ const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, h
 
 /**
  * Encontra o índice da melhor coluna baseada em uma lista de termos prioritários.
- * A função agora itera pelos termos primeiro, garantindo que o termo mais específico
- * seja encontrado antes de um termo genérico, independente da ordem das colunas na planilha.
  */
 const findBestCol = (headers: string[], terms: string[]) => {
   for (const term of terms) {
@@ -228,10 +228,7 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const idxLoc = findBestCol(headers, ['local']);
   const idxForn = findBestCol(headers, ['fornecedor']); 
   const idxUnd = findBestCol(headers, ['unid', 'und', 'medida']);
-  
-  // Refinada a busca pela coluna de Quantidade para evitar conflito com 'Quantidade Inicial'
   const idxQtd = findBestCol(headers, ['quantidade em estoque', 'estoque atual', 'saldo atual', 'saldo', 'estoque', 'quantidade']);
-  
   const idxMin = findBestCol(headers, ['minim']);
   const idxCat = findBestCol(headers, ['categ', 'grupo']);
 
