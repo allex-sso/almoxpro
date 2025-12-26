@@ -303,11 +303,20 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
             {supplierData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={supplierData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" nameKey="name" label={({name}) => name}>
+                  <Pie 
+                    data={supplierData} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={60} 
+                    outerRadius={100} 
+                    paddingAngle={2} 
+                    dataKey="value" 
+                    nameKey="name" 
+                    label={({name}) => name}
+                  >
                     {supplierData.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }} formatter={(value: number) => formatCurrency(value)} />
-                  <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
