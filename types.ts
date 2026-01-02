@@ -36,13 +36,15 @@ export interface ServiceOrder {
   dataAbertura: Date;
   dataInicio?: Date;
   dataFim?: Date;
-  profissional: string;
+  professional: string;
   equipamento: string;
   setor: string;
   status: string;
   horas: number;
   descricao: string;
   parada?: string; // Sim ou Não
+  peca?: string; // Peças citadas na OS
+  motivo?: string; // Razão da manutenção ou troca
 }
 
 export interface AppSettings {

@@ -189,7 +189,7 @@ const App: React.FC = () => {
       case Page.DASHBOARD: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading && data.length === 0} />;
       case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading && data.length === 0} />;
       case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
-      case Page.SERVICE_ORDERS: return <ServiceOrdersPage data={osData} isLoading={isLoading && osData.length === 0} />;
+      case Page.SERVICE_ORDERS: return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading && osData.length === 0} />;
       case Page.ALERTS: return <Alerts data={data} />;
       case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} />;
       default: return <Dashboard data={data} stats={stats} movements={movements} isLoading={isLoading && data.length === 0} />;

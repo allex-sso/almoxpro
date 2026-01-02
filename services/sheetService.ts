@@ -286,6 +286,8 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
     const idxHoras = findBestCol(headers, ['horas', 'tempo gasto', 'duracao', 'tempo servico']);
     const idxDesc = findBestCol(headers, ['atividade', 'descricao', 'problema', 'obs']);
     const idxParada = findBestCol(headers, ['parada', 'equipamento parado']);
+    const idxPeca = findBestCol(headers, ['peca', 'item usado', 'componente', 'pecas']);
+    const idxMotivo = findBestCol(headers, ['motivo', 'causa', 'justificativa', 'razao']);
 
     return rows.slice(headerIdx + 1).map((row, i): ServiceOrder | null => {
         const dataAbertura = parseDate(row[idxAbertura]);
@@ -301,13 +303,15 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
             dataAbertura: dataAbertura,
             dataInicio: idxInicio !== -1 ? parseDate(row[idxInicio]) || undefined : undefined,
             dataFim: idxFim !== -1 ? parseDate(row[idxFim]) || undefined : undefined,
-            profissional: row[idxProf] || 'Não Atribuído',
+            professional: row[idxProf] || 'Não Atribuído',
             equipamento: row[idxEquip] || 'Geral',
             setor: row[idxSetor] || 'Outros',
             status: row[idxStatus] || 'N/D',
             horas: idxHoras !== -1 ? parseDurationToHours(row[idxHoras]) : 0,
             descricao: row[idxDesc] || '',
-            parada: normalizedParada
+            parada: normalizedParada,
+            peca: idxPeca !== -1 ? row[idxPeca] : undefined,
+            motivo: idxMotivo !== -1 ? row[idxMotivo] : undefined
         };
     }).filter((os): os is ServiceOrder => os !== null);
 };
