@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
@@ -68,7 +67,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
 
   const { flowData, totals } = useMemo(() => {
     const now = new Date();
-    // Limite de segurança: 24 horas no futuro para tolerar fusos horários, mas ignorar 2034.
+    // Limite de segurança: 24 horas no futuro para tolerar fusos horários
     const futureLimit = now.getTime() + (24 * 60 * 60 * 1000);
 
     const filteredMovements = movements.filter(m => {

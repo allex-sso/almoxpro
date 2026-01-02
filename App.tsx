@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, Moon, Sun, RefreshCw, WifiOff } from 'lucide-react';
 import Sidebar from './components/Sidebar';
@@ -25,21 +24,25 @@ const App: React.FC = () => {
   const [movements, setMovements] = useState<Movement[]>(() => {
     const cached = localStorage.getItem('alumasa_cache_movements');
     if (cached) {
-      const parsed = JSON.parse(cached);
-      return parsed.map((m: any) => ({ ...m, data: new Date(m.data) }));
+      try {
+        const parsed = JSON.parse(cached);
+        return parsed.map((m: any) => ({ ...m, data: new Date(m.data) }));
+      } catch (e) { return []; }
     }
     return [];
   });
   const [osData, setOsData] = useState<ServiceOrder[]>(() => {
     const cached = localStorage.getItem('alumasa_cache_os');
     if (cached) {
-      const parsed = JSON.parse(cached);
-      return parsed.map((os: any) => ({ 
-        ...os, 
-        dataAbertura: new Date(os.dataAbertura),
-        dataInicio: os.dataInicio ? new Date(os.dataInicio) : undefined,
-        dataFim: os.dataFim ? new Date(os.dataFim) : undefined
-      }));
+      try {
+        const parsed = JSON.parse(cached);
+        return parsed.map((os: any) => ({ 
+          ...os, 
+          dataAbertura: new Date(os.dataAbertura),
+          dataInicio: os.dataInicio ? new Date(os.dataInicio) : undefined,
+          dataFim: os.dataFim ? new Date(os.dataFim) : undefined
+        }));
+      } catch (e) { return []; }
     }
     return [];
   });
@@ -59,7 +62,7 @@ const App: React.FC = () => {
         if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
           return import.meta.env[key];
         }
-        if (typeof process !== 'undefined' && process.env && process.env[key]) {
+        if (typeof process !== 'undefined' && process.env && (process.env as any)[key]) {
           return (process.env as any)[key];
         }
       } catch (e) {}
@@ -106,9 +109,9 @@ const App: React.FC = () => {
     try {
       const [inventoryItems, inMoves, outMoves, osList] = await Promise.all([
         fetchInventoryData(settings.inventoryUrl),
-        settings.inUrl ? fetchMovements(settings.inUrl, 'entrada') : Promise.resolve([]),
-        settings.outUrl ? fetchMovements(settings.outUrl, 'saida') : Promise.resolve([]),
-        settings.osUrl ? fetchServiceOrders(settings.osUrl) : Promise.resolve([])
+        settings.inUrl && settings.inUrl.length > 5 ? fetchMovements(settings.inUrl, 'entrada') : Promise.resolve([]),
+        settings.outUrl && settings.outUrl.length > 5 ? fetchMovements(settings.outUrl, 'saida') : Promise.resolve([]),
+        settings.osUrl && settings.osUrl.length > 5 ? fetchServiceOrders(settings.osUrl) : Promise.resolve([])
       ]);
 
       // Validação Crítica: Se os dados principais vierem vazios mas o cache tem dados, não sobrescreve
@@ -116,39 +119,40 @@ const App: React.FC = () => {
         throw new Error("Resposta vazia da planilha. Mantendo dados do cache.");
       }
 
-      const allMoves = [...inMoves, ...outMoves].sort((a, b) => a.data.getTime() - b.data.getTime());
-      
-      const enrichedItems = inventoryItems.map(item => {
-        const itemCodeClean = cleanCode(item.codigo);
-        const itemMoves = allMoves.filter(m => cleanCode(m.codigo) === itemCodeClean);
-        const entries = inMoves.filter(m => cleanCode(m.codigo) === itemCodeClean).sort((a, b) => b.data.getTime() - a.data.getTime());
+      if (inventoryItems.length > 0) {
+        const allMoves = [...inMoves, ...outMoves].sort((a, b) => a.data.getTime() - b.data.getTime());
         
-        let unitPrice = 0;
-        const validEntry = entries.find(e => (e.valorUnitario || 0) > 0);
-        if (validEntry) unitPrice = validEntry.valorUnitario || 0;
+        const enrichedItems = inventoryItems.map(item => {
+          const itemCodeClean = cleanCode(item.codigo);
+          const itemMoves = allMoves.filter(m => cleanCode(m.codigo) === itemCodeClean);
+          const entries = inMoves.filter(m => cleanCode(m.codigo) === itemCodeClean).sort((a, b) => b.data.getTime() - a.data.getTime());
+          
+          let unitPrice = 0;
+          const validEntry = entries.find(e => (e.valorUnitario || 0) > 0);
+          if (validEntry) unitPrice = validEntry.valorUnitario || 0;
 
-        return {
-          ...item,
-          valorUnitario: unitPrice,
-          valorTotal: item.quantidadeAtual * unitPrice,
-          entradas: itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0),
-          saidas: itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0),
-          ultimaMovimentacao: itemMoves[itemMoves.length - 1]?.data
-        };
-      });
+          return {
+            ...item,
+            valorUnitario: unitPrice,
+            valorTotal: item.quantidadeAtual * unitPrice,
+            entradas: itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0),
+            saidas: itemMoves.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0),
+            ultimaMovimentacao: itemMoves[itemMoves.length - 1]?.data
+          };
+        });
 
-      // Atualiza Estados
-      setData(enrichedItems);
-      setMovements(allMoves);
-      setOsData(osList);
-      setLastUpdated(new Date());
+        // Atualiza Estados
+        setData(enrichedItems);
+        setMovements(allMoves);
+        setOsData(osList);
+        setLastUpdated(new Date());
 
-      // Salva no Cache para a próxima abertura do app
-      localStorage.setItem('alumasa_cache_inventory', JSON.stringify(enrichedItems));
-      localStorage.setItem('alumasa_cache_movements', JSON.stringify(allMoves));
-      localStorage.setItem('alumasa_cache_os', JSON.stringify(osList));
-      localStorage.setItem('alumasa_cache_time', new Date().toISOString());
-
+        // Salva no Cache para a próxima abertura do app
+        localStorage.setItem('alumasa_cache_inventory', JSON.stringify(enrichedItems));
+        localStorage.setItem('alumasa_cache_movements', JSON.stringify(allMoves));
+        localStorage.setItem('alumasa_cache_os', JSON.stringify(osList));
+        localStorage.setItem('alumasa_cache_time', new Date().toISOString());
+      }
     } catch (err) {
       console.error("Falha na sincronização:", err);
       setSyncError(true);

@@ -1,4 +1,3 @@
-
 export interface InventoryItem {
   id: string;
   codigo: string;
@@ -43,6 +42,7 @@ export interface ServiceOrder {
   status: string;
   horas: number;
   descricao: string;
+  parada?: string; // Sim ou Não
 }
 
 export interface AppSettings {

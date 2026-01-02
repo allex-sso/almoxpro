@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie } from 'recharts';
 import { Filter, Users, Wrench, PackageMinus, UserCheck, ClipboardList, Info } from 'lucide-react';
@@ -13,11 +12,9 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
   const [categoryFilter, setCategoryFilter] = useState('Todos');
   const [equipmentFilter, setEquipmentFilter] = useState('Todos');
 
-  // Extrair categorias e equipamentos únicos
   const categories = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.categoria).filter(Boolean)))], [data]);
   const equipments = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.equipamento).filter(Boolean)))], [data]);
 
-  // Filtrar dados do inventário (para os gráficos baseados em itens)
   const filteredData = useMemo(() => {
      let res = data;
      if (categoryFilter !== 'Todos') {
@@ -29,7 +26,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
      return res;
   }, [data, categoryFilter, equipmentFilter]);
 
-  // 1. TOP ITEMS CONSUMED (Quantidade Física de Saídas)
   const topConsumedItems = useMemo(() => {
     return [...filteredData]
       .sort((a, b) => b.saidas - a.saidas)
@@ -44,7 +40,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       .filter(i => i.value > 0);
   }, [filteredData]);
 
-  // 2. COST BY EQUIPMENT (Financeiro de Saídas)
   const costByEquipment = useMemo(() => {
     const map: Record<string, number> = {};
     filteredData.forEach(item => {
@@ -61,32 +56,22 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       .slice(0, 10);
   }, [filteredData]);
 
-  // 3. TOP SUPPLIERS (Volume Financeiro de COMPRAS/ENTRADAS)
   const supplierData = useMemo(() => {
     const map: Record<string, number> = {};
-    
-    // Filtramos apenas as entradas
     const inMovements = movements.filter(m => m.tipo === 'entrada');
 
     if (inMovements.length > 0) {
-      // Lógica Principal: Baseada no histórico real de Entradas (Gastos)
       inMovements.forEach(m => {
         let fornRaw = m.fornecedor?.trim() || 'N/D';
         if (fornRaw.toLowerCase() === 'n/d' || fornRaw === '-') fornRaw = 'Outros';
-        
-        // Chave de agrupamento normalizada (Caixa Alta)
         const key = fornRaw.toUpperCase();
-        
-        // Valor: Prioriza o Valor Total da linha da planilha, senão calcula Qtd * Unitario
         const value = (m.valorTotal && m.valorTotal > 0) 
           ? m.valorTotal 
           : (m.quantidade * (m.valorUnitario || 0));
-
         if (!map[key]) map[key] = 0;
         map[key] += value;
       });
     } else {
-      // Fallback: Se não houver histórico de entradas carregado, usa o Valor em Estoque Atual
       filteredData.forEach(item => {
         let fornRaw = item.fornecedor?.trim() || 'N/D';
         if (fornRaw.toLowerCase() === 'n/d' || fornRaw === '-') fornRaw = 'Outros';
@@ -99,7 +84,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
 
     return Object.entries(map)
       .map(([name, value]) => ({ 
-        // Formata o nome para capitalizado (Ex: "ALUMASA" -> "Alumasa")
         name: name.charAt(0) + name.slice(1).toLowerCase(), 
         value 
       }))
@@ -108,7 +92,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       .slice(0, 8);
   }, [movements, filteredData]);
 
-  // 4. RESPONSÁVEIS POR RETIRADAS (Análise de quem retira)
   const responsibleStats = useMemo(() => {
     if (!movements || movements.length === 0) return [];
 
@@ -123,20 +106,15 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
 
     movements.forEach(m => {
         if (m.tipo !== 'saida' || !m.responsavel) return;
-        
         const name = m.responsavel.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-
         if (!grouped[name]) {
             grouped[name] = { totalQty: 0, count: 0, items: {}, lastDate: m.data };
         }
-
         grouped[name].totalQty += m.quantidade;
         grouped[name].count += 1;
-        
         if (m.data > grouped[name].lastDate) {
             grouped[name].lastDate = m.data;
         }
-
         const code = m.codigo;
         if (!grouped[name].items[code]) grouped[name].items[code] = 0;
         grouped[name].items[code] += m.quantidade;
@@ -196,8 +174,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      
-      {/* Header & Filter */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Análise de Consumo</h1>
@@ -207,14 +183,14 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
         <div className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm gap-2">
              <Filter className="w-4 h-4 text-gray-400 ml-2" />
              <select 
-              className="px-3 py-1.5 rounded-md bg-transparent text-sm focus:outline-none dark:text-white font-medium border-r border-gray-200 dark:border-gray-700"
+              className="px-3 py-1.5 rounded-md bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none text-slate-700 dark:text-white font-bold border-r border-gray-200 dark:border-gray-700 outline-none"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <select 
-              className="px-3 py-1.5 rounded-md bg-transparent text-sm focus:outline-none dark:text-white font-medium"
+              className="px-3 py-1.5 rounded-md bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none text-slate-700 dark:text-white font-bold outline-none"
               value={equipmentFilter}
               onChange={(e) => setEquipmentFilter(e.target.value)}
             >
@@ -223,7 +199,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
         </div>
       </div>
 
-      {/* --- TOP CONSUMED ITEMS --- */}
       <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <div className="flex items-center mb-6">
             <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg mr-3">
@@ -255,7 +230,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
           </div>
       </div>
 
-      {/* --- GRID DE GRÁFICOS FINANCEIROS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <div className="flex items-center mb-6">
@@ -329,7 +303,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
         </div>
       </div>
 
-      {/* --- RESPONSÁVEIS POR RETIRADA --- */}
       {responsibleChartData.length > 0 && (
       <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <div className="flex items-center mb-6">
@@ -356,7 +329,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       </div>
       )}
 
-      {/* --- DETALHAMENTO: TABELA DE RESPONSÁVEIS --- */}
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center">
             <ClipboardList className="w-5 h-5 mr-2 text-slate-400" />

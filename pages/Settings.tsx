@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Database, CheckCircle, AlertCircle, ClipboardList } from 'lucide-react';
 import { AppSettings } from '../types';

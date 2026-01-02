@@ -1,13 +1,10 @@
-
 import { InventoryItem, Movement, ServiceOrder } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
 
-// Função para padronizar códigos (ex: 1 -> 01)
 const formatCodigo = (code: string | undefined): string => {
   if (!code) return "";
   const trimmed = code.toString().trim();
-  // Se for um único dígito de 0 a 9, adiciona o zero à esquerda
   if (trimmed.length === 1 && trimmed >= '0' && trimmed <= '9') {
     return `0${trimmed}`;
   }
@@ -97,7 +94,6 @@ const parseDate = (value: string): Date | null => {
   
   let date: Date | null = null;
   const trimmedValue = value.trim();
-  const currentYear = new Date().getFullYear();
 
   if (!isNaN(Number(trimmedValue)) && !trimmedValue.includes('/')) {
     const serial = Number(trimmedValue);
@@ -113,7 +109,15 @@ const parseDate = (value: string): Date | null => {
     if (dParts.length === 3) {
       const d = parseInt(dParts[0]);
       const m = parseInt(dParts[1]);
-      let y = parseInt(dParts[2]);
+      let yStr = dParts[2].trim();
+      
+      if (yStr.length === 5 && yStr.startsWith('202')) {
+          yStr = yStr[0] + yStr[1] + yStr[2] + yStr[4];
+      } else if (yStr.length > 4) {
+          yStr = yStr.substring(0, 4);
+      }
+      
+      let y = parseInt(yStr);
       if (y < 100) y += 2000;
 
       const tParts = timePart.split(':');
@@ -131,8 +135,7 @@ const parseDate = (value: string): Date | null => {
     if (!isNaN(d.getTime())) date = d;
   }
 
-  // REJEIÇÃO DE DATAS INVÁLIDAS: Limite de sanidade (de 2000 até o ano que vem)
-  if (!date || isNaN(date.getTime()) || date.getFullYear() < 2000 || date.getFullYear() > currentYear + 1) {
+  if (!date || isNaN(date.getTime()) || date.getFullYear() < 1990 || date.getFullYear() > 2100) {
     return null;
   }
   
@@ -153,7 +156,9 @@ const fetchCSV = async (url: string): Promise<string[][]> => {
     });
     if (!response.ok) return [];
     const text = await response.text();
-    if (text.trim().startsWith('<!DOCTYPE html>')) return [];
+    if (text.trim().startsWith('<!DOCTYPE html>') || text.trim().startsWith('<html')) return [];
+    if (!text.trim()) return [];
+
     const delimiter = detectDelimiter(text);
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
     return lines.map(line => parseCSVLine(line, delimiter));
@@ -202,7 +207,6 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     const rawDate = idxData !== -1 ? parseDate(row[idxData]) : null;
     if (!rawDate) return null;
-    // Aplicamos formatCodigo para garantir consistência no vínculo com o inventário
     const rawCode = idxCodigo !== -1 ? row[idxCodigo] : row[0];
     const codigo = formatCodigo(rawCode);
     
@@ -240,7 +244,6 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
 
   const itemMap = new Map<string, InventoryItem>();
   rows.slice(headerIdx + 1).forEach((row) => {
-    // Aplicamos formatCodigo aqui (1 -> 01)
     const codigo = formatCodigo(row[idxCodigo]);
     if (!codigo) return;
     
@@ -282,10 +285,15 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
     const idxStatus = findBestCol(headers, ['status', 'situacao']);
     const idxHoras = findBestCol(headers, ['horas', 'tempo gasto', 'duracao', 'tempo servico']);
     const idxDesc = findBestCol(headers, ['atividade', 'descricao', 'problema', 'obs']);
+    const idxParada = findBestCol(headers, ['parada', 'equipamento parado']);
 
     return rows.slice(headerIdx + 1).map((row, i): ServiceOrder | null => {
         const dataAbertura = parseDate(row[idxAbertura]);
         if (!dataAbertura) return null;
+
+        const rawParada = row[idxParada] || 'Não';
+        const nParada = normalizeStr(rawParada);
+        const normalizedParada = (nParada.includes('sim') || nParada === 's' || nParada === '1') ? 'Sim' : 'Não';
 
         return {
             id: `os-${i}`,
@@ -298,7 +306,8 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
             setor: row[idxSetor] || 'Outros',
             status: row[idxStatus] || 'N/D',
             horas: idxHoras !== -1 ? parseDurationToHours(row[idxHoras]) : 0,
-            descricao: row[idxDesc] || ''
+            descricao: row[idxDesc] || '',
+            parada: normalizedParada
         };
     }).filter((os): os is ServiceOrder => os !== null);
 };

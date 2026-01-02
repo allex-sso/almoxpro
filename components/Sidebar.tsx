@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings } from 'lucide-react';
 import { Page } from '../types';
@@ -38,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
     { id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard },
     { id: Page.INVENTORY, label: 'Inventário', icon: Package },
     { id: Page.CONSUMPTION, label: 'Consumo', icon: TrendingDown },
-    { id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList }, // Novo Item
+    { id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList },
     { id: Page.ALERTS, label: 'Alertas', icon: AlertTriangle },
     { id: Page.SETTINGS, label: 'Configurações', icon: Settings },
   ];
