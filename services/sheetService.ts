@@ -5,14 +5,16 @@ const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u030
 const formatCodigo = (code: any): string => {
   if (code === null || code === undefined) return "";
   let str = String(code).trim();
-  if (str === "" || str === "0") return "";
+  if (str === "" || str === "0") return str;
   
-  // Remove zeros à esquerda primeiro para normalizar a base
-  str = str.replace(/^0+/, '') || str;
-  
-  // Se o resultado for um único dígito numérico (1-9), adiciona o zero à esquerda
-  if (str.length === 1 && /^\d$/.test(str)) {
-    return '0' + str;
+  // Verifica se o código é puramente numérico para aplicar a formatação
+  if (/^\d+$/.test(str)) {
+    // Normaliza removendo zeros à esquerda e transformando em número para garantir o dígito base
+    const num = parseInt(str, 10);
+    if (!isNaN(num) && num >= 1 && num <= 9) {
+      return '0' + num;
+    }
+    return String(num); // Para números > 9, remove os zeros extras se houver (ex: 0010 -> 10)
   }
   
   return str;
@@ -23,14 +25,11 @@ const parseNumber = (value: string | number): number => {
   if (typeof value === 'number') return value;
   
   let str = value.toString().trim();
-  // Limpeza de R$, espaços e caracteres não numéricos exceto ponto e vírgula
   str = str.replace(/R\$/gi, '').replace(/\s/g, '').replace(/[^-0-9,.]/g, '');
   
   if (str.includes(',') && str.includes('.')) {
-    // Formato 1.234,56 -> 1234.56
     str = str.replace(/\./g, '').replace(',', '.');
   } else if (str.includes(',')) {
-    // Formato 12,34 -> 12.34
     str = str.replace(',', '.');
   }
   
@@ -106,7 +105,6 @@ const parseDate = (value: string): Date | null => {
   let date: Date | null = null;
   const trimmedValue = value.trim();
 
-  // Excel serial dates
   if (!isNaN(Number(trimmedValue)) && !trimmedValue.includes('/') && !trimmedValue.includes('-')) {
     const serial = Number(trimmedValue);
     if (serial > 30000) {
@@ -127,7 +125,6 @@ const parseDate = (value: string): Date | null => {
       }
       if (y < 100) y += 2000;
       if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-        // Handle time if present
         if (parts.length > 1) {
             const tParts = parts[1].split(':');
             const hh = parseInt(tParts[0]) || 0;
@@ -177,7 +174,6 @@ const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, h
       if (rowNormalized.some(h => h === knorm || h.includes(knorm))) matches++;
     });
     
-    // Verificação de segurança: A linha deve ter algo parecido com 'codigo', 'data', 'item' ou 'equipamento'
     if (matches >= 1) {
       const hasSecurityKeyword = rowNormalized.some(h => 
         h.includes('cod') || h.includes('data') || h.includes('item') || h.includes('equipamento') || h.includes('ordem')
@@ -297,7 +293,6 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
     const rows = await fetchCSV(url);
     if (rows.length === 0) return [];
     
-    // De acordo com a imagem, cabeçalhos úteis: Abertura, Profissional, Equipamento, Setor, Peça, Parada, Motivo, Tempo Serviço, Ordem de Serviço
     const { index: headerIdx, headers } = findHeaderRow(rows, ['abertura', 'os', 'profissional', 'equipamento']);
     if (headerIdx === -1) return [];
 
@@ -330,7 +325,7 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
             professional: idxProf !== -1 ? row[idxProf] : 'Não Atribuído',
             equipamento: idxEquip !== -1 ? row[idxEquip] : 'Geral',
             setor: idxSetor !== -1 ? row[idxSetor] : 'Outros',
-            status: 'Concluído', // Geralmente OS na planilha de histórico estão concluídas
+            status: 'Concluído',
             horas: idxHoras !== -1 ? parseDurationToHours(row[idxHoras]) : 0,
             descricao: idxAtiv !== -1 ? row[idxAtiv] : '',
             parada: idxParada !== -1 ? row[idxParada] : 'Não',

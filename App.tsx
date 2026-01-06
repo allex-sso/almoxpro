@@ -42,7 +42,7 @@ const App: React.FC = () => {
         osUrl: '',
         isCentral: true,
         sources: [
-            { label: 'Dezembro/2024', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=250304480&output=csv' }
+            { label: 'Histórico Central', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=424712460&single=true&output=csv' }
         ]
       }
     ];
@@ -86,7 +86,6 @@ const App: React.FC = () => {
       if (activeProfile.isCentral) {
         const sources = activeProfile.sources || [];
         if (sources.length > 0) {
-            // Carrega todas as fontes simultaneamente e consolida
             const results = await Promise.allSettled(
                 sources.map(source => fetchCentralData(source.url))
             );
@@ -95,8 +94,6 @@ const App: React.FC = () => {
             results.forEach(res => {
                 if (res.status === 'fulfilled') {
                     consolidatedMovements.push(...res.value);
-                } else {
-                    console.error("Erro ao carregar uma das fontes do Central:", res.reason);
                 }
             });
 
