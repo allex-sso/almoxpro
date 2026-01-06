@@ -28,6 +28,9 @@ export interface Movement {
   valorUnitario?: number;
   valorTotal?: number;
   obs?: string;
+  setor?: string;
+  motivo?: string;
+  perfil?: string;
 }
 
 export interface ServiceOrder {
@@ -42,18 +45,32 @@ export interface ServiceOrder {
   status: string;
   horas: number;
   descricao: string;
-  parada?: string; // Sim ou Não
-  peca?: string; // Peças citadas na OS
-  motivo?: string; // Razão da manutenção ou troca
+  parada?: string;
+  peca?: string;
+  motivo?: string;
 }
 
-export interface AppSettings {
+export interface CentralSource {
+  label: string;
+  url: string;
+}
+
+export interface SectorProfile {
+  id: string;
+  name: string;
+  accessKey?: string;
   inventoryUrl: string;
   inUrl: string;
   outUrl: string;
-  osUrl: string; // URL da planilha de OS
+  osUrl: string;
+  isCentral?: boolean;
+  sources?: CentralSource[];
+}
+
+export interface AppSettings {
+  profiles: SectorProfile[];
+  activeProfileId: string | null;
   refreshRate: number;
-  darkMode: boolean;
 }
 
 export interface DashboardStats {
@@ -67,7 +84,8 @@ export enum Page {
   DASHBOARD = 'dashboard',
   INVENTORY = 'inventory',
   CONSUMPTION = 'consumption',
-  SERVICE_ORDERS = 'service_orders', // Nova página
+  SERVICE_ORDERS = 'service_orders',
   ALERTS = 'alerts',
   SETTINGS = 'settings',
+  CENTRAL_DASHBOARD = 'central_dashboard'
 }

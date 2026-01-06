@@ -7,6 +7,8 @@ interface SidebarProps {
   onNavigate: (page: Page) => void;
   isOpen: boolean;
   toggleOpen: () => void;
+  isCentral?: boolean;
+  isMaster?: boolean;
 }
 
 const AlumasaLogo = ({ className }: { className?: string }) => (
@@ -32,15 +34,23 @@ const AlumasaLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen }) => {
-  const menuItems = [
-    { id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard },
-    { id: Page.INVENTORY, label: 'Inventário', icon: Package },
-    { id: Page.CONSUMPTION, label: 'Consumo', icon: TrendingDown },
-    { id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList },
-    { id: Page.ALERTS, label: 'Alertas', icon: AlertTriangle },
-    { id: Page.SETTINGS, label: 'Configurações', icon: Settings },
-  ];
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isMaster }) => {
+  const menuItems = [];
+  
+  if (isCentral) {
+    menuItems.push({ id: Page.CENTRAL_DASHBOARD, label: 'Indicadores Central', icon: LayoutDashboard });
+  } else {
+    menuItems.push({ id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard });
+    menuItems.push({ id: Page.INVENTORY, label: 'Inventário', icon: Package });
+    menuItems.push({ id: Page.CONSUMPTION, label: 'Consumo', icon: TrendingDown });
+    menuItems.push({ id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList });
+    menuItems.push({ id: Page.ALERTS, label: 'Alertas', icon: AlertTriangle });
+  }
+
+  // Apenas exibe Configurações para o perfil MASTER (Almoxarifado de Peças)
+  if (isMaster) {
+    menuItems.push({ id: Page.SETTINGS, label: 'Configurações', icon: Settings });
+  }
 
   return (
     <>

@@ -2,27 +2,38 @@ import { InventoryItem, Movement, ServiceOrder } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
 
-const formatCodigo = (code: string | undefined): string => {
-  if (!code) return "";
-  const trimmed = code.toString().trim();
-  if (trimmed.length === 1 && trimmed >= '0' && trimmed <= '9') {
-    return `0${trimmed}`;
+const formatCodigo = (code: any): string => {
+  if (code === null || code === undefined) return "";
+  let str = String(code).trim();
+  if (str === "" || str === "0") return "";
+  
+  // Remove zeros à esquerda primeiro para normalizar a base
+  str = str.replace(/^0+/, '') || str;
+  
+  // Se o resultado for um único dígito numérico (1-9), adiciona o zero à esquerda
+  if (str.length === 1 && /^\d$/.test(str)) {
+    return '0' + str;
   }
-  return trimmed;
+  
+  return str;
 };
 
-const parseNumber = (value: string): number => {
-  if (!value) return 0;
+const parseNumber = (value: string | number): number => {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return value;
+  
   let str = value.toString().trim();
-  str = str.replace(/R\$\s?/gi, '').replace(/\u00A0/g, '').replace(/\s/g, '').trim();
-  if (str.includes(',') && !str.includes('.')) {
-     str = str.replace(',', '.');
-  } else if (str.includes('.') && str.includes(',')) {
-     if (str.indexOf('.') < str.indexOf(',')) {
-        str = str.replace(/\./g, '').replace(',', '.');
-     }
+  // Limpeza de R$, espaços e caracteres não numéricos exceto ponto e vírgula
+  str = str.replace(/R\$/gi, '').replace(/\s/g, '').replace(/[^-0-9,.]/g, '');
+  
+  if (str.includes(',') && str.includes('.')) {
+    // Formato 1.234,56 -> 1234.56
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    // Formato 12,34 -> 12.34
+    str = str.replace(',', '.');
   }
-  str = str.replace(/[^0-9.-]/g, '');
+  
   const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
 };
@@ -45,9 +56,9 @@ const parseDurationToHours = (value: string): number => {
 const formatUnit = (raw: string): string => {
   const val = normalizeStr(raw);
   if (!val) return 'un';
-  if (val.startsWith('unid') || val === 'und' || val === 'un' || val === 'unidade') return 'un';
-  if (val.startsWith('metr') || val === 'm' || val === 'mts') return 'mt';
-  if (val.startsWith('pec') || val.startsWith('pc') || val === 'pç' || val === 'peca') return 'pç';
+  if (val.startsWith('unid') || val === 'und' || val === 'un') return 'un';
+  if (val.startsWith('metr') || val === 'm') return 'mt';
+  if (val.startsWith('pec') || val.startsWith('pc') || val === 'pç') return 'pç';
   if (val.startsWith('quilo') || val === 'kg') return 'kg';
   if (val.startsWith('litro') || val === 'lt' || val === 'l') return 'lt';
   return raw.substring(0, 2).toLowerCase();
@@ -95,50 +106,42 @@ const parseDate = (value: string): Date | null => {
   let date: Date | null = null;
   const trimmedValue = value.trim();
 
-  if (!isNaN(Number(trimmedValue)) && !trimmedValue.includes('/')) {
+  // Excel serial dates
+  if (!isNaN(Number(trimmedValue)) && !trimmedValue.includes('/') && !trimmedValue.includes('-')) {
     const serial = Number(trimmedValue);
-    if (serial < 1000) return null; 
-    date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+    if (serial > 30000) {
+      date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+    }
   } 
-  else if (trimmedValue.includes('/')) {
+  else if (trimmedValue.includes('/') || trimmedValue.includes('-')) {
+    const separator = trimmedValue.includes('/') ? '/' : '-';
     const parts = trimmedValue.split(' ');
     const datePart = parts[0];
-    const timePart = parts[1] || '00:00:00';
-    
-    const dParts = datePart.split('/');
+    const dParts = datePart.split(separator);
     if (dParts.length === 3) {
-      const d = parseInt(dParts[0]);
-      const m = parseInt(dParts[1]);
-      let yStr = dParts[2].trim();
-      
-      if (yStr.length === 5 && yStr.startsWith('202')) {
-          yStr = yStr[0] + yStr[1] + yStr[2] + yStr[4];
-      } else if (yStr.length > 4) {
-          yStr = yStr.substring(0, 4);
+      let d, m, y;
+      if (dParts[0].length === 4) {
+        y = parseInt(dParts[0]); m = parseInt(dParts[1]); d = parseInt(dParts[2]);
+      } else {
+        d = parseInt(dParts[0]); m = parseInt(dParts[1]); y = parseInt(dParts[2]);
       }
-      
-      let y = parseInt(yStr);
       if (y < 100) y += 2000;
-
-      const tParts = timePart.split(':');
-      const hh = parseInt(tParts[0] || '0');
-      const mm = parseInt(tParts[1] || '0');
-      const ss = parseInt(tParts[2] || '0');
-
       if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-        date = new Date(y, m - 1, d, hh, mm, ss);
+        // Handle time if present
+        if (parts.length > 1) {
+            const tParts = parts[1].split(':');
+            const hh = parseInt(tParts[0]) || 0;
+            const mm = parseInt(tParts[1]) || 0;
+            const ss = parseInt(tParts[2]) || 0;
+            date = new Date(y, m - 1, d, hh, mm, ss);
+        } else {
+            date = new Date(y, m - 1, d);
+        }
       }
     }
   } 
-  else {
-    const d = new Date(trimmedValue);
-    if (!isNaN(d.getTime())) date = d;
-  }
 
-  if (!date || isNaN(date.getTime()) || date.getFullYear() < 1990 || date.getFullYear() > 2100) {
-    return null;
-  }
-  
+  if (!date || isNaN(date.getTime())) return null;
   return date;
 };
 
@@ -149,16 +152,14 @@ const fetchCSV = async (url: string): Promise<string[][]> => {
     targetUrl = `https://docs.google.com/spreadsheets/d/${targetUrl}/export?format=csv`;
   }
   try {
-    const response = await fetch(`${targetUrl}${targetUrl.includes('?') ? '&' : '?'}t=${Date.now()}`, {
+    const response = await fetch(`${targetUrl}${targetUrl.includes('?') ? '&' : '?'}cache=${Date.now()}`, {
       method: 'GET',
-      cache: 'no-store',
-      credentials: 'omit'
+      cache: 'no-store'
     });
     if (!response.ok) return [];
     const text = await response.text();
-    if (text.trim().startsWith('<!DOCTYPE html>') || text.trim().startsWith('<html')) return [];
-    if (!text.trim()) return [];
-
+    if (text.trim().startsWith('<!DOCTYPE html>')) return [];
+    
     const delimiter = detectDelimiter(text);
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
     return lines.map(line => parseCSVLine(line, delimiter));
@@ -168,10 +169,22 @@ const fetchCSV = async (url: string): Promise<string[][]> => {
 };
 
 const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, headers: string[] } => {
-  for (let i = 0; i < Math.min(rows.length, 20); i++) { 
+  for (let i = 0; i < Math.min(rows.length, 50); i++) { 
     const rowNormalized = rows[i].map(c => normalizeStr(c));
-    if (keywords.some(k => rowNormalized.some(h => h.includes(normalizeStr(k))))) {
-      return { index: i, headers: rowNormalized };
+    let matches = 0;
+    keywords.forEach(k => {
+      const knorm = normalizeStr(k);
+      if (rowNormalized.some(h => h === knorm || h.includes(knorm))) matches++;
+    });
+    
+    // Verificação de segurança: A linha deve ter algo parecido com 'codigo', 'data', 'item' ou 'equipamento'
+    if (matches >= 1) {
+      const hasSecurityKeyword = rowNormalized.some(h => 
+        h.includes('cod') || h.includes('data') || h.includes('item') || h.includes('equipamento') || h.includes('ordem')
+      );
+      if (hasSecurityKeyword) {
+        return { index: i, headers: rowNormalized };
+      }
     }
   }
   return { index: -1, headers: [] };
@@ -182,7 +195,6 @@ const findBestCol = (headers: string[], terms: string[]) => {
     const tNorm = normalizeStr(term);
     const foundIndex = headers.findIndex(h => {
       const hNorm = normalizeStr(h);
-      if (tNorm.length <= 2) return hNorm === tNorm;
       return hNorm === tNorm || hNorm.includes(tNorm);
     });
     if (foundIndex !== -1) return foundIndex;
@@ -193,125 +205,161 @@ const findBestCol = (headers: string[], terms: string[]) => {
 export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Promise<Movement[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['cod', 'data']);
+  
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['cod', 'codigo', 'data', 'quantidade', 'material', 'descricao']);
   if (headerIdx === -1) return [];
 
-  const idxData = findBestCol(headers, ['data', 'dia', 'registro']);
-  const idxCodigo = findBestCol(headers, ['cod', 'item']);
-  const idxQtd = findBestCol(headers, type === 'entrada' ? ['recebida', 'qtd'] : ['retirada', 'qtd']);
-  const idxForn = findBestCol(headers, ['fornecedor']);
-  const idxResp = findBestCol(headers, ['responsavel', 'solicitante', 'retirado por', 'funcionario']);
-  const idxValUnit = findBestCol(headers, ['unitario']);
-  const idxValTotal = findBestCol(headers, ['valor total', 'vl. total']);
+  const idxData = findBestCol(headers, ['data de entrada', 'data de saida', 'data', 'dia', 'registro']);
+  const idxCodigo = findBestCol(headers, ['codigo', 'cod', 'item', 'referencia', 'material', 'ref']);
+  const idxQtd = findBestCol(headers, ['quantidade recebida', 'quantidade retirada', 'quantidade', 'qtd', 'qtde', 'volume', 'movimentado']);
+  const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo unit', 'preco unit', 'unit']);
+  const idxValTotal = findBestCol(headers, ['valor total', 'vl total', 'total', 'vlr total', 'vl. total']);
+  const idxResp = findBestCol(headers, ['responsavel', 'solicitante', 'quem', 'mecanico', 'funcionario']);
+  const idxSetor = findBestCol(headers, ['setor solicitante', 'setor', 'area', 'departamento']);
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
-    const rawDate = idxData !== -1 ? parseDate(row[idxData]) : null;
-    if (!rawDate) return null;
-    const rawCode = idxCodigo !== -1 ? row[idxCodigo] : row[0];
+    const rawCode = idxCodigo !== -1 ? row[idxCodigo] : row[1];
     const codigo = formatCodigo(rawCode);
+    if (!codigo) return null;
     
     const qtd = idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0;
-    if (qtd === 0) return null;
+    let vUnit = idxValUnit !== -1 ? parseNumber(row[idxValUnit]) : 0;
+    let vTotal = idxValTotal !== -1 ? parseNumber(row[idxValTotal]) : 0;
+
+    if (vUnit === 0 && vTotal > 0 && qtd > 0) {
+        vUnit = vTotal / qtd;
+    } else if (vUnit > 0 && vTotal === 0 && qtd > 0) {
+        vTotal = vUnit * qtd;
+    }
+
     return {
-      id: `${type}-${i}`,
+      id: `${type}-${i}-${Date.now()}`,
       tipo: type,
-      data: rawDate,
+      data: idxData !== -1 ? (parseDate(row[idxData]) || new Date()) : new Date(),
       codigo,
       quantidade: qtd,
-      fornecedor: idxForn !== -1 ? row[idxForn] : undefined,
+      valorUnitario: vUnit,
+      valorTotal: vTotal,
+      fornecedor: row[findBestCol(headers, ['fornecedor', 'origem', 'marca'])] || undefined,
       responsavel: idxResp !== -1 ? row[idxResp] : undefined,
-      valorUnitario: idxValUnit !== -1 ? parseNumber(row[idxValUnit]) : 0,
-      valorTotal: idxValTotal !== -1 ? parseNumber(row[idxValTotal]) : 0
+      setor: idxSetor !== -1 ? row[idxSetor] : undefined
     };
-  }).filter((m): m is Movement => m !== null);
+  }).filter((m): m is Movement => m !== null && m.quantidade > 0);
 };
 
 export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['cod']);
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['cod', 'descricao', 'estoque', 'item', 'codigo']);
   if (headerIdx === -1) return []; 
   
-  const idxCodigo = findBestCol(headers, ['cod']);
-  const idxDesc = findBestCol(headers, ['descri']);
-  const idxEquip = findBestCol(headers, ['equip', 'maquina']);
-  const idxLoc = findBestCol(headers, ['local']);
-  const idxForn = findBestCol(headers, ['fornecedor']); 
-  const idxUnd = findBestCol(headers, ['unid', 'und', 'medida']);
-  const idxQtd = findBestCol(headers, ['quantidade em estoque', 'estoque atual', 'saldo atual', 'saldo', 'estoque', 'quantidade']);
-  const idxMin = findBestCol(headers, ['minim']);
-  const idxCat = findBestCol(headers, ['categ', 'grupo']);
+  const idxCodigo = findBestCol(headers, ['codigo', 'cod', 'item', 'referencia', 'material', 'ref']);
+  const idxDesc = findBestCol(headers, ['descricao', 'descri', 'nome', 'material', 'produto']);
+  const idxQtd = findBestCol(headers, ['quantidade em estoque', 'estoque atual', 'saldo atual', 'saldo', 'estoque', 'quantidade', 'qtd']);
+  const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo', 'preco', 'v.unit']);
+  const idxValTotal = findBestCol(headers, ['valor total', 'vl total', 'total', 'vlr total']);
+  const idxMin = findBestCol(headers, ['estoque minimo', 'minimo', 'minim', 'reserva']);
+  const idxLoc = findBestCol(headers, ['localizacao', 'local', 'posicao', 'endereco']);
+  const idxCat = findBestCol(headers, ['categoria', 'categ', 'grupo', 'tipo']);
+  const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'ativo']);
 
-  const itemMap = new Map<string, InventoryItem>();
-  rows.slice(headerIdx + 1).forEach((row) => {
+  return rows.slice(headerIdx + 1).map((row) => {
     const codigo = formatCodigo(row[idxCodigo]);
-    if (!codigo) return;
+    if (!codigo) return null;
     
-    const item: InventoryItem = {
+    const qAtual = idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0;
+    let vUnit = idxValUnit !== -1 ? parseNumber(row[idxValUnit]) : 0;
+    const vTotalCol = idxValTotal !== -1 ? parseNumber(row[idxValTotal]) : 0;
+    
+    if (vUnit === 0 && vTotalCol > 0 && qAtual > 0) vUnit = vTotalCol / qAtual;
+
+    return {
         id: codigo,
         codigo,
-        descricao: row[idxDesc] || '',
-        equipamento: row[idxEquip] || 'N/D',
-        localizacao: row[idxLoc] || '',
-        fornecedor: row[idxForn] || '',
-        quantidadeAtual: parseNumber(row[idxQtd]),
-        quantidadeMinima: parseNumber(row[idxMin]),
-        unidade: formatUnit(row[idxUnd]),
-        entradas: 0, 
-        saidas: 0,   
-        categoria: row[idxCat] || 'Geral',
-        valorUnitario: 0,
-        valorTotal: 0,
+        descricao: idxDesc !== -1 ? row[idxDesc] : '',
+        quantidadeAtual: qAtual,
+        quantidadeMinima: idxMin !== -1 ? parseNumber(row[idxMin]) : 0,
+        unidade: formatUnit(row[findBestCol(headers, ['unidade', 'unid', 'und', 'medida'])] || 'un'),
+        localizacao: idxLoc !== -1 ? row[idxLoc] : '',
+        fornecedor: row[findBestCol(headers, ['fornecedor', 'marca'])] || '',
+        categoria: idxCat !== -1 ? row[idxCat] : 'Geral',
+        equipamento: idxEquip !== -1 ? row[idxEquip] : '',
+        valorUnitario: vUnit,
+        valorTotal: vTotalCol || (qAtual * vUnit),
+        entradas: 0,
+        saidas: 0,
         dataAtualizacao: new Date().toISOString()
-    };
-    itemMap.set(codigo, item);
-  });
-  return Array.from(itemMap.values());
+    } as InventoryItem;
+  }).filter((i): i is InventoryItem => i !== null);
 };
 
 export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> => {
     const rows = await fetchCSV(url);
     if (rows.length === 0) return [];
-    const { index: headerIdx, headers } = findHeaderRow(rows, ['abertura', 'os', 'profissional', 'setor']);
+    
+    // De acordo com a imagem, cabeçalhos úteis: Abertura, Profissional, Equipamento, Setor, Peça, Parada, Motivo, Tempo Serviço, Ordem de Serviço
+    const { index: headerIdx, headers } = findHeaderRow(rows, ['abertura', 'os', 'profissional', 'equipamento']);
     if (headerIdx === -1) return [];
 
-    const idxNum = findBestCol(headers, ['ordem de servico', 'numero os', 'numero', 'os']);
-    const idxAbertura = findBestCol(headers, ['abertura', 'criado em', 'data']);
-    const idxInicio = findBestCol(headers, ['inicio', 'atendimento', 'inicio manutencao']);
-    const idxFim = findBestCol(headers, ['fim', 'conclusao', 'fechamento', 'fim manutencao']);
-    const idxProf = findBestCol(headers, ['profissional', 'tecnico', 'responsavel', 'nome']);
+    const idxAbertura = findBestCol(headers, ['abertura', 'data abertura', 'criado em']);
+    const idxInicio = findBestCol(headers, ['inicio', 'comeco']);
+    const idxFim = findBestCol(headers, ['fim', 'conclusao', 'data/hora fim']);
+    const idxProf = findBestCol(headers, ['profissional', 'tecnico', 'responsavel', 'mecanico']);
     const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'ativo']);
     const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
-    const idxStatus = findBestCol(headers, ['status', 'situacao']);
-    const idxHoras = findBestCol(headers, ['horas', 'tempo gasto', 'duracao', 'tempo servico']);
-    const idxDesc = findBestCol(headers, ['atividade', 'descricao', 'problema', 'obs']);
-    const idxParada = findBestCol(headers, ['parada', 'equipamento parado']);
-    const idxPeca = findBestCol(headers, ['peca', 'item usado', 'componente', 'pecas']);
-    const idxMotivo = findBestCol(headers, ['motivo', 'causa', 'justificativa', 'razao']);
-
+    const idxPeca = findBestCol(headers, ['peca', 'material', 'trocada']);
+    const idxParada = findBestCol(headers, ['parada', 'maquina parou']);
+    const idxMotivo = findBestCol(headers, ['motivo', 'falha', 'problema']);
+    const idxAtiv = findBestCol(headers, ['atividade', 'servico', 'descricao']);
+    const idxHoras = findBestCol(headers, ['horas', 'tempo', 'duracao', 'tempo servico']);
+    const idxNum = findBestCol(headers, ['os', 'numero', 'ordem de servico']);
+    
     return rows.slice(headerIdx + 1).map((row, i): ServiceOrder | null => {
-        const dataAbertura = parseDate(row[idxAbertura]);
-        if (!dataAbertura) return null;
+        if (!row[idxAbertura] && !row[idxNum]) return null;
 
-        const rawParada = row[idxParada] || 'Não';
-        const nParada = normalizeStr(rawParada);
-        const normalizedParada = (nParada.includes('sim') || nParada === 's' || nParada === '1') ? 'Sim' : 'Não';
+        const dataAbertura = parseDate(row[idxAbertura]) || new Date();
+        const dataInicio = idxInicio !== -1 ? parseDate(row[idxInicio]) : undefined;
+        const dataFim = idxFim !== -1 ? parseDate(row[idxFim]) : undefined;
 
         return {
             id: `os-${i}`,
-            numero: row[idxNum] || `OS-${i}`,
+            numero: idxNum !== -1 ? row[idxNum] : `OS-${i}`,
             dataAbertura: dataAbertura,
-            dataInicio: idxInicio !== -1 ? parseDate(row[idxInicio]) || undefined : undefined,
-            dataFim: idxFim !== -1 ? parseDate(row[idxFim]) || undefined : undefined,
-            professional: row[idxProf] || 'Não Atribuído',
-            equipamento: row[idxEquip] || 'Geral',
-            setor: row[idxSetor] || 'Outros',
-            status: row[idxStatus] || 'N/D',
+            dataInicio: dataInicio,
+            dataFim: dataFim,
+            professional: idxProf !== -1 ? row[idxProf] : 'Não Atribuído',
+            equipamento: idxEquip !== -1 ? row[idxEquip] : 'Geral',
+            setor: idxSetor !== -1 ? row[idxSetor] : 'Outros',
+            status: 'Concluído', // Geralmente OS na planilha de histórico estão concluídas
             horas: idxHoras !== -1 ? parseDurationToHours(row[idxHoras]) : 0,
-            descricao: row[idxDesc] || '',
-            parada: normalizedParada,
-            peca: idxPeca !== -1 ? row[idxPeca] : undefined,
-            motivo: idxMotivo !== -1 ? row[idxMotivo] : undefined
+            descricao: idxAtiv !== -1 ? row[idxAtiv] : '',
+            parada: idxParada !== -1 ? row[idxParada] : 'Não',
+            peca: idxPeca !== -1 ? row[idxPeca] : '',
+            motivo: idxMotivo !== -1 ? row[idxMotivo] : ''
         };
-    }).filter((os): os is ServiceOrder => os !== null);
+    }).filter(os => os !== null) as ServiceOrder[];
+};
+
+export const fetchCentralData = async (url: string): Promise<Movement[]> => {
+  const rows = await fetchCSV(url);
+  if (rows.length === 0) return [];
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['material', 'solicitante', 'data']);
+  if (headerIdx === -1) return [];
+
+  const idxData = findBestCol(headers, ['data', 'dia', 'registro']);
+  const idxDesc = findBestCol(headers, ['material', 'descricao', 'item']);
+  const idxQtd = findBestCol(headers, ['quantidade', 'qtd', 'saida']);
+
+  return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
+    if (!row[idxDesc]) return null;
+    return {
+      id: `central-${i}`,
+      data: idxData !== -1 ? (parseDate(row[idxData]) || new Date()) : new Date(),
+      codigo: formatCodigo(row[idxDesc]),
+      quantidade: idxQtd !== -1 ? parseNumber(row[idxQtd]) : 0,
+      tipo: 'saida',
+      responsavel: row[findBestCol(headers, ['solicitante', 'responsavel'])] || 'N/D',
+      setor: row[findBestCol(headers, ['setor', 'area'])] || 'Outros'
+    } as Movement;
+  }).filter(x => x !== null && x.quantidade > 0) as Movement[];
 };

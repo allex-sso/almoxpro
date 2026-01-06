@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, 
   PieChart, Pie, Legend
 } from 'recharts';
 import { 
-  ClipboardList, Clock, Wrench, Building, Users, Calendar, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, Filter, X, Package, MessageCircle, ChevronRight, Percent, BarChart3
+  ClipboardList, Clock, Wrench, Building, Users, Calendar, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, Filter, X, Package, MessageCircle, ChevronRight, Percent, BarChart3, Printer, Check, Fingerprint, FileStack, ChevronDown
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
@@ -15,24 +15,107 @@ interface ServiceOrdersProps {
   isLoading?: boolean;
 }
 
+// Formata horas decimais para string amigável "Xh Ym"
+const formatDetailedTime = (decimalHours: number | string): string => {
+  const hoursNum = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
+  if (isNaN(hoursNum) || hoursNum <= 0) return "0m";
+  if (hoursNum > 87600) return "Erro Data"; // Aumentado limite para totais anuais
+
+  const h = Math.floor(hoursNum);
+  const m = Math.round((hoursNum - h) * 60);
+  
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+};
+
+// Tooltip para o gráfico de Tempo Parado (CONFORME IMAGEM SOLICITADA)
+const CustomDowntimeTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[200px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+        <h4 className="font-bold text-base mb-1 text-white leading-tight">{label}</h4>
+        <div className="flex items-center text-xs gap-1.5 mt-1">
+          <span className="text-slate-400">Tempo Total Parado:</span>
+          <span className="font-bold text-rose-400">{formatDetailedTime(payload[0].value)}</span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Tooltip para os gráficos principais do Dashboard (Equipamento e Setor)
+const CustomOSTooltip = ({ active, payload, label, total, hideFooter }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const name = label || data.name;
+    const value = payload[0].value;
+    const percent = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+    
+    return (
+      <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[180px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+        <h4 className="font-black text-lg mb-2 text-white leading-tight">{name}</h4>
+        <div className="space-y-1">
+          <div className="flex items-center text-sm gap-2">
+            <span className="text-slate-300 font-bold">Quantidade:</span>
+            <span className="font-black text-blue-400">{value}</span>
+          </div>
+          <div className="flex items-center text-sm gap-2">
+            <span className="text-slate-300 font-bold">Porcentagem:</span>
+            <span className="font-black text-blue-400">{percent}%</span>
+          </div>
+        </div>
+        {!hideFooter && (
+          <div className="mt-4 pt-3 border-t border-slate-800 text-center">
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse">
+              Clique para ver peças
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
+// Tooltip específico para o Modal de Peças
+const CustomPartTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 border border-slate-700 p-5 rounded-2xl shadow-3xl text-white min-w-[240px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+        <h4 className="font-black text-lg text-white leading-tight">{data.displayName}</h4>
+        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 mb-5 tracking-wide">{data.codigo}</p>
+        
+        <div className="space-y-2">
+          <div className="flex items-center text-sm">
+            <span className="text-[#3b82f6] font-black mr-2">Ocorrências:</span>
+            <span className="font-black text-white">{data.value}</span>
+          </div>
+          <div className="flex items-center text-sm">
+            <span className="text-slate-400 font-bold mr-2">Frequência:</span>
+            <span className="font-black text-white">{data.percentage}%</span>
+          </div>
+        </div>
+        
+        <div className="mt-6 pt-4 border-t border-slate-800">
+          <p className="text-[10px] font-black text-[#10b981] uppercase tracking-[0.15em] animate-pulse">
+            Clique para ver motivos
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [selectedSector, setSelectedSector] = useState<string>('Todos');
   const [selectedEquipmentForModal, setSelectedEquipmentForModal] = useState<string | null>(null);
   const [selectedPartForReasons, setSelectedPartForReasons] = useState<{ displayName: string, reasons: string[] } | null>(null);
-
-  const formatDetailedTime = (decimalHours: number | string): string => {
-    const hoursNum = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
-    if (isNaN(hoursNum) || hoursNum <= 0) return "0m";
-    if (hoursNum > 8760) return "Erro Data";
-
-    const h = Math.floor(hoursNum);
-    const m = Math.round((hoursNum - h) * 60);
-    
-    if (h === 0) return `${m}m`;
-    if (m === 0) return `${h}h`;
-    return `${h}h ${m}m`;
-  };
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const monthOptions = useMemo(() => {
     const monthsMap = new Map<string, number>();
@@ -71,7 +154,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
   const stats = useMemo(() => {
     const total = filteredData.length;
-    const totalHours = filteredData.reduce((acc, os) => acc + (os.horas || 0), 0);
+    let totalHoursCalculated = 0;
     
     let responseSum = 0;
     let responseCount = 0;
@@ -79,6 +162,33 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     let executionCount = 0;
 
     filteredData.forEach(os => {
+      // Cálculo de duração da OS seguindo a lógica do ProfessionalStats
+      let durationHours = 0;
+      if (os.dataInicio && os.dataFim) {
+        const diff = (os.dataFim.getTime() - os.dataInicio.getTime()) / (1000 * 60 * 60);
+        if (diff > 0 && diff < 48) {
+          durationHours = diff;
+        }
+      }
+      
+      if (durationHours === 0 && os.horas > 0) {
+        const val = os.horas;
+        if (val >= 100) {
+          const hh = Math.floor(val / 100);
+          const mm = val % 100;
+          if (mm < 60) {
+            durationHours = hh + (mm / 60);
+          } else {
+            durationHours = val / 100;
+          }
+        } else {
+          durationHours = val;
+        }
+      }
+      
+      totalHoursCalculated += durationHours;
+
+      // KPIs de tempo
       if (os.dataAbertura && os.dataInicio) {
         const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / (1000 * 60 * 60);
         if (diff >= 0 && diff < 1000) {
@@ -100,7 +210,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     const avgResponseTime = responseCount > 0 ? (responseSum / responseCount) : 0;
     const avgExecutionTime = executionCount > 0 ? (executionSum / executionCount) : 0;
 
-    return { total, totalHours, avgResponseTime, avgExecutionTime };
+    return { total, totalHours: totalHoursCalculated, avgResponseTime, avgExecutionTime };
   }, [filteredData]);
 
   const downtimeByEquipment = useMemo(() => {
@@ -148,11 +258,40 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     filteredData.forEach(os => {
       const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['Não Atribuído'];
 
+      // Cálculo de duração inteligente
+      let durationHours = 0;
+      
+      // Tenta usar diferença de datas primeiro (limite de 48h para evitar erros de ano/mês)
+      if (os.dataInicio && os.dataFim) {
+        const diff = (os.dataFim.getTime() - os.dataInicio.getTime()) / (1000 * 60 * 60);
+        if (diff > 0 && diff < 48) {
+          durationHours = diff;
+        }
+      }
+      
+      // Se não houver data ou a data estiver errada (outlier), usa a coluna manual 'horas'
+      // Tratando o formato HHMM (ex: 1020 -> 10h 20m)
+      if (durationHours === 0 && os.horas > 0) {
+        const val = os.horas;
+        if (val >= 100) {
+          const hh = Math.floor(val / 100);
+          const mm = val % 100;
+          if (mm < 60) {
+            // Formato HHMM válido (ex: 1020 = 10h 20m = 10.33h)
+            durationHours = hh + (mm / 60);
+          } else {
+            // Se mm >= 60, não é HHMM, assume-se que é um valor decimal escalado por 100 (ex: 500 = 5.00)
+            durationHours = val / 100;
+          }
+        } else {
+          durationHours = val;
+        }
+      }
+
       names.forEach(name => {
           if (!map[name]) map[name] = { count: 0, hours: 0, responseSum: 0, responseCount: 0 };
-          const valH = (os.horas || 0) > 1000 ? 0 : (os.horas || 0);
           map[name].count += 1;
-          map[name].hours += valH;
+          map[name].hours += durationHours;
           if (os.dataAbertura && os.dataInicio) {
             const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / (1000 * 60 * 60);
             if (diff >= 0 && diff < 1000) {
@@ -167,7 +306,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       .map(([name, stats]) => ({
         name,
         count: stats.count,
-        hours: stats.hours.toFixed(1),
+        totalHoursDecimal: stats.hours,
         avgResponseDecimal: stats.responseCount > 0 ? (stats.responseSum / stats.responseCount) : 0,
       }))
       .sort((a, b) => a.avgResponseDecimal - b.avgResponseDecimal)
@@ -206,7 +345,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           return {
               codigo: pecaStr,
               displayName: inv ? inv.descricao : pecaStr,
-              value: stats.count, // Usamos 'value' para compatibilidade com o BarChart
+              value: stats.count, 
               percentage: totalOsForEq > 0 ? ((stats.count / totalOsForEq) * 100).toFixed(1) : "0",
               reasons: stats.reasons
           };
@@ -214,145 +353,80 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       .sort((a, b) => b.value - a.value);
   }, [selectedEquipmentForModal, filteredData, inventoryData]);
 
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
-
-  const CustomSectorTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const total = osBySector.reduce((acc, item) => acc + item.value, 0);
-      const value = payload[0].value;
-      const percentage = ((value / total) * 100).toFixed(1);
-      return (
-        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl">
-          <p className="font-bold text-slate-800 dark:text-white mb-1">{payload[0].name}</p>
-          <div className="flex flex-col text-sm">
-            <span className="text-blue-600 dark:text-blue-400 font-bold">Quantidade: {value}</span>
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Porcentagem: {percentage}%</span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomEquipmentTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      const total = filteredData.length;
-      const value = payload[0].value;
-      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
-      
-      return (
-        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl">
-          <p className="font-bold text-slate-800 dark:text-white mb-1">{d.name}</p>
-          <div className="flex flex-col text-sm">
-            <span className="text-blue-600 dark:text-blue-400 font-bold">Quantidade OS: {value}</span>
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Porcentagem: {percentage}%</span>
-            <span className="mt-2 text-[10px] text-primary font-bold uppercase animate-pulse">Clique para ver peças</span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomPartTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      return (
-        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl">
-          <p className="font-bold text-slate-800 dark:text-white mb-1">{d.displayName}</p>
-          <p className="text-[10px] font-mono text-slate-400 mb-2">{d.codigo}</p>
-          <div className="flex flex-col text-sm">
-            <span className="text-blue-600 dark:text-blue-400 font-bold">Ocorrências: {d.value}</span>
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Frequência: {d.percentage}%</span>
-            <span className="mt-2 text-[10px] text-emerald-500 font-bold uppercase animate-pulse">Clique para ver motivos</span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomDowntimeTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      return (
-        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xl">
-          <p className="font-bold text-slate-800 dark:text-white mb-1">{d.name}</p>
-          <div className="flex flex-col text-sm">
-            <span className="text-red-600 dark:text-red-400 font-bold">Tempo Total Parado: {d.formatted}</span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const handleEquipmentClick = (data: any) => {
-    if (data && data.name) {
-      setSelectedEquipmentForModal(data.name);
-    }
-  };
-
-  const handlePartClickInModal = (data: any) => {
-    if (data && data.displayName) {
-      setSelectedPartForReasons({ displayName: data.displayName, reasons: data.reasons });
-    }
-  };
 
   if (isLoading) return <div className="p-8 text-center animate-pulse">Carregando Dashboard de OS...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
-      {/* HEADER E FILTRO GLOBAL */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* HEADER DE TELA (no-print) */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard de Manutenção (OS)</h1>
-          <p className="text-sm text-slate-500 font-medium">Controle de produtividade e tempos de resposta Alumasa.</p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">PCM - Gestão de Ativos</h1>
+          <p className="text-sm text-slate-500 font-medium">Controle industrial e auditoria de ativos Alumasa.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm gap-2">
-                <div className="flex items-center px-2 border-r border-gray-100 dark:border-gray-700">
-                    <CalendarDays className="w-4 h-4 text-blue-500 mr-2" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mês</span>
-                </div>
-                <select 
-                value={selectedMonth} 
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none text-slate-700 dark:text-white font-bold outline-none cursor-pointer"
-                >
-                {monthOptions.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-slate-800">{opt}</option>)}
-                </select>
-            </div>
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm gap-2 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all active:scale-95 group"
+            >
+                <Printer className="w-4 h-4 text-rose-500 ml-2 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-bold text-slate-700 dark:text-white px-2">Gerar Relatório</span>
+            </button>
 
             <div className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm gap-2">
-                <div className="flex items-center px-2 border-r border-gray-100 dark:border-gray-700">
-                    <Building className="w-4 h-4 text-emerald-500 mr-2" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Setor</span>
+                <CalendarDays className="w-4 h-4 text-blue-500 ml-2" />
+                <div className="relative flex items-center">
+                    <select 
+                      value={selectedMonth} 
+                      onChange={(e) => setSelectedMonth(e.target.value)} 
+                      className="bg-transparent text-sm focus:outline-none text-slate-700 dark:text-white font-bold outline-none cursor-pointer pl-2 pr-6 py-1 appearance-none z-10"
+                    >
+                       {monthOptions.map(opt => (
+                         <option key={opt} value={opt} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                           {opt}
+                         </option>
+                       ))}
+                    </select>
+                    <ChevronDown className="absolute right-0 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
-                <select 
-                value={selectedSector} 
-                onChange={(e) => setSelectedSector(e.target.value)}
-                className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none text-slate-700 dark:text-white font-bold outline-none cursor-pointer"
-                >
-                {sectorOptions.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-slate-800">{opt}</option>)}
-                </select>
+                
+                <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+                
+                <Building className="w-4 h-4 text-emerald-500" />
+                <div className="relative flex items-center">
+                    <select 
+                      value={selectedSector} 
+                      onChange={(e) => setSelectedSector(e.target.value)} 
+                      className="bg-transparent text-sm focus:outline-none text-slate-700 dark:text-white font-bold outline-none cursor-pointer pl-2 pr-6 py-1 appearance-none z-10"
+                    >
+                       {sectorOptions.map(opt => (
+                         <option key={opt} value={opt} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                           {opt}
+                         </option>
+                       ))}
+                    </select>
+                    <ChevronDown className="absolute right-0 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
             </div>
         </div>
       </div>
 
-      {/* STAT CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total de OS" value={stats.total} icon={ClipboardList} color="blue" />
-        <StatCard title="Tempo Médio Execução" value={formatDetailedTime(stats.avgExecutionTime)} icon={Zap} color="green" trend="Início p/ Fim" />
-        <StatCard title="Tempo Médio Resposta" value={formatDetailedTime(stats.avgResponseTime)} icon={Timer} color="purple" trend="Abertura p/ Início" />
-        <StatCard title="Total de Horas" value={`${stats.totalHours.toFixed(0)}h`} icon={Clock} color="blue" />
+      {/* DASHBOARD EM TELA (no-print) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
+        <StatCard title="Total OS" value={stats.total} icon={ClipboardList} color="blue" />
+        <StatCard title="Méd. Execução" value={formatDetailedTime(stats.avgExecutionTime)} icon={Zap} color="green" />
+        <StatCard title="Méd. Resposta" value={formatDetailedTime(stats.avgResponseTime)} icon={Timer} color="purple" />
+        <StatCard title="Horas Totais" value={formatDetailedTime(stats.totalHours)} icon={Clock} color="blue" />
       </div>
 
-      {/* GRÁFICOS LADO A LADO */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <div className="flex items-center mb-6">
             <Wrench className="w-5 h-5 text-blue-600 mr-2" />
@@ -364,14 +438,17 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
-                <Tooltip content={<CustomEquipmentTooltip />} cursor={{fill: 'rgba(59, 130, 246, 0.1)'}} />
+                <Tooltip 
+                  cursor={{fill: 'rgba(59, 130, 246, 0.1)'}} 
+                  content={<CustomOSTooltip total={filteredData.length} />}
+                />
                 <Bar 
                   dataKey="value" 
                   name="Quantidade" 
                   fill="#3b82f6" 
                   radius={[0, 4, 4, 0]} 
                   barSize={25} 
-                  onClick={handleEquipmentClick}
+                  onClick={(data) => setSelectedEquipmentForModal(data.name)}
                   style={{ cursor: 'pointer' }}
                 />
               </BarChart>
@@ -390,7 +467,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 <Pie data={osBySector} cx="50%" cy="50%" innerRadius={60} outerRadius={85} dataKey="value" paddingAngle={5}>
                   {osBySector.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
-                <Tooltip content={<CustomSectorTooltip />} />
+                <Tooltip 
+                  content={<CustomOSTooltip total={filteredData.length} hideFooter />}
+                />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -398,15 +477,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       </div>
 
-      {/* TABELA DE PROFISSIONAIS */}
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+      {/* SEÇÃO DE PROFISSIONAIS NA TELA (no-print) */}
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden no-print">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <div className="flex items-center">
                 <Users className="w-5 h-5 mr-2 text-slate-400" />
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Detalhamento por Profissional</h3>
             </div>
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-               Ordenado por Média de Resposta
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Ordenado por Média de Resposta
             </div>
         </div>
         <div className="overflow-x-auto">
@@ -415,18 +494,20 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     <tr>
                         <th className="px-6 py-4">Profissional</th>
                         <th className="px-6 py-4 text-center">OS</th>
-                        <th className="px-6 py-4 text-center">Total Horas</th>
+                        <th className="px-6 py-4 text-center">Total Tempo Serviço</th>
                         <th className="px-6 py-4 text-center">Média Resposta</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {professionalStats.map((prof, i) => (
-                        <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
-                            <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">{prof.name}</td>
-                            <td className="px-6 py-4 text-center font-bold text-slate-700 dark:text-slate-300">{prof.count}</td>
-                            <td className="px-6 py-4 text-center font-mono text-blue-600 dark:text-blue-400 font-bold">{prof.hours}h</td>
-                            <td className="px-6 py-4 text-center">
-                                <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                            <td className="px-6 py-5 font-bold text-slate-800 dark:text-white">{prof.name}</td>
+                            <td className="px-6 py-5 text-center font-bold text-slate-700 dark:text-slate-300">{prof.count}</td>
+                            <td className="px-6 py-5 text-center font-bold text-blue-500 dark:text-blue-400">
+                                {formatDetailedTime(prof.totalHoursDecimal)}
+                            </td>
+                            <td className="px-6 py-5 text-center">
+                                <span className="px-4 py-1.5 rounded-full text-[11px] font-bold bg-[#10b981]/10 text-[#10b981] dark:bg-[#10b981]/20 border border-[#10b981]/20">
                                     {formatDetailedTime(prof.avgResponseDecimal)}
                                 </span>
                             </td>
@@ -437,8 +518,8 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       </div>
 
-      {/* GRÁFICOS: TEMPO TOTAL PARADO */}
-      <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+      {/* GRÁFICOS: TEMPO TOTAL PARADO (no-print) */}
+      <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 no-print">
           <div className="flex items-center mb-6">
             <TrendingDown className="w-5 h-5 text-red-600 mr-2" />
             <h3 className="font-bold text-slate-800 dark:text-white">Tempo Total Parado por Equipamento</h3>
@@ -447,10 +528,10 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             {downtimeByEquipment.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={downtimeByEquipment} margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="name" tick={{fontSize: 10}} />
-                        <YAxis tickFormatter={(val) => `${val.toFixed(0)}h`} />
-                        <Tooltip content={<CustomDowntimeTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
+                        <XAxis dataKey="name" tick={{fontSize: 10}} stroke="#94a3b8" />
+                        <YAxis tickFormatter={(val) => `${val.toFixed(0)}h`} stroke="#94a3b8" />
+                        <Tooltip cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} content={<CustomDowntimeTooltip />} />
                         <Bar dataKey="value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={40}>
                             {downtimeByEquipment.map((_, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} opacity={0.8} />
@@ -467,9 +548,115 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           </div>
       </div>
 
-      {/* MODAL PRINCIPAL: PEÇAS POR EQUIPAMENTO (AGORA COM GRÁFICO) */}
+      {/* --- PREVIEW E RELATÓRIO PROFISSIONAL --- */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex flex-col print-mode-wrapper overflow-y-auto animate-in fade-in duration-300">
+          <div className="sticky top-0 bg-slate-900 text-white p-4 flex justify-between items-center z-[110] no-print shadow-2xl">
+             <div className="flex items-center gap-4">
+                <FileStack className="w-5 h-5 text-rose-500" />
+                <div>
+                   <h3 className="text-sm font-black uppercase tracking-widest leading-none">Visualização do Relatório</h3>
+                   <p className="text-[10px] text-slate-400 mt-1 uppercase">Padrão Corporativo Alumasa</p>
+                </div>
+             </div>
+             <div className="flex gap-3">
+               <button onClick={() => setShowPrintPreview(false)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-700">Fechar</button>
+               <button onClick={handlePrint} className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-xs font-black uppercase tracking-widest rounded-xl flex items-center shadow-lg active:scale-95 transition-all font-bold">
+                 <Printer className="w-4 h-4 mr-2" /> Imprimir / PDF
+               </button>
+             </div>
+          </div>
+
+          <div className="printable-area w-[210mm] mx-auto bg-white text-slate-900 my-8 print:my-0 shadow-2xl p-10 min-h-[297mm] font-sans flex flex-col overflow-visible">
+             <div className="flex justify-between items-start mb-2">
+                <div>
+                   <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">RELATÓRIO DE GESTÃO DE MANUTENÇÃO</h1>
+                   <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">CONTROLE DE ORDENS DE SERVIÇO - ALUMASA</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-sm font-bold text-slate-900">{new Date().toLocaleDateString('pt-BR')}</p>
+                   <p className="text-[10px] text-slate-400">Gerado pelo sistema de almoxarifado</p>
+                </div>
+             </div>
+
+             <div className="h-1 bg-slate-900 w-full mb-8"></div>
+
+             <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                   <h4 className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">FILTROS APLICADOS</h4>
+                   <p className="text-sm font-bold text-slate-700">
+                     Mês: <span className="text-blue-600">{selectedMonth}</span> &nbsp;&nbsp; 
+                     Setor: <span className="text-emerald-600">{selectedSector}</span>
+                   </p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                   <h4 className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">ABRANGÊNCIA</h4>
+                   <p className="text-sm font-bold text-slate-700">Baseado em {filteredData.length} Ordens de Serviço</p>
+                </div>
+             </div>
+
+             <div className="grid grid-cols-4 gap-4 mb-10">
+                <div className="bg-slate-50 p-4 rounded-lg border-l-4 border-blue-500 shadow-sm">
+                   <p className="text-[9px] font-black uppercase text-slate-400 mb-1">TOTAL OS</p>
+                   <p className="text-2xl font-black text-slate-900">{stats.total}</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-lg border-l-4 border-emerald-500 shadow-sm">
+                   <p className="text-[9px] font-black uppercase text-slate-400 mb-1">TEMPO MÉDIO EXECUÇÃO</p>
+                   <p className="text-2xl font-black text-slate-900">{formatDetailedTime(stats.avgExecutionTime)}</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-lg border-l-4 border-purple-500 shadow-sm">
+                   <p className="text-[9px] font-black uppercase text-slate-400 mb-1">TEMPO MÉDIO RESPOSTA</p>
+                   <p className="text-2xl font-black text-slate-900">{formatDetailedTime(stats.avgResponseTime)}</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-lg border-l-4 border-slate-400 shadow-sm">
+                   <p className="text-[9px] font-black uppercase text-slate-400 mb-1">TOTAL DE HORAS</p>
+                   <p className="text-2xl font-black text-slate-900">{formatDetailedTime(stats.totalHours)}</p>
+                </div>
+             </div>
+
+             <section className="mb-10">
+                <div className="flex items-center mb-4">
+                   <Users className="w-5 h-5 mr-2 text-blue-600" />
+                   <h3 className="text-sm font-black uppercase text-slate-900 tracking-widest">DETALHAMENTO POR PROFISSIONAL</h3>
+                </div>
+                <table className="w-full text-xs border-collapse">
+                   <thead>
+                      <tr className="bg-[#0f172a] text-white font-black uppercase text-[10px] tracking-wider">
+                         <th className="px-4 py-3 text-left">PROFISSIONAL</th>
+                         <th className="px-4 py-3 text-center">QUANTIDADE OS</th>
+                         <th className="px-4 py-3 text-center">TOTAL TEMPO SERVIÇO</th>
+                         <th className="px-4 py-3 text-center">MÉDIA DE RESPOSTA</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100">
+                      {professionalStats.map((p, i) => (
+                         <tr key={i} className="text-slate-700">
+                            <td className="px-4 py-3 font-bold border-b border-slate-50">{p.name}</td>
+                            <td className="px-4 py-3 text-center font-bold border-b border-slate-50">{p.count}</td>
+                            <td className="px-4 py-3 text-center font-bold text-blue-600 border-b border-slate-50">
+                                {formatDetailedTime(p.totalHoursDecimal)}
+                            </td>
+                            <td className="px-4 py-3 text-center font-medium text-slate-500 border-b border-slate-50">{formatDetailedTime(p.avgResponseDecimal)}</td>
+                         </tr>
+                      ))}
+                   </tbody>
+                </table>
+             </section>
+
+             <div className="mt-auto pt-10 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                <div className="flex items-center gap-2">
+                   <Fingerprint className="w-3 h-3" />
+                   <span>ALUMASA INDUSTRIAL • PCM GESTÃO DE ATIVOS</span>
+                </div>
+                <div>{new Date().toLocaleTimeString('pt-BR')}</div>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PEÇAS (DASHBOARD) */}
       {selectedEquipmentForModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 no-print">
           <div className="bg-white dark:bg-dark-card w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <div className="flex items-center">
@@ -496,20 +683,26 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                       <BarChart data={equipmentParts} layout="vertical" margin={{ left: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                         <XAxis type="number" hide />
-                        <YAxis 
-                            dataKey="displayName" 
-                            type="category" 
-                            width={160} 
-                            tick={{fontSize: 10, fill: '#64748b'}} 
+                        <YAxis dataKey="displayName" type="category" width={160} tick={{fontSize: 10, fill: '#64748b'}} />
+                        <Tooltip 
+                          cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} 
+                          content={<CustomPartTooltip />}
                         />
-                        <Tooltip content={<CustomPartTooltip />} cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} />
                         <Bar 
                           dataKey="value" 
                           name="Ocorrências" 
                           fill="#3b82f6" 
                           radius={[0, 4, 4, 0]} 
                           barSize={25} 
-                          onClick={handlePartClickInModal}
+                          // FIX: Use any type and payload to access custom properties in Bar onClick
+                          onClick={(data: any) => {
+                            if (data && data.payload) {
+                              setSelectedPartForReasons({ 
+                                displayName: data.payload.displayName, 
+                                reasons: data.payload.reasons 
+                              });
+                            }
+                          }}
                           style={{ cursor: 'pointer' }}
                         >
                              {equipmentParts.map((_, index) => (
@@ -518,13 +711,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
-                    <div className="mt-4 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 py-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 animate-pulse">
-                        <MessageCircle className="w-3 h-3 mr-2" />
-                        Clique em uma barra para ver os motivos de troca
-                    </div>
                   </div>
                 ) : (
-                  <div className="py-16 flex flex-col items-center justify-center text-slate-400 bg-slate-50/30 dark:bg-slate-900/10 rounded-xl">
+                  <div className="py-16 flex flex-col items-center justify-center text-slate-400">
                     <AlertCircle className="w-12 h-12 mb-3 opacity-20" />
                     <p className="text-sm font-medium">Nenhuma peça citada nas Ordens de Serviço deste equipamento.</p>
                   </div>
@@ -543,10 +732,10 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       )}
 
-      {/* MODAL SECUNDÁRIO: DETALHAMENTO DE MOTIVOS */}
+      {/* MODAL MOTIVOS (DASHBOARD) */}
       {selectedPartForReasons && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-dark-card w-full max-w-md rounded-2xl shadow-3xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200 dark:border-slate-700">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200 no-print">
+          <div className="bg-white dark:bg-dark-card w-full max-w-md rounded-2xl shadow-3xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <div className="flex items-center">
                 <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg mr-3">
@@ -569,7 +758,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
               <div className="space-y-3">
                 {selectedPartForReasons.reasons.length > 0 ? (
                   selectedPartForReasons.reasons.map((reason, ridx) => (
-                    <div key={ridx} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border-l-4 border-blue-500 animate-in slide-in-from-left-2 duration-200" style={{ animationDelay: `${ridx * 50}ms` }}>
+                    <div key={ridx} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border-l-4 border-blue-500">
                        <p className="text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed italic">
                          {reason}
                        </p>
@@ -594,7 +783,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           </div>
         </div>
       )}
-
     </div>
   );
 };

@@ -92,6 +92,10 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       .slice(0, 8);
   }, [movements, filteredData]);
 
+  const totalSupplierValue = useMemo(() => {
+    return supplierData.reduce((acc, curr) => acc + curr.value, 0);
+  }, [supplierData]);
+
   const responsibleStats = useMemo(() => {
     if (!movements || movements.length === 0) return [];
 
@@ -161,11 +165,56 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
     if (active && payload && payload.length) {
       const d = payload[0].payload;
       return (
-        <div className="bg-white dark:bg-slate-800 p-3 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg">
-          <p className="font-bold text-slate-800 dark:text-white mb-1">{d.code ? `${d.code} - ` : ''}{d.name}</p>
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Quantidade: <span className="font-bold text-orange-600">{d.value} {d.unit || ''}</span>
+        <div className="bg-slate-900 p-3 border border-slate-700 shadow-xl rounded-lg">
+          <p className="font-bold text-white mb-1">{d.code ? `${d.code} - ` : ''}{d.name}</p>
+          <p className="text-xs text-orange-400 font-bold uppercase tracking-wider">
+            Consumo: {d.value} {d.unit || ''}
           </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CustomCostTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload;
+      return (
+        <div className="bg-slate-900 p-4 border border-slate-700 shadow-2xl rounded-xl">
+          <p className="font-bold text-white text-sm mb-2">{d.name}</p>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Custo Acumulado</span>
+            <span className="text-lg font-black text-blue-400 leading-none">
+              {formatCurrency(d.value)}
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CustomSupplierTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload;
+      const percent = totalSupplierValue > 0 ? ((d.value / totalSupplierValue) * 100).toFixed(1) : "0";
+      return (
+        <div className="bg-slate-900 p-4 border border-slate-700 shadow-2xl rounded-xl">
+          <p className="font-bold text-white text-sm mb-3">{d.name}</p>
+          <div className="space-y-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Total Financeiro</span>
+              <span className="text-base font-black text-emerald-400 leading-none">
+                {formatCurrency(d.value)}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Representatividade</span>
+              <span className="text-sm font-black text-white leading-none">
+                {percent}% do total
+              </span>
+            </div>
+          </div>
         </div>
       );
     }
@@ -217,7 +266,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="shortName" type="category" width={150} stroke="#64748b" tick={{fontSize: 11, fontWeight: 500}} />
-                  <Tooltip content={<CustomQuantityTooltip />} cursor={{fill: 'transparent'}} />
+                  <Tooltip content={<CustomQuantityTooltip />} cursor={{fill: 'rgba(249, 115, 22, 0.05)'}} />
                   <Bar dataKey="value" name="Qtd. Retirada" radius={[0, 4, 4, 0]} barSize={20} fill="#f97316" />
                 </BarChart>
               </ResponsiveContainer>
@@ -248,7 +297,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={120} stroke="#64748b" tick={{fontSize: 11, fontWeight: 500}} />
-                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }} formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip cursor={{fill: 'rgba(37, 99, 235, 0.05)'}} content={<CustomCostTooltip />} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
                       {costByEquipment.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                   </Bar>
@@ -290,7 +339,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                   >
                     {supplierData.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }} formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip content={<CustomSupplierTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -321,7 +370,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
                 <XAxis dataKey="name" stroke="#64748b" tick={{fontSize: 10, fontWeight: 500}} interval={0} />
                 <YAxis stroke="#64748b" tick={{fontSize: 11}} />
-                <Tooltip cursor={{fill: '#f3f4f6'}} />
+                <Tooltip cursor={{fill: 'rgba(139, 92, 246, 0.05)'}} contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px' }} />
                 <Bar dataKey="value" name="Total Itens" radius={[4, 4, 0, 0]} barSize={40} fill="#8b5cf6" />
               </BarChart>
             </ResponsiveContainer>

@@ -1,101 +1,269 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Save, Database, CheckCircle, AlertCircle, ClipboardList } from 'lucide-react';
-import { AppSettings } from '../types';
+import React, { useState } from 'react';
+import { Save, Plus, Trash2, Shield, Settings, Layout, ClipboardList, Link as LinkIcon, Calendar, Hash, ExternalLink } from 'lucide-react';
+import { AppSettings, SectorProfile, CentralSource } from '../types';
 
 interface SettingsProps {
   settings: AppSettings;
   onUpdateSettings: (s: AppSettings) => void;
+  isMasterAccount: boolean;
 }
 
-const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings }) => {
+const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isMasterAccount }) => {
   const [localSettings, setLocalSettings] = useState(settings);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(settings.activeProfileId);
   const [showSuccess, setShowSuccess] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setLocalSettings(settings);
-  }, [settings]);
-
-  useEffect(() => {
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, []);
-
-  const handleChange = (key: keyof AppSettings, value: any) => {
-    setLocalSettings(prev => ({ ...prev, [key]: value }));
-  };
 
   const handleSave = () => {
     onUpdateSettings(localSettings);
     setShowSuccess(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setShowSuccess(false), 3000);
+    setTimeout(() => setShowSuccess(false), 3000);
   };
 
+  const addProfile = () => {
+    if (!isMasterAccount) return;
+    const newProfile: SectorProfile = {
+      id: `setor-${Date.now()}`,
+      name: 'Novo Setor',
+      accessKey: '1',
+      inventoryUrl: '',
+      inUrl: '',
+      outUrl: '',
+      osUrl: '',
+      isCentral: false,
+      sources: []
+    };
+    setLocalSettings(prev => ({ ...prev, profiles: [...prev.profiles, newProfile] }));
+    setEditingProfileId(newProfile.id);
+  };
+
+  const removeProfile = (id: string) => {
+    if (!isMasterAccount) return;
+    if (id === 'almox-pecas') return alert('Não é possível remover o perfil mestre.');
+    if (localSettings.profiles.length <= 1) return alert('O sistema deve ter pelo menos um setor cadastrado.');
+    if (confirm('Tem certeza que deseja excluir este setor?')) {
+      setLocalSettings(prev => ({ 
+        ...prev, 
+        profiles: prev.profiles.filter(p => p.id !== id),
+        activeProfileId: prev.activeProfileId === id ? prev.profiles[0].id : prev.activeProfileId
+      }));
+    }
+  };
+
+  const updateProfileField = (id: string, field: keyof SectorProfile, value: any) => {
+    if (!isMasterAccount) return;
+    setLocalSettings(prev => ({
+      ...prev,
+      profiles: prev.profiles.map(p => p.id === id ? { ...p, [field]: value } : p)
+    }));
+  };
+
+  const addSource = (profileId: string) => {
+    const profile = localSettings.profiles.find(p => p.id === profileId);
+    if (!profile) return;
+    const newSource: CentralSource = { label: 'Nova Fonte', url: '' };
+    const updatedSources = [...(profile.sources || []), newSource];
+    updateProfileField(profileId, 'sources', updatedSources);
+  };
+
+  const removeSource = (profileId: string, index: number) => {
+    const profile = localSettings.profiles.find(p => p.id === profileId);
+    if (!profile || !profile.sources) return;
+    const updatedSources = profile.sources.filter((_, i) => i !== index);
+    updateProfileField(profileId, 'sources', updatedSources);
+  };
+
+  const updateSource = (profileId: string, index: number, field: keyof CentralSource, value: string) => {
+    const profile = localSettings.profiles.find(p => p.id === profileId);
+    if (!profile || !profile.sources) return;
+    const updatedSources = [...profile.sources];
+    updatedSources[index] = { ...updatedSources[index], [field]: value };
+    updateProfileField(profileId, 'sources', updatedSources);
+  };
+
+  const currentProfile = localSettings.profiles.find(p => p.id === editingProfileId);
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Configurações</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Ajuste as conexões e preferências do sistema.</p>
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-300">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Configurações Administrativas</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Controle central de acesso e integração de dados.</p>
+        </div>
+        <button onClick={handleSave} className="flex items-center px-6 py-3 bg-primary text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg active:scale-95 transition-all">
+          <Save className="w-4 h-4 mr-2" /> Salvar Alterações
+        </button>
       </div>
 
       {showSuccess && (
-        <div className="fixed top-20 right-6 z-50 bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-xl flex items-center border border-emerald-400">
-            <CheckCircle className="w-6 h-6 mr-3" />
-            <div><h4 className="font-bold">Sucesso!</h4><p className="text-sm">Configurações salvas.</p></div>
+        <div className="bg-emerald-500 text-white px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest animate-in slide-in-from-top-4 shadow-lg shadow-emerald-500/20">
+           Configurações atualizadas com sucesso!
         </div>
       )}
 
-      <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
-        <h3 className="text-lg font-semibold mb-6 flex items-center">
-          <Database className="w-5 h-5 mr-2 text-primary" />
-          Conexão com Google Sheets
-        </h3>
-
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium mb-1 italic opacity-70">1. Estoque Atual</label>
-            <input type="text" value={localSettings.inventoryUrl || ''} onChange={(e) => handleChange('inventoryUrl', e.target.value)} className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-sm" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Unidades Alumasa</h3>
+            {isMasterAccount && (
+              <button onClick={addProfile} className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors">
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 italic opacity-70">2. Entrada de Itens</label>
-            <input type="text" value={localSettings.inUrl || ''} onChange={(e) => handleChange('inUrl', e.target.value)} className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-sm" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 italic opacity-70">3. Saída de Itens</label>
-            <input type="text" value={localSettings.outUrl || ''} onChange={(e) => handleChange('outUrl', e.target.value)} className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-sm" />
-          </div>
-
-          {/* NOVO CAMPO OS */}
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-            <label className="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 mb-2">
-                <ClipboardList className="w-4 h-4 mr-1" />
-                4. Link da Planilha de Ordens de Serviço (OS)
-            </label>
-            <input 
-              type="text" 
-              value={localSettings.osUrl || ''} 
-              onChange={(e) => handleChange('osUrl', e.target.value)} 
-              className="w-full p-2.5 rounded-lg border-2 border-blue-100 dark:border-blue-900 bg-white dark:bg-slate-800 text-sm shadow-sm"
-              placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
-            />
-          </div>
-
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-            <label className="block text-sm font-medium mb-1">Taxa de Atualização Automática</label>
-            <select value={localSettings.refreshRate} onChange={(e) => handleChange('refreshRate', Number(e.target.value))} className="w-full p-2.5 rounded-lg border dark:border-gray-600 dark:bg-slate-800">
-              <option value={15}>A cada 15 segundos</option>
-              <option value={30}>A cada 30 segundos</option>
-              <option value={60}>A cada 1 minuto</option>
-            </select>
+          <div className="p-2 space-y-1">
+            {localSettings.profiles.map(p => (
+              <div 
+                key={p.id}
+                onClick={() => setEditingProfileId(p.id)}
+                className={`flex justify-between items-center p-3 rounded-xl cursor-pointer transition-all ${editingProfileId === p.id ? 'bg-primary text-white shadow-md' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+              >
+                <span className="text-sm font-bold">{p.name}</span>
+                {editingProfileId !== p.id && p.id !== 'almox-pecas' && (
+                  <button onClick={(e) => { e.stopPropagation(); removeProfile(p.id); }} className="p-1 hover:text-rose-500 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="mt-8 flex justify-end">
-          <button onClick={handleSave} className="flex items-center px-6 py-3 bg-primary text-white font-medium rounded-lg shadow-md">
-            <Save className="w-5 h-5 mr-2" /> Salvar Alterações
-          </button>
+        <div className="lg:col-span-2 space-y-6">
+          {currentProfile ? (
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                 <div className="p-2 bg-primary/10 text-primary rounded-lg"><Settings className="w-5 h-5" /></div>
+                 <h3 className="font-black uppercase tracking-widest text-slate-800 dark:text-white">Parâmetros: {currentProfile.name}</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="col-span-full">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nome do Almoxarifado</label>
+                  <input 
+                    type="text" 
+                    value={currentProfile.name}
+                    onChange={(e) => updateProfileField(currentProfile.id, 'name', e.target.value)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                
+                <div className="col-span-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Perfil Almoxarifado Central</h4>
+                        <p className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">Ativa indicadores de consumo e múltiplas fontes de dados</p>
+                    </div>
+                    <button 
+                        onClick={() => updateProfileField(currentProfile.id, 'isCentral', !currentProfile.isCentral)}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${currentProfile.isCentral ? 'bg-primary' : 'bg-slate-300'}`}
+                    >
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isCentral ? 'left-7' : 'left-1'}`} />
+                    </button>
+                </div>
+
+                <div className="col-span-full">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1 text-primary">
+                    <Shield className="w-3 h-3" /> Chave de Acesso Exclusiva
+                  </label>
+                  <input 
+                    type="text" 
+                    value={currentProfile.accessKey || ''}
+                    placeholder="Senha numérica ou alfanumérica"
+                    onChange={(e) => updateProfileField(currentProfile.id, 'accessKey', e.target.value)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary font-mono"
+                  />
+                </div>
+
+                <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                   <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4">Fontes de Dados (CSV / Google Sheets)</h4>
+                   <div className="space-y-4">
+                      {currentProfile.isCentral ? (
+                          <div className="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-800/50 space-y-4">
+                              <div className="flex justify-between items-center">
+                                  <h5 className="text-[10px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2">
+                                      <LinkIcon className="w-3 h-3" /> Fontes de Dados Central
+                                  </h5>
+                                  <button 
+                                    onClick={() => addSource(currentProfile.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all"
+                                  >
+                                      <Plus className="w-3 h-3" /> Adicionar Fonte
+                                  </button>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                  {currentProfile.sources?.map((s, idx) => (
+                                      <div key={idx} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3 animate-in slide-in-from-right-2">
+                                          <div className="flex gap-2">
+                                              <div className="flex-1 relative">
+                                                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><ExternalLink className="w-3.5 h-3.5" /></div>
+                                                  <input 
+                                                    type="text" 
+                                                    value={s.label} 
+                                                    onChange={(e) => updateSource(currentProfile.id, idx, 'label', e.target.value)}
+                                                    placeholder="Ex: Dezembro/2024"
+                                                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
+                                                  />
+                                              </div>
+                                              <button 
+                                                onClick={() => removeSource(currentProfile.id, idx)}
+                                                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                                              >
+                                                  <Trash2 className="w-4 h-4" />
+                                              </button>
+                                          </div>
+                                          <div className="relative">
+                                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><LinkIcon className="w-3.5 h-3.5" /></div>
+                                              <input 
+                                                type="text" 
+                                                value={s.url} 
+                                                onChange={(e) => updateSource(currentProfile.id, idx, 'url', e.target.value)}
+                                                placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
+                                                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-mono"
+                                              />
+                                          </div>
+                                      </div>
+                                  ))}
+                                  {(!currentProfile.sources || currentProfile.sources.length === 0) && (
+                                      <div className="text-center py-6 border-2 border-dashed border-blue-200 dark:border-blue-800/50 rounded-xl">
+                                          <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Nenhuma fonte cadastrada</p>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      ) : (
+                          <>
+                            <div>
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Planilha de Estoque</label>
+                              <input type="text" value={currentProfile.inventoryUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inventoryUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Entradas (In)</label>
+                                <input type="text" value={currentProfile.inUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" />
+                                </div>
+                                <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Saídas (Out)</label>
+                                <input type="text" value={currentProfile.outUrl} onChange={(e) => updateProfileField(currentProfile.id, 'outUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1">
+                                <ClipboardList className="w-3 h-3 text-blue-500" /> Ordens de Serviço (PCM)
+                                </label>
+                                <input type="text" value={currentProfile.osUrl} onChange={(e) => updateProfileField(currentProfile.id, 'osUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" />
+                            </div>
+                          </>
+                      )}
+                   </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-dark-card rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-12 text-slate-400">
+               <Layout className="w-12 h-12 mb-4 opacity-20" />
+               <p className="font-bold text-sm uppercase tracking-widest text-center">Acesso restrito ao Administrador</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

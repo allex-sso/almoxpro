@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
   PieChart, Pie, Cell
 } from 'recharts';
-import { DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, Filter, X } from 'lucide-react';
+import { DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, Filter, X, Info, Package } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { DashboardStats, InventoryItem, Movement } from '../types';
 
@@ -19,6 +19,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
   const [endDate, setEndDate] = useState('');
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
+  const [viewType, setViewType] = useState<'financial' | 'quantity'>('quantity');
 
   const applyFilters = () => {
     setStartDate(tempStart);
@@ -37,10 +38,6 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       applyFilters();
     }
   };
-
-  const hasFinancialData = useMemo(() => {
-    return data.some(i => i.valorUnitario > 0);
-  }, [data]);
 
   const healthData = useMemo(() => {
     let critical = 0;
@@ -65,24 +62,27 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
     ].filter(d => d.value > 0);
   }, [data]);
 
+  // --- CÁLCULO DO VALOR REAL EM ESTOQUE ---
+  // Este valor é a soma dos itens físicos atuais multiplicados pelo preço unitário identificado nas entradas.
+  // Ele NÃO é filtrado por data, pois reflete o patrimônio ATUAL do almoxarifado.
+  const stockTotalFinancial = useMemo(() => {
+    return data.reduce((acc, i) => {
+      // O campo valorTotal em 'i' já foi calculado no App.tsx como (qtdAtual * ultimoPrecoEntrada)
+      const val = i.valorTotal || 0;
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [data]);
+
   const { flowData, totals } = useMemo(() => {
-    const now = new Date();
-    // Limite de segurança: 24 horas no futuro para tolerar fusos horários
-    const futureLimit = now.getTime() + (24 * 60 * 60 * 1000);
-
     const filteredMovements = movements.filter(m => {
-      if (!m.data) return false;
+      if (!startDate && !endDate) return true;
+      if (!m.data || isNaN(m.data.getTime())) return false;
       const moveTime = m.data.getTime();
-      
-      // FILTRO CRÍTICO: Ignorar erros de digitação (Datas muito no futuro)
-      if (moveTime > futureLimit) return false;
-
       if (startDate) {
           const [sy, sm, sd] = startDate.split('-').map(Number);
           const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0).getTime();
           if (moveTime < start) return false;
       }
-      
       if (endDate) {
           const [ey, em, ed] = endDate.split('-').map(Number);
           const end = new Date(ey, em - 1, ed, 23, 59, 59, 999).getTime();
@@ -91,62 +91,43 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       return true;
     });
 
-    const priceMap = new Map<string, number>();
-    data.forEach(i => {
-      priceMap.set(i.codigo, i.valorUnitario || 0);
-    });
-
-    let countIn = 0;
-    let countOut = 0;
-    
-    const grouped: Record<string, { dateIso: string, displayDate: string, entrada: number, saida: number }> = {};
+    let recordsInTotal = 0;
+    let recordsOutTotal = 0;
+    const grouped: Record<string, { dateIso: string, displayDate: string, entradaFinanceiro: number, saidaFinanceiro: number, entradaQtd: number, saidaQtd: number }> = {};
 
     filteredMovements.forEach(m => {
-      if (m.tipo === 'entrada') countIn += 1; 
-      if (m.tipo === 'saida') countOut += 1;
-
-      const qty = Number(m.quantidade) || 0;
-      let flowValue = 0;
-      
-      const dateIso = m.data.toISOString().split('T')[0];
-      const displayDate = m.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      
+      if (m.tipo === 'entrada') recordsInTotal++; 
+      if (m.tipo === 'saida') recordsOutTotal++;
+      const d = m.data || new Date();
+      const dateIso = d.toISOString().split('T')[0];
+      const displayDate = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       if (!grouped[dateIso]) {
-        grouped[dateIso] = { dateIso, displayDate, entrada: 0, saida: 0 };
+        grouped[dateIso] = { dateIso, displayDate, entradaFinanceiro: 0, saidaFinanceiro: 0, entradaQtd: 0, saidaQtd: 0 };
       }
-
+      const valTotal = m.valorTotal || 0;
       if (m.tipo === 'entrada') {
-          if (m.valorTotal && m.valorTotal > 0) {
-            flowValue = m.valorTotal;
-          } else {
-             const unitPrice = m.valorUnitario || 0;
-             flowValue = qty * unitPrice;
-          }
-          grouped[dateIso].entrada += flowValue;
+          grouped[dateIso].entradaFinanceiro += valTotal;
+          grouped[dateIso].entradaQtd += 1;
       } else {
-          const currentUnitDetails = priceMap.get(m.codigo) || 0;
-          flowValue = qty * currentUnitDetails;
-          grouped[dateIso].saida += flowValue;
+          grouped[dateIso].saidaFinanceiro += valTotal;
+          grouped[dateIso].saidaQtd += 1;
       }
     });
 
     const sortedFlow = Object.values(grouped).sort((a, b) => a.dateIso.localeCompare(b.dateIso));
-    const stockTotalFinancial = data.reduce((acc, i) => acc + (i.valorTotal || 0), 0);
     const criticalCount = healthData.find(d => d.name.includes('Crítico'))?.value || 0;
 
     return {
         flowData: sortedFlow,
         totals: {
-            stock: stockTotalFinancial,
-            in: countIn,
-            out: countOut,
+            in: recordsInTotal,
+            out: recordsOutTotal,
             critical: criticalCount
         }
     };
+  }, [movements, startDate, endDate, healthData]);
 
-  }, [movements, data, startDate, endDate, healthData]);
-
-  const formatMetric = (val: number, isFinancial: boolean) => 
+  const formatValue = (val: number, isFinancial: boolean) => 
     isFinancial 
       ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(val)
       : val.toLocaleString('pt-BR');
@@ -154,11 +135,9 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
   if (isLoading) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="space-y-2">
-            <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-          </div>
+        <div className="h-20 w-full bg-gray-200 dark:bg-gray-800 rounded-2xl animate-pulse"></div>
+        <div className="grid grid-cols-4 gap-6">
+           {[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-200 dark:bg-gray-800 rounded-2xl animate-pulse"></div>)}
         </div>
       </div>
     );
@@ -169,9 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Monitoramento de fluxos ocorridos e saúde do estoque.
-          </p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Monitoramento de fluxos e saúde do estoque.</p>
         </div>
         
         <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3">
@@ -180,21 +157,9 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
               <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Filtrar Histórico:</span>
            </div>
            <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
-             <input 
-               type="date" 
-               className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" 
-               value={tempStart} 
-               onChange={e => setTempStart(e.target.value)} 
-               onKeyDown={handleKeyDown}
-             />
+             <input type="date" className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" value={tempStart} onChange={e => setTempStart(e.target.value)} onKeyDown={handleKeyDown}/>
              <span className="text-slate-300">-</span>
-             <input 
-               type="date" 
-               className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" 
-               value={tempEnd} 
-               onChange={e => setTempEnd(e.target.value)} 
-               onKeyDown={handleKeyDown}
-             />
+             <input type="date" className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" value={tempEnd} onChange={e => setTempEnd(e.target.value)} onKeyDown={handleKeyDown}/>
            </div>
            <div className="flex gap-2">
              <button onClick={applyFilters} className="flex items-center px-3 py-1.5 bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm">
@@ -210,41 +175,55 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Valor em Estoque" value={formatMetric(totals.stock, true)} icon={DollarSign} color="blue" />
-        <StatCard title="Entradas (Qtd)" value={totals.in.toLocaleString()} icon={TrendingUp} color="green" />
-        <StatCard title="Saídas (Qtd)" value={totals.out.toLocaleString()} icon={TrendingDown} color="purple" />
+        <StatCard title="Valor em Estoque" value={formatValue(stockTotalFinancial, true)} icon={DollarSign} color="blue" />
+        <StatCard title="Entradas (Lançamentos)" value={formatValue(totals.in, false)} icon={TrendingUp} color="green" trend="Total Período" />
+        <StatCard title="Saídas (Lançamentos)" value={formatValue(totals.out, false)} icon={TrendingDown} color="purple" trend="Total Período" />
         <StatCard title="Itens Críticos" value={totals.critical} icon={AlertTriangle} color="red" trend="Repor" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-           <div className="flex justify-between items-center mb-6">
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center">
                  <Activity className="w-5 h-5 mr-2 text-primary" />
-                 Fluxo Financeiro (Apenas Movimentações Reais)
+                 Fluxo de Movimentações
               </h3>
+              
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button onClick={() => setViewType('quantity')} className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewType === 'quantity' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  <Package className="w-3.5 h-3.5 mr-1.5" /> Registros
+                </button>
+                <button onClick={() => setViewType('financial')} className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewType === 'financial' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  <DollarSign className="w-3.5 h-3.5 mr-1.5" /> Financeiro
+                </button>
+              </div>
            </div>
+
            <div className="h-80">
-             <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={flowData}>
-                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-gray-700" vertical={false} />
-                   <XAxis dataKey="displayDate" stroke="#94a3b8" fontSize={10} tick={{ dy: 10 }} tickFormatter={(val) => val.split('/20')[0]} />
-                   <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}k` : val} />
-                   <Tooltip 
-                      contentStyle={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: '8px', border: 'none' }}
-                      formatter={(value: number) => formatMetric(value, true)}
-                   />
-                   <Legend verticalAlign="top" height={36}/>
-                   <Bar dataKey="entrada" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                   <Bar dataKey="saida" name="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
-                </BarChart>
-             </ResponsiveContainer>
+             {flowData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={flowData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-gray-700" vertical={false} />
+                    <XAxis dataKey="displayDate" stroke="#94a3b8" fontSize={10} tick={{ dy: 10 }} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}k` : val} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: '8px', border: 'none' }} formatter={(value: number) => viewType === 'financial' ? formatValue(value, true) : `${value} Reg.`}/>
+                    <Legend verticalAlign="top" height={36}/>
+                    <Bar dataKey={viewType === 'financial' ? 'entradaFinanceiro' : 'entradaQtd'} name={viewType === 'financial' ? 'Entradas (R$)' : 'Entradas (Registros)'} fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Bar dataKey={viewType === 'financial' ? 'saidaFinanceiro' : 'saidaQtd'} name={viewType === 'financial' ? 'Saídas (R$)' : 'Saídas (Registros)'} fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
+                    </BarChart>
+                </ResponsiveContainer>
+             ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <Info className="w-10 h-10 mb-2 opacity-20" />
+                    <p className="text-sm font-medium">Nenhuma movimentação histórica encontrada.</p>
+                </div>
+             )}
            </div>
         </div>
 
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Saúde do Estoque</h3>
-          <p className="text-xs text-slate-500 mb-6">Proporção de itens em relação ao mínimo</p>
+          <p className="text-xs text-slate-500 mb-6">Itens em relação ao estoque mínimo</p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>

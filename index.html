@@ -1,6 +1,5 @@
-
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -26,9 +25,10 @@
       /* Estilos globais para a interface de tela */
       body {
         font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: #0f172a;
       }
       
-      /* Scrollbar personalizada */
+      /* Scrollbar personalizada dark */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -37,11 +37,8 @@
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-thumb {
         background: #475569;
+        border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
@@ -126,7 +123,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-900 dark:bg-dark dark:text-slate-100 transition-colors duration-200">
+  <body class="bg-dark text-slate-100 transition-colors duration-200">
     <div id="root"></div>
     <!-- Script de entrada para o Vite -->
     <script type="module" src="/index.tsx"></script>
