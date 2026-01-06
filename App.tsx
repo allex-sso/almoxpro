@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, RefreshCw, WifiOff, LogOut, AlertCircle } from 'lucide-react';
-import Sidebar from '../components/Sidebar';
-import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile, CentralSource } from '../types';
-import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from '../services/sheetService';
+import Sidebar from './components/Sidebar';
+import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile, CentralSource } from './types';
+import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from './services/sheetService';
 
 // Pages
-import Dashboard from '../pages/Dashboard';
-import Inventory from '../pages/Inventory';
-import Consumption from '../pages/Consumption';
-import Alerts from '../pages/Alerts';
-import SettingsPage from '../pages/Settings';
-import ServiceOrdersPage from '../pages/ServiceOrders';
-import LoginPage from '../pages/Login';
-import CentralDashboard from '../pages/CentralDashboard';
+import Dashboard from './pages/Dashboard';
+import Inventory from './pages/Inventory';
+import Consumption from './pages/Consumption';
+import Alerts from './pages/Alerts';
+import SettingsPage from './pages/Settings';
+import ServiceOrdersPage from './pages/ServiceOrders';
+import LoginPage from './pages/Login';
+import CentralDashboard from './pages/CentralDashboard';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.DASHBOARD);
