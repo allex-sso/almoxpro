@@ -14,6 +14,16 @@ import ServiceOrdersPage from './pages/ServiceOrders';
 import LoginPage from './pages/Login';
 import CentralDashboard from './pages/CentralDashboard';
 
+// Função auxiliar para evitar erro de 'undefined' em ambientes sem Vite/Vercel envs
+const safeGetEnv = (key: string): string => {
+  try {
+    // @ts-ignore - Evita erro de tipagem se import.meta não for suportado
+    return (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env[key] || '' : '';
+  } catch (e) {
+    return '';
+  }
+};
+
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.DASHBOARD);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -22,15 +32,20 @@ const App: React.FC = () => {
   const MASTER_PROFILE_ID = 'almox-pecas';
 
   const [settings, setSettings] = useState<AppSettings>(() => {
+    const envInv = safeGetEnv('VITE_INVENTORY_URL');
+    const envIn = safeGetEnv('VITE_IN_URL');
+    const envOut = safeGetEnv('VITE_OUT_URL');
+    const envOs = safeGetEnv('VITE_OS_URL');
+
     const defaultProfiles: SectorProfile[] = [
       {
         id: MASTER_PROFILE_ID,
         name: 'Almoxarifado de Peças',
         accessKey: '1',
-        inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
-        inUrl: '',
-        outUrl: '',
-        osUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
+        inventoryUrl: envInv || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
+        inUrl: envIn || '',
+        outUrl: envOut || '',
+        osUrl: envOs || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
       },
       {
         id: 'almox-central',
@@ -51,8 +66,21 @@ const App: React.FC = () => {
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
+        const updatedProfiles = (parsed.profiles || defaultProfiles).map((p: SectorProfile) => {
+          if (p.id === MASTER_PROFILE_ID) {
+            return {
+              ...p,
+              inventoryUrl: p.inventoryUrl || envInv,
+              inUrl: p.inUrl || envIn,
+              outUrl: p.outUrl || envOut,
+              osUrl: p.osUrl || envOs
+            };
+          }
+          return p;
+        });
+
         return { 
-          profiles: parsed.profiles || defaultProfiles,
+          profiles: updatedProfiles,
           activeProfileId: parsed.activeProfileId || null,
           refreshRate: parsed.refreshRate || 30
         };
