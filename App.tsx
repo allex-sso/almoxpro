@@ -1,23 +1,23 @@
+
+import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile, CentralSource } from './types';
+import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from './services/sheetService';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, RefreshCw, WifiOff, LogOut, AlertCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
-import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile, CentralSource } from './types';
-import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from './services/sheetService';
 
 // Pages
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Consumption from './pages/Consumption';
-import Alerts from './pages/Alerts';
+import AlertPage from './pages/Alerts';
 import SettingsPage from './pages/Settings';
 import ServiceOrdersPage from './pages/ServiceOrders';
 import LoginPage from './pages/Login';
 import CentralDashboard from './pages/CentralDashboard';
 
-// Função auxiliar para evitar erro de 'undefined' em ambientes sem Vite/Vercel envs
 const safeGetEnv = (key: string): string => {
   try {
-    // @ts-ignore - Evita erro de tipagem se import.meta não for suportado
+    // @ts-ignore
     return (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env[key] || '' : '';
   } catch (e) {
     return '';
@@ -112,16 +112,23 @@ const App: React.FC = () => {
 
     try {
       if (activeProfile.isCentral) {
-        const sources = activeProfile.sources || [];
+        const sources = [...(activeProfile.sources || [])];
+        if (activeProfile.inUrl) sources.push({ label: 'Entradas ' + activeProfile.name, url: activeProfile.inUrl });
+        if (activeProfile.outUrl) sources.push({ label: 'Saídas ' + activeProfile.name, url: activeProfile.outUrl });
+
         if (sources.length > 0) {
             const results = await Promise.allSettled(
                 sources.map(source => fetchCentralData(source.url))
             );
             
             const consolidatedMovements: Movement[] = [];
-            results.forEach(res => {
+            results.forEach((res, idx) => {
                 if (res.status === 'fulfilled') {
-                    consolidatedMovements.push(...res.value);
+                    const processedMoves = res.value.map(m => ({
+                        ...m,
+                        perfil: m.perfil || sources[idx].label
+                    }));
+                    consolidatedMovements.push(...processedMoves);
                 }
             });
 
@@ -151,6 +158,17 @@ const App: React.FC = () => {
         }
 
         const priceMap = new Map<string, number>();
+        
+        // --- LÓGICA DE PRECIFICAÇÃO ---
+        // 1. Mapeia preços do inventário base (fallback)
+        inventoryItems.forEach(item => {
+          const code = String(item.codigo).trim().toLowerCase();
+          if (item.valorUnitario > 0) {
+            priceMap.set(code, item.valorUnitario);
+          }
+        });
+
+        // 2. Prioriza os preços encontrados na aba "Entrada de Itens"
         inMoves.forEach(m => {
           const code = String(m.codigo).trim().toLowerCase();
           if (m.valorUnitario && m.valorUnitario > 0) {
@@ -158,42 +176,51 @@ const App: React.FC = () => {
           }
         });
 
-        inventoryItems.forEach(item => {
-          const code = String(item.codigo).trim().toLowerCase();
-          if (!priceMap.has(code) && item.valorUnitario > 0) {
-            priceMap.set(code, item.valorUnitario);
-          }
+        // Enriquecimento das Entradas e Saídas para o histórico
+        const enrichedInMoves = inMoves.map(m => {
+          const code = String(m.codigo).trim().toLowerCase();
+          const unitPrice = m.valorUnitario || priceMap.get(code) || 0;
+          return { ...m, valorUnitario: unitPrice, valorTotal: m.quantidade * unitPrice };
         });
 
         const enrichedOutMoves = outMoves.map(m => {
           const code = String(m.codigo).trim().toLowerCase();
           const unitPrice = priceMap.get(code) || m.valorUnitario || 0;
-          return {
-              ...m,
-              valorUnitario: unitPrice,
-              valorTotal: m.quantidade * unitPrice
-          };
+          return { ...m, valorUnitario: unitPrice, valorTotal: m.quantidade * unitPrice };
         });
 
-        const allMoves = [...inMoves, ...enrichedOutMoves];
+        const allMoves = [...enrichedInMoves, ...enrichedOutMoves];
 
+        // --- CONSOLIDAÇÃO COM ABATIMENTO DINÂMICO ---
+        // O valor em estoque deve refletir: (Saldo Planilha Inventário - Saídas Registradas) * Preço Entrada
         const consolidatedItems = inventoryItems.map(item => {
             const itemCode = String(item.codigo).trim().toLowerCase();
             const currentPrice = priceMap.get(itemCode) || item.valorUnitario || 0;
-            const physicalQuantity = item.quantidadeAtual || 0;
             
-            const itemIn = inMoves
-                .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
-                .reduce((acc, m) => acc + m.quantidade, 0);
+            // Quantidade vinda da planilha de Estoque Atual
+            const sheetQuantity = item.quantidadeAtual || 0;
             
+            // Soma de saídas registradas na planilha de Saída de Itens
             const itemOut = enrichedOutMoves
                 .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
                 .reduce((acc, m) => acc + m.quantidade, 0);
             
+            // Soma de entradas registradas na planilha de Entrada de Itens
+            const itemIn = enrichedInMoves
+                .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
+                .reduce((acc, m) => acc + m.quantidade, 0);
+            
+            // Lógica solicitada: "vai abatendo esse somatório do valor do item em saída"
+            // Se o usuário quer que a saída diminua o valor exibido, calculamos o saldo líquido.
+            // Nota: Se a planilha já subtrai as saídas, este cálculo seria redundante, 
+            // mas implementado aqui conforme sua instrução para atualização automática via sistema.
+            const dynamicStock = sheetQuantity - itemOut;
+            
             return {
                 ...item,
+                quantidadeAtual: dynamicStock, // Atualiza a quantidade na UI com o abatimento
                 valorUnitario: currentPrice,
-                valorTotal: physicalQuantity * currentPrice, 
+                valorTotal: dynamicStock * currentPrice, // Valor financeiro abatido pelas saídas
                 entradas: itemIn,
                 saidas: itemOut
             };
@@ -233,10 +260,12 @@ const App: React.FC = () => {
   }
 
   const renderPage = () => {
+    const totalInventoryValue = data.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
+
     if (currentPage === Page.SETTINGS && !isMasterAccount) {
       return activeProfile?.isCentral 
         ? <CentralDashboard data={movements} isLoading={isLoading} /> 
-        : <Dashboard data={data} stats={{totalItems: data.length, totalValue: 0, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+        : <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
     }
 
     if (activeProfile?.isCentral && (currentPage === Page.DASHBOARD || currentPage === Page.CENTRAL_DASHBOARD)) {
@@ -244,14 +273,14 @@ const App: React.FC = () => {
     }
     
     switch (currentPage) {
-      case Page.DASHBOARD: return <Dashboard data={data} stats={{totalItems: data.length, totalValue: 0, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+      case Page.DASHBOARD: return <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
       case Page.CENTRAL_DASHBOARD: return <CentralDashboard data={movements} isLoading={isLoading} />;
       case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
       case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
       case Page.SERVICE_ORDERS: return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
-      case Page.ALERTS: return <Alerts data={data} />;
+      case Page.ALERTS: return <AlertPage data={data} />;
       case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
-      default: return <Dashboard data={data} stats={{totalItems: 0, totalValue: 0, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+      default: return <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
     }
   };
 

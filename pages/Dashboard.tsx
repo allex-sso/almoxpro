@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
@@ -14,7 +15,7 @@ interface DashboardProps {
   isLoading?: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading = false }) => {
+const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLoading = false }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [tempStart, setTempStart] = useState('');
@@ -63,15 +64,10 @@ const Dashboard: React.FC<DashboardProps> = ({ data, movements = [], isLoading =
   }, [data]);
 
   // --- CÁLCULO DO VALOR REAL EM ESTOQUE ---
-  // Este valor é a soma dos itens físicos atuais multiplicados pelo preço unitário identificado nas entradas.
-  // Ele NÃO é filtrado por data, pois reflete o patrimônio ATUAL do almoxarifado.
+  // Este valor utiliza o stats.totalValue calculado no App.tsx que representa o patrimônio FÍSICO atual.
   const stockTotalFinancial = useMemo(() => {
-    return data.reduce((acc, i) => {
-      // O campo valorTotal em 'i' já foi calculado no App.tsx como (qtdAtual * ultimoPrecoEntrada)
-      const val = i.valorTotal || 0;
-      return acc + (isNaN(val) ? 0 : val);
-    }, 0);
-  }, [data]);
+    return stats.totalValue || data.reduce((acc, i) => acc + (i.valorTotal || 0), 0);
+  }, [data, stats.totalValue]);
 
   const { flowData, totals } = useMemo(() => {
     const filteredMovements = movements.filter(m => {

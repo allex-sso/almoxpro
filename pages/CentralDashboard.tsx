@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
+
+import React, { useMemo, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Users, Building, Package, TrendingUp, Link as LinkIcon, Activity, ChevronDown, Calendar } from 'lucide-react';
+import { Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { Movement } from '../types';
 
@@ -17,13 +18,49 @@ const months = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
+// Tooltip customizado para garantir visibilidade no tema escuro e exibir percentual com rótulos claros
+const CustomCentralTooltip = ({ active, payload, label, total, categoryLabel }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const name = label || data.name;
+    const value = payload[0].value;
+    const percent = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+    
+    return (
+      <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[220px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+        <h4 className="font-black text-[10px] mb-3 text-blue-400 leading-tight uppercase tracking-[0.2em] border-b border-slate-800 pb-2 flex justify-between items-center">
+          <span>Detalhes da Saída</span>
+          <Activity className="w-3 h-3" />
+        </h4>
+        <div className="space-y-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">{categoryLabel || 'Item'}:</span>
+            <span className="font-black text-white text-sm">{name}</span>
+          </div>
+          
+          <div className="pt-2 border-t border-slate-800/50 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Quantidade:</span>
+              <span className="font-black text-white">{value.toLocaleString('pt-BR')}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Participação:</span>
+              <span className="font-black text-emerald-400">{percent}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) => {
   const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
   
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
 
-  // Extrai anos disponíveis nos dados globais
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
     data.forEach(m => {
@@ -32,7 +69,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
     return ['Todos', ...Array.from(years).sort((a, b) => b.localeCompare(a))];
   }, [data]);
 
-  // Filtra os dados com base na seleção de Ano e Mês em todas as fontes consolidadas
   const filteredData = useMemo(() => {
     return data.filter(m => {
       const yearMatch = selectedYear === 'Todos' || m.data.getFullYear().toString() === selectedYear;
@@ -56,6 +92,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       if (!byRequester[req]) byRequester[req] = { total: 0, count: 0 };
       byRequester[req].total += m.quantidade;
       byRequester[req].count += 1;
+      
       const profile = m.perfil || 'Geral';
       byProfile[profile] = (byProfile[profile] || 0) + m.quantidade;
     });
@@ -87,14 +124,12 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-            {/* Filtro de Período Consolidado */}
             <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2">
                 <div className="flex items-center gap-2 px-2 border-r border-gray-100 dark:border-gray-800 mr-1">
                     <Calendar className="w-4 h-4 text-emerald-500" />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar Período:</span>
                 </div>
 
-                {/* Ano */}
                 <div className="relative flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-2 py-1.5 border border-gray-200 dark:border-gray-700 min-w-[100px]">
                    <span className="text-[9px] font-black text-slate-400 mr-2 uppercase">Ano</span>
                    <select 
@@ -109,7 +144,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                    <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
                 </div>
 
-                {/* Mês */}
                 <div className="relative flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-2 py-1.5 border border-gray-200 dark:border-gray-700 min-w-[130px]">
                    <span className="text-[9px] font-black text-slate-400 mr-2 uppercase">Mês</span>
                    <select 
@@ -147,7 +181,10 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10}} />
-                  <Tooltip cursor={{fill: 'rgba(37, 99, 235, 0.05)'}} />
+                  <Tooltip 
+                    content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Setor" />} 
+                    cursor={{fill: 'rgba(37, 99, 235, 0.05)'}} 
+                  />
                   <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
@@ -168,7 +205,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                   <Pie data={metrics.profileData} innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
                     {metrics.profileData.map((_, i) => <Cell key={`c-${i}`} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Perfil" />} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
