@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Plus, Trash2, Shield, Settings, Layout, ClipboardList, Link as LinkIcon, Calendar, Hash, ExternalLink } from 'lucide-react';
+import { Save, Plus, Trash2, Shield, Settings, Layout, ClipboardList, Link as LinkIcon, Calendar, Hash, ExternalLink, Copy, Upload, Download, AlertCircle } from 'lucide-react';
 import { AppSettings, SectorProfile, CentralSource } from '../types';
 
 interface SettingsProps {
@@ -21,10 +21,14 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
 
   const addProfile = () => {
     if (!isMasterAccount) return;
+    
+    // Define a chave automática: (total de perfis + 1) * 10
+    const nextKey = (localSettings.profiles.length + 1) * 10;
+    
     const newProfile: SectorProfile = {
       id: `setor-${Date.now()}`,
       name: 'Novo Setor',
-      accessKey: '1',
+      accessKey: String(nextKey),
       inventoryUrl: '',
       inUrl: '',
       outUrl: '',
@@ -101,30 +105,32 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Unidades Alumasa</h3>
-            {isMasterAccount && (
-              <button onClick={addProfile} className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors">
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <div className="p-2 space-y-1">
-            {localSettings.profiles.map(p => (
-              <div 
-                key={p.id}
-                onClick={() => setEditingProfileId(p.id)}
-                className={`flex justify-between items-center p-3 rounded-xl cursor-pointer transition-all ${editingProfileId === p.id ? 'bg-primary text-white shadow-md' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
-              >
-                <span className="text-sm font-bold">{p.name}</span>
-                {editingProfileId !== p.id && p.id !== 'almox-pecas' && (
-                  <button onClick={(e) => { e.stopPropagation(); removeProfile(p.id); }} className="p-1 hover:text-rose-500 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            ))}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Unidades Alumasa</h3>
+              {isMasterAccount && (
+                <button onClick={addProfile} className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors">
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="p-2 space-y-1">
+              {localSettings.profiles.map(p => (
+                <div 
+                  key={p.id}
+                  onClick={() => setEditingProfileId(p.id)}
+                  className={`flex justify-between items-center p-3 rounded-xl cursor-pointer transition-all ${editingProfileId === p.id ? 'bg-primary text-white shadow-md' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                >
+                  <span className="text-sm font-bold">{p.name}</span>
+                  {editingProfileId !== p.id && p.id !== 'almox-pecas' && (
+                    <button onClick={(e) => { e.stopPropagation(); removeProfile(p.id); }} className="p-1 hover:text-rose-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

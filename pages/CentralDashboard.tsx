@@ -1,10 +1,9 @@
-
 import React, { useMemo, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar } from 'lucide-react';
+import { Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, ClipboardList, Clock } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { Movement } from '../types';
 
@@ -18,18 +17,18 @@ const months = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-// Tooltip customizado para garantir visibilidade no tema escuro e exibir percentual com rótulos claros
 const CustomCentralTooltip = ({ active, payload, label, total, categoryLabel }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const name = label || data.name;
     const value = payload[0].value;
     const percent = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+    const metricLabel = categoryLabel === 'Motivo' ? 'Ocorrências' : 'Quantidade';
     
     return (
       <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[220px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
         <h4 className="font-black text-[10px] mb-3 text-blue-400 leading-tight uppercase tracking-[0.2em] border-b border-slate-800 pb-2 flex justify-between items-center">
-          <span>Detalhes da Saída</span>
+          <span>Detalhes da Análise</span>
           <Activity className="w-3 h-3" />
         </h4>
         <div className="space-y-3">
@@ -40,7 +39,7 @@ const CustomCentralTooltip = ({ active, payload, label, total, categoryLabel }: 
           
           <div className="pt-2 border-t border-slate-800/50 space-y-1.5">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Quantidade:</span>
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{metricLabel}:</span>
               <span className="font-black text-white">{value.toLocaleString('pt-BR')}</span>
             </div>
             <div className="flex justify-between items-center">
@@ -70,7 +69,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
   }, [data]);
 
   const filteredData = useMemo(() => {
-    return data.filter(m => {
+    return (data || []).filter(m => {
+      if (!m.data) return true;
       const yearMatch = selectedYear === 'Todos' || m.data.getFullYear().toString() === selectedYear;
       const monthMatch = selectedMonth === 'Todos' || months[m.data.getMonth()] === selectedMonth;
       return yearMatch && monthMatch;
@@ -80,36 +80,68 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
   const metrics = useMemo(() => {
     const bySector: Record<string, number> = {};
     const byRequester: Record<string, { total: number, count: number }> = {};
-    const byProfile: Record<string, number> = {};
+    const byReason: Record<string, number> = {};
     let totalItems = 0;
+    let totalReasonCount = 0;
+    
+    let turno1Qty = 0;
+    let turno2Qty = 0;
+
     const movementCount = filteredData.length;
 
     filteredData.forEach(m => {
       totalItems += m.quantidade;
       const sector = m.setor || 'Outros';
       bySector[sector] = (bySector[sector] || 0) + m.quantidade;
+      
       const req = m.responsavel || 'N/D';
       if (!byRequester[req]) byRequester[req] = { total: 0, count: 0 };
       byRequester[req].total += m.quantidade;
       byRequester[req].count += 1;
       
-      const profile = m.perfil || 'Geral';
-      byProfile[profile] = (byProfile[profile] || 0) + m.quantidade;
+      const reason = m.motivo || 'Geral/Não especificado';
+      byReason[reason] = (byReason[reason] || 0) + 1;
+      totalReasonCount += 1;
+
+      const t = String(m.turno || '').toLowerCase();
+      if (t.includes('1')) {
+        turno1Qty += m.quantidade;
+      } else if (t.includes('2') || t.includes('3')) {
+        turno2Qty += m.quantidade;
+      }
     });
 
     const avgPerMovement = movementCount > 0 ? (totalItems / movementCount).toFixed(1) : "0";
+    
+    // Novo layout visual para o valor dos turnos
+    const shiftInfo = (
+        <div className="flex items-center w-full justify-between">
+            <div className="flex flex-col">
+                <span className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">1º Turno</span>
+                <span className="text-xl font-black font-mono tracking-tighter">{turno1Qty.toLocaleString('pt-BR')}</span>
+            </div>
+            <div className="h-8 w-px bg-white/20 mx-4"></div>
+            <div className="flex flex-col">
+                <span className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">2º + 3º Turno</span>
+                <span className="text-xl font-black font-mono tracking-tighter">{turno2Qty.toLocaleString('pt-BR')}</span>
+            </div>
+        </div>
+    );
 
     return {
       totalItems,
+      totalReasonCount,
       movementCount,
       avgPerMovement,
+      shiftInfo,
       sectorData: Object.entries(bySector).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 10),
       requesterData: Object.entries(byRequester).map(([name, s]) => ({ 
         name, 
         total: s.total, 
+        count: s.count,
         avg: (s.total / s.count).toFixed(2) 
-      })).sort((a,b) => b.total - a.total).slice(0, 10),
-      profileData: Object.entries(byProfile).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 8)
+      })).sort((a,b) => b.count - a.count).slice(0, 10),
+      reasonData: Object.entries(byReason).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 8)
     };
   }, [filteredData]);
 
@@ -163,8 +195,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total de Itens Saídos" value={metrics.totalItems} icon={Package} color="blue" />
-        <StatCard title="Setores Atendidos" value={metrics.sectorData.length} icon={Building} color="green" />
+        <StatCard title="Saída Total de Barras" value={metrics.totalItems.toLocaleString('pt-BR')} icon={Package} color="blue" />
+        <StatCard title="Consumo por Turno" value={metrics.shiftInfo} icon={Clock} color="green" />
         <StatCard title="Solicitantes Ativos" value={metrics.requesterData.length} icon={Users} color="purple" />
         <StatCard title="Média de Itens p/ Saída" value={metrics.avgPerMovement} icon={Activity} color="blue" />
       </div>
@@ -196,16 +228,16 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-500" /> Distribuição por Perfil
+            <TrendingUp className="w-5 h-5 text-emerald-500" /> Frequência por Motivos
           </h3>
           <div className="h-72">
-            {metrics.profileData.length > 0 ? (
+            {metrics.reasonData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={metrics.profileData} innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
-                    {metrics.profileData.map((_, i) => <Cell key={`c-${i}`} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie data={metrics.reasonData} innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
+                    {metrics.reasonData.map((_, i) => <Cell key={`c-${i}`} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Perfil" />} />
+                  <Tooltip content={<CustomCentralTooltip total={metrics.totalReasonCount} categoryLabel="Motivo" />} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -217,7 +249,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       </div>
 
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700 font-bold text-slate-800 dark:text-white uppercase tracking-widest text-xs">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700 font-bold text-slate-800 dark:text-white uppercase tracking-widest text-xs flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-primary" />
             Ranking de Consumo por Solicitante
           </div>
           <div className="overflow-x-auto">
@@ -225,21 +258,27 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
               <thead className="text-[10px] uppercase bg-slate-50 dark:bg-slate-800 text-slate-400 font-bold">
                 <tr>
                   <th className="px-6 py-4">Nome</th>
-                  <th className="px-6 py-4 text-center">Total de Itens</th>
+                  <th className="px-6 py-4 text-center">Total de Itens (Barras)</th>
+                  <th className="px-6 py-4 text-center">Qtd. Requisições</th>
                   <th className="px-6 py-4 text-center">Média por Saída</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {metrics.requesterData.map((req, i) => (
                   <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4 font-medium dark:text-white">{req.name}</td>
-                    <td className="px-6 py-4 text-center font-bold text-blue-600">{req.total}</td>
-                    <td className="px-6 py-4 text-center text-slate-500 font-mono">{req.avg}</td>
+                    <td className="px-6 py-4 font-bold dark:text-white">{req.name}</td>
+                    <td className="px-6 py-4 text-center font-black text-blue-600">{req.total.toLocaleString('pt-BR')}</td>
+                    <td className="px-6 py-4 text-center">
+                        <span className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-lg font-black text-[11px]">
+                            {req.count}
+                        </span>
+                    </td>
+                    <td className="px-6 py-4 text-center text-slate-500 font-mono font-bold">{req.avg}</td>
                   </tr>
                 ))}
                 {metrics.requesterData.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-6 py-10 text-center text-slate-400 italic">Nenhum registro encontrado nas fontes ou período selecionado</td>
+                    <td colSpan={4} className="px-6 py-10 text-center text-slate-400 italic">Nenhum registro encontrado nas fontes ou período selecionado</td>
                   </tr>
                 )}
               </tbody>

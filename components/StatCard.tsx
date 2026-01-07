@@ -3,7 +3,7 @@ import { LucideIcon } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   icon: LucideIcon;
   trend?: string;
   trendUp?: boolean;
@@ -36,16 +36,22 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, trend, tr
       <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
       
       <div className="flex items-start justify-between mb-4 relative z-10">
-        <span className="text-sm font-medium text-white/80">{title}</span>
-        <div className={`p-2.5 rounded-xl ${selectedIconBg} backdrop-blur-sm shadow-sm`}>
-          <Icon className="w-5 h-5" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-white/70">{title}</span>
+        <div className={`p-2 rounded-xl ${selectedIconBg} backdrop-blur-sm shadow-sm`}>
+          <Icon className="w-4 h-4" />
         </div>
       </div>
       
-      <div className="flex items-end justify-between relative z-10">
-        <h3 className="text-3xl font-bold tracking-tight">{value}</h3>
+      <div className="flex items-end justify-between relative z-10 min-h-[40px]">
+        <div className="w-full">
+            {typeof value === 'string' || typeof value === 'number' ? (
+                <h3 className="text-3xl font-bold tracking-tight whitespace-nowrap">{value}</h3>
+            ) : (
+                value
+            )}
+        </div>
         {trend && (
-          <div className={`flex items-center px-2 py-1 rounded-lg text-xs font-semibold backdrop-blur-md ${trendUp ? 'bg-white/20 text-white' : 'bg-white/20 text-white'}`}>
+          <div className="flex items-center px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-white/20 text-white whitespace-nowrap ml-4">
             {trend}
           </div>
         )}

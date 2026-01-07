@@ -1,4 +1,3 @@
-
 import { InventoryItem, Movement, ServiceOrder } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
@@ -287,7 +286,7 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
   
   const keywords = [
     'material', 'item', 'solicitante', 'responsavel', 'data', 'dia', 
-    'quantidade', 'saida', 'perfil', 'etapa', 'codigo', 'cod', 'descricao'
+    'quantidade', 'saida', 'perfil', 'etapa', 'codigo', 'cod', 'descricao', 'motivo', 'cor', 'turno'
   ];
 
   const { index: headerIdx, headers } = findHeaderRow(rows, keywords);
@@ -299,6 +298,9 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
   const idxResp = findBestCol(headers, ['solicitante', 'responsavel', 'pessoa que liberou', 'quem', 'funcionario']);
   const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
   const idxPerfil = findBestCol(headers, ['perfil']);
+  const idxMotivo = findBestCol(headers, ['motivo', 'razao', 'causa', 'justificativa']);
+  const idxCor = findBestCol(headers, ['cor', 'coloracao', 'pintura']);
+  const idxTurno = findBestCol(headers, ['turno', 'periodo', 'horario']);
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     const materialKey = idxDesc !== -1 ? row[idxDesc] : '';
@@ -315,7 +317,10 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
       tipo: 'saida',
       responsavel: idxResp !== -1 ? row[idxResp] : 'N/D',
       setor: idxSetor !== -1 ? row[idxSetor] : 'Outros',
-      perfil: idxPerfil !== -1 ? row[idxPerfil] : undefined
+      perfil: idxPerfil !== -1 ? row[idxPerfil] : materialKey,
+      motivo: idxMotivo !== -1 ? row[idxMotivo] : undefined,
+      cor: idxCor !== -1 ? row[idxCor] : 'N/D',
+      turno: idxTurno !== -1 ? row[idxTurno] : undefined
     } as Movement;
   }).filter(x => x !== null && x.quantidade > 0) as Movement[];
 };

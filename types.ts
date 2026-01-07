@@ -31,6 +31,8 @@ export interface Movement {
   setor?: string;
   motivo?: string;
   perfil?: string;
+  cor?: string;
+  turno?: string;
 }
 
 export interface ServiceOrder {
@@ -87,5 +89,6 @@ export enum Page {
   SERVICE_ORDERS = 'service_orders',
   ALERTS = 'alerts',
   SETTINGS = 'settings',
-  CENTRAL_DASHBOARD = 'central_dashboard'
+  CENTRAL_DASHBOARD = 'central_dashboard',
+  CENTRAL_PERFIL = 'central_perfil'
 }

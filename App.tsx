@@ -1,7 +1,6 @@
-
-import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile, CentralSource } from './types';
+import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile } from './types';
 import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from './services/sheetService';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, RefreshCw, WifiOff, LogOut, AlertCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 
@@ -14,14 +13,53 @@ import SettingsPage from './pages/Settings';
 import ServiceOrdersPage from './pages/ServiceOrders';
 import LoginPage from './pages/Login';
 import CentralDashboard from './pages/CentralDashboard';
+import CentralProfiles from './pages/CentralProfiles';
+
+const MASTER_PROFILE_ID = 'almox-pecas';
 
 const safeGetEnv = (key: string): string => {
   try {
     // @ts-ignore
-    return (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env[key] || '' : '';
+    const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+    return env[key] || '';
   } catch (e) {
     return '';
   }
+};
+
+const getDefaultProfiles = (): SectorProfile[] => {
+  const envInv = safeGetEnv('VITE_INVENTORY_URL');
+  const envIn = safeGetEnv('VITE_IN_URL');
+  const envOut = safeGetEnv('VITE_OUT_URL');
+  const envOs = safeGetEnv('VITE_OS_URL');
+
+  return [
+    {
+      id: MASTER_PROFILE_ID,
+      name: 'Almoxarifado de Peças',
+      accessKey: '10',
+      inventoryUrl: envInv || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
+      inUrl: envIn || '',
+      outUrl: envOut || '',
+      osUrl: envOs || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
+    },
+    {
+      id: 'almox-central',
+      name: 'Almoxarifado Central',
+      accessKey: '20',
+      inventoryUrl: '',
+      inUrl: '',
+      outUrl: '',
+      osUrl: '',
+      isCentral: true,
+      sources: [
+          { 
+            label: 'Base Central', 
+            url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=1098843728&single=true&output=csv' 
+          }
+      ]
+    }
+  ];
 };
 
 const App: React.FC = () => {
@@ -29,51 +67,24 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [lastSync, setLastSync] = useState<string>('');
   
-  const MASTER_PROFILE_ID = 'almox-pecas';
-
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const envInv = safeGetEnv('VITE_INVENTORY_URL');
-    const envIn = safeGetEnv('VITE_IN_URL');
-    const envOut = safeGetEnv('VITE_OUT_URL');
-    const envOs = safeGetEnv('VITE_OS_URL');
-
-    const defaultProfiles: SectorProfile[] = [
-      {
-        id: MASTER_PROFILE_ID,
-        name: 'Almoxarifado de Peças',
-        accessKey: '1',
-        inventoryUrl: envInv || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
-        inUrl: envIn || '',
-        outUrl: envOut || '',
-        osUrl: envOs || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
-      },
-      {
-        id: 'almox-central',
-        name: 'Almoxarifado Central',
-        accessKey: '1',
-        inventoryUrl: '',
-        inUrl: '',
-        outUrl: '',
-        osUrl: '',
-        isCentral: true,
-        sources: [
-            { label: 'Histórico Central', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=424712460&single=true&output=csv' }
-        ]
-      }
-    ];
-
+    const defaultProfiles = getDefaultProfiles();
     const savedSettings = localStorage.getItem('almox_settings_v4');
+    
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
-        const updatedProfiles = (parsed.profiles || defaultProfiles).map((p: SectorProfile) => {
+        const profilesList = Array.isArray(parsed.profiles) ? parsed.profiles : defaultProfiles;
+        
+        // Atualiza urls se vierem do env e estiverem vazias
+        const updatedProfiles = profilesList.map((p: SectorProfile) => {
           if (p.id === MASTER_PROFILE_ID) {
             return {
               ...p,
-              inventoryUrl: p.inventoryUrl || envInv,
-              inUrl: p.inUrl || envIn,
-              outUrl: p.outUrl || envOut,
-              osUrl: p.osUrl || envOs
+              inventoryUrl: p.inventoryUrl || safeGetEnv('VITE_INVENTORY_URL'),
+              inUrl: p.inUrl || safeGetEnv('VITE_IN_URL'),
+              outUrl: p.outUrl || safeGetEnv('VITE_OUT_URL'),
+              osUrl: p.osUrl || safeGetEnv('VITE_OS_URL')
             };
           }
           return p;
@@ -84,13 +95,15 @@ const App: React.FC = () => {
           activeProfileId: parsed.activeProfileId || null,
           refreshRate: parsed.refreshRate || 30
         };
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error("Erro ao carregar configurações salvas:", e); 
+      }
     }
     return { profiles: defaultProfiles, activeProfileId: null, refreshRate: 30 };
   });
 
   const activeProfile = useMemo(() => 
-    settings.profiles.find(p => p.id === settings.activeProfileId) || null
+    (settings.profiles || []).find(p => p.id === settings.activeProfileId) || null
   , [settings.profiles, settings.activeProfileId]);
 
   const isMasterAccount = activeProfile?.id === MASTER_PROFILE_ID;
@@ -105,7 +118,7 @@ const App: React.FC = () => {
     localStorage.setItem('almox_settings_v4', JSON.stringify(settings));
   }, [settings]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!activeProfile) return;
     setIsLoading(true);
     setSyncError(false);
@@ -126,7 +139,7 @@ const App: React.FC = () => {
                 if (res.status === 'fulfilled') {
                     const processedMoves = res.value.map(m => ({
                         ...m,
-                        perfil: m.perfil || sources[idx].label
+                        perfil: m.perfil || (sources[idx] ? sources[idx].label : 'Fonte Central')
                     }));
                     consolidatedMovements.push(...processedMoves);
                 }
@@ -159,8 +172,6 @@ const App: React.FC = () => {
 
         const priceMap = new Map<string, number>();
         
-        // --- LÓGICA DE PRECIFICAÇÃO ---
-        // 1. Mapeia preços do inventário base (fallback)
         inventoryItems.forEach(item => {
           const code = String(item.codigo).trim().toLowerCase();
           if (item.valorUnitario > 0) {
@@ -168,7 +179,6 @@ const App: React.FC = () => {
           }
         });
 
-        // 2. Prioriza os preços encontrados na aba "Entrada de Itens"
         inMoves.forEach(m => {
           const code = String(m.codigo).trim().toLowerCase();
           if (m.valorUnitario && m.valorUnitario > 0) {
@@ -176,7 +186,6 @@ const App: React.FC = () => {
           }
         });
 
-        // Enriquecimento das Entradas e Saídas para o histórico
         const enrichedInMoves = inMoves.map(m => {
           const code = String(m.codigo).trim().toLowerCase();
           const unitPrice = m.valorUnitario || priceMap.get(code) || 0;
@@ -191,36 +200,23 @@ const App: React.FC = () => {
 
         const allMoves = [...enrichedInMoves, ...enrichedOutMoves];
 
-        // --- CONSOLIDAÇÃO COM ABATIMENTO DINÂMICO ---
-        // O valor em estoque deve refletir: (Saldo Planilha Inventário - Saídas Registradas) * Preço Entrada
         const consolidatedItems = inventoryItems.map(item => {
             const itemCode = String(item.codigo).trim().toLowerCase();
             const currentPrice = priceMap.get(itemCode) || item.valorUnitario || 0;
-            
-            // Quantidade vinda da planilha de Estoque Atual
             const sheetQuantity = item.quantidadeAtual || 0;
-            
-            // Soma de saídas registradas na planilha de Saída de Itens
             const itemOut = enrichedOutMoves
                 .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
                 .reduce((acc, m) => acc + m.quantidade, 0);
-            
-            // Soma de entradas registradas na planilha de Entrada de Itens
             const itemIn = enrichedInMoves
                 .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
                 .reduce((acc, m) => acc + m.quantidade, 0);
-            
-            // Lógica solicitada: "vai abatendo esse somatório do valor do item em saída"
-            // Se o usuário quer que a saída diminua o valor exibido, calculamos o saldo líquido.
-            // Nota: Se a planilha já subtrai as saídas, este cálculo seria redundante, 
-            // mas implementado aqui conforme sua instrução para atualização automática via sistema.
             const dynamicStock = sheetQuantity - itemOut;
             
             return {
                 ...item,
-                quantidadeAtual: dynamicStock, // Atualiza a quantidade na UI com o abatimento
+                quantidadeAtual: dynamicStock,
                 valorUnitario: currentPrice,
-                valorTotal: dynamicStock * currentPrice, // Valor financeiro abatido pelas saídas
+                valorTotal: dynamicStock * currentPrice,
                 entradas: itemIn,
                 saidas: itemOut
             };
@@ -237,7 +233,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeProfile]);
 
   useEffect(() => {
     if (activeProfile) {
@@ -248,7 +244,7 @@ const App: React.FC = () => {
         setCurrentPage(Page.DASHBOARD);
       }
     }
-  }, [settings.activeProfileId]);
+  }, [settings.activeProfileId, activeProfile, loadData]);
 
   const handleLogout = () => {
     setSettings(s => ({ ...s, activeProfileId: null }));
@@ -256,18 +252,18 @@ const App: React.FC = () => {
   };
 
   if (!settings.activeProfileId) {
-    return <LoginPage profiles={settings.profiles} onSelectProfile={(id) => setSettings(s => ({ ...s, activeProfileId: id }))} />;
+    return (
+      <LoginPage 
+        profiles={settings.profiles || []} 
+        onSelectProfile={(id) => setSettings(s => ({ ...s, activeProfileId: id }))} 
+      />
+    );
   }
 
   const renderPage = () => {
-    const totalInventoryValue = data.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
+    const totalInventoryValue = (data || []).reduce((acc, item) => acc + (item.valorTotal || 0), 0);
 
-    if (currentPage === Page.SETTINGS && !isMasterAccount) {
-      return activeProfile?.isCentral 
-        ? <CentralDashboard data={movements} isLoading={isLoading} /> 
-        : <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
-    }
-
+    // Redirecionamento de segurança para páginas centrais
     if (activeProfile?.isCentral && (currentPage === Page.DASHBOARD || currentPage === Page.CENTRAL_DASHBOARD)) {
         return <CentralDashboard data={movements} isLoading={isLoading} />;
     }
@@ -275,6 +271,7 @@ const App: React.FC = () => {
     switch (currentPage) {
       case Page.DASHBOARD: return <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
       case Page.CENTRAL_DASHBOARD: return <CentralDashboard data={movements} isLoading={isLoading} />;
+      case Page.CENTRAL_PERFIL: return <CentralProfiles movements={movements} isLoading={isLoading} />;
       case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
       case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
       case Page.SERVICE_ORDERS: return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
@@ -297,7 +294,7 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="bg-dark-card border-b border-gray-700 h-16 flex items-center justify-between px-4 sm:px-6 no-print">
           <div className="flex items-center">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400"><Menu className="h-6 w-6" /></button>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400 focus:outline-none"><Menu className="h-6 w-6" /></button>
             <div className="ml-4 lg:ml-0 flex flex-col">
               <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
                 ALUMASA - GESTÃO DE ATIVOS
