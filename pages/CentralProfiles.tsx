@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Search, Palette, Box, Download, Filter, Info, X } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Search, Palette, Box, Download, Filter, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movement } from '../types';
 
 interface CentralProfilesProps {
@@ -10,6 +10,8 @@ interface CentralProfilesProps {
 const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [colorFilter, setColorFilter] = useState('Todas');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   // Agregação dos dados por Perfil e Cor
   const aggregatedData = useMemo(() => {
@@ -49,6 +51,18 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
       return matchesSearch && matchesColor;
     });
   }, [aggregatedData, searchTerm, colorFilter]);
+
+  // Resetar página ao filtrar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, colorFilter]);
+
+  // Paginação
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
 
   const handleExport = () => {
     const headers = ["Perfil", "Cor", "Quantidade Total"];
@@ -138,7 +152,7 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {filteredData.map((d, i) => (
+              {paginatedData.map((d, i) => (
                 <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
                   <td className="px-6 py-4 font-black text-slate-800 dark:text-white">{d.perfil}</td>
                   <td className="px-6 py-4">
@@ -167,6 +181,31 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
             </tbody>
           </table>
         </div>
+
+        {/* Barra de Paginação */}
+        {filteredData.length > 0 && (
+          <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-slate-800/50">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
+            </span>
+            <div className="inline-flex gap-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              </button>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
