@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, RefreshCw, LogOut } from 'lucide-react';
 import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile } from './types';
@@ -124,8 +125,44 @@ const App: React.FC = () => {
         const outMoves = results[2].status === 'fulfilled' ? (results[2].value as Movement[]) : [];
         const osList = results[3].status === 'fulfilled' ? (results[3].value as ServiceOrder[]) : [];
         
-        setData(inventoryItems);
-        setMovements([...inMoves, ...outMoves]);
+        // --- LOGICA DE PRECIFICAÇÃO DINÂMICA ---
+        const priceMap = new Map<string, number>();
+        inventoryItems.forEach(item => {
+          if (item.valorUnitario > 0) priceMap.set(item.codigo, item.valorUnitario);
+        });
+        inMoves.forEach(m => {
+          if (m.valorUnitario && m.valorUnitario > 0) priceMap.set(m.codigo, m.valorUnitario);
+        });
+
+        const valuedOutMoves = outMoves.map(m => ({
+          ...m,
+          valorUnitario: m.valorUnitario || priceMap.get(m.codigo) || 0,
+          valorTotal: m.valorTotal || (m.quantidade * (priceMap.get(m.codigo) || 0))
+        }));
+
+        const allMoves = [...inMoves, ...valuedOutMoves];
+
+        // LÓGICA DE RECONCILIAÇÃO DE ESTOQUE DINÂMICO
+        const enrichedData = inventoryItems.map(item => {
+          const itemMoves = allMoves.filter(m => m.codigo === item.codigo);
+          const totalIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, curr) => acc + curr.quantidade, 0);
+          const totalOut = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, curr) => acc + curr.quantidade, 0);
+          
+          const dynamicQty = item.quantidadeAtual + totalIn - totalOut;
+          const unitPrice = priceMap.get(item.codigo) || item.valorUnitario || 0;
+          
+          return {
+            ...item,
+            quantidadeAtual: dynamicQty,
+            entradas: totalIn,
+            saidas: totalOut,
+            valorUnitario: unitPrice,
+            valorTotal: dynamicQty * unitPrice
+          };
+        });
+
+        setData(enrichedData);
+        setMovements(allMoves);
         setOsData(osList);
       }
     } catch (err) {
@@ -138,6 +175,36 @@ const App: React.FC = () => {
   useEffect(() => {
     if (activeProfile) loadData();
   }, [activeProfile, loadData]);
+
+  // Estatísticas globais enviadas para o Dashboard
+  const dashboardStats = useMemo(() => {
+    const totalItems = data.length;
+    
+    // NOVO CÁLCULO: Reflete estritamente o patrimônio líquido investido (Entradas - Saídas)
+    let totalInValue = 0;
+    let totalOutValue = 0;
+    
+    movements.forEach(m => {
+      const val = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
+      if (m.tipo === 'entrada') {
+        totalInValue += val;
+      } else if (m.tipo === 'saida') {
+        totalOutValue += val;
+      }
+    });
+    
+    const totalValue = Math.max(0, totalInValue - totalOutValue);
+    
+    const totalInCount = movements.filter(m => m.tipo === 'entrada').length;
+    const totalOutCount = movements.filter(m => m.tipo === 'saida').length;
+
+    return {
+      totalItems,
+      totalValue,
+      totalIn: totalInCount,
+      totalOut: totalOutCount
+    };
+  }, [data, movements]);
 
   if (!settings.activeProfileId) {
     return (
@@ -155,7 +222,7 @@ const App: React.FC = () => {
     
     switch (currentPage) {
       case Page.DASHBOARD: 
-        return <Dashboard data={data} stats={{totalItems: data.length, totalValue: data.reduce((a,b)=>a+b.valorTotal,0), totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+        return <Dashboard data={data} stats={dashboardStats} movements={movements} isLoading={isLoading} />;
       case Page.CENTRAL_DASHBOARD: 
         return <CentralDashboard data={movements} isLoading={isLoading} />;
       case Page.CENTRAL_PERFIL: 
@@ -171,7 +238,7 @@ const App: React.FC = () => {
       case Page.SETTINGS: 
         return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
       default: 
-        return <Dashboard data={data} stats={{totalItems: data.length, totalValue: 0, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+        return <Dashboard data={data} stats={dashboardStats} movements={movements} isLoading={isLoading} />;
     }
   };
 

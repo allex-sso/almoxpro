@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
@@ -50,11 +51,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, trend, tr
                 value
             )}
         </div>
-        {trend && (
-          <div className="flex items-center px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-white/20 text-white whitespace-nowrap ml-4">
-            {trend}
-          </div>
-        )}
+        {/* Trend label removed to clean UI as requested */}
       </div>
     </div>
   );

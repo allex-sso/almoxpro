@@ -63,11 +63,24 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
     ].filter(d => d.value > 0);
   }, [data]);
 
-  // --- CÁLCULO DO VALOR REAL EM ESTOQUE ---
-  // Este valor utiliza o stats.totalValue calculado no App.tsx que representa o patrimônio FÍSICO atual.
+  // --- CÁLCULO DO VALOR REAL EM ESTOQUE (FLUXO FINANCEIRO) ---
+  // Seguindo a solicitação: (Soma das Entradas) - (Soma das Saídas)
   const stockTotalFinancial = useMemo(() => {
-    return stats.totalValue || data.reduce((acc, i) => acc + (i.valorTotal || 0), 0);
-  }, [data, stats.totalValue]);
+    let totalIn = 0;
+    let totalOut = 0;
+    
+    movements.forEach(m => {
+      const val = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
+      if (m.tipo === 'entrada') {
+        totalIn += val;
+      } else if (m.tipo === 'saida') {
+        totalOut += val;
+      }
+    });
+    
+    // Retorna a diferença, garantindo que não seja negativa (mínimo 0)
+    return Math.max(0, totalIn - totalOut);
+  }, [movements]);
 
   const { flowData, totals } = useMemo(() => {
     const filteredMovements = movements.filter(m => {
@@ -100,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
       if (!grouped[dateIso]) {
         grouped[dateIso] = { dateIso, displayDate, entradaFinanceiro: 0, saidaFinanceiro: 0, entradaQtd: 0, saidaQtd: 0 };
       }
-      const valTotal = m.valorTotal || 0;
+      const valTotal = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
       if (m.tipo === 'entrada') {
           grouped[dateIso].entradaFinanceiro += valTotal;
           grouped[dateIso].entradaQtd += 1;
@@ -147,7 +160,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
           <p className="text-slate-500 dark:text-slate-400 text-sm">Monitoramento de fluxos e saúde do estoque.</p>
         </div>
         
-        <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3">
+        <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3 no-print">
            <div className="flex items-center gap-2 px-2">
               <Calendar className="w-4 h-4 text-slate-400" />
               <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Filtrar Histórico:</span>
@@ -172,9 +185,9 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Valor em Estoque" value={formatValue(stockTotalFinancial, true)} icon={DollarSign} color="blue" />
-        <StatCard title="Entradas (Lançamentos)" value={formatValue(totals.in, false)} icon={TrendingUp} color="green" trend="Total Período" />
-        <StatCard title="Saídas (Lançamentos)" value={formatValue(totals.out, false)} icon={TrendingDown} color="purple" trend="Total Período" />
-        <StatCard title="Itens Críticos" value={totals.critical} icon={AlertTriangle} color="red" trend="Repor" />
+        <StatCard title="Entradas (Lançamentos)" value={formatValue(totals.in, false)} icon={TrendingUp} color="green" />
+        <StatCard title="Saídas (Lançamentos)" value={formatValue(totals.out, false)} icon={TrendingDown} color="purple" />
+        <StatCard title="Itens Críticos" value={totals.critical} icon={AlertTriangle} color="red" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

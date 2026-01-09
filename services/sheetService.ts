@@ -1,3 +1,4 @@
+
 import { InventoryItem, Movement, ServiceOrder } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
@@ -23,11 +24,17 @@ const parseNumber = (value: string | number): number => {
   if (typeof value === 'number') return value;
   
   let str = value.toString().trim();
+  // Limpeza de caracteres não numéricos mas preservando pontos e vírgulas decimais
   str = str.replace(/R\$/gi, '').replace(/\s/g, '').replace(/[^-0-9,.]/g, '');
   
+  if (str === "" || str === "-") return 0;
+
+  // Lógica para detectar se o separador decimal é vírgula ou ponto
   if (str.includes(',') && str.includes('.')) {
+    // Formato europeu/brasileiro com milhar em ponto: 1.234,56 -> 1234.56
     str = str.replace(/\./g, '').replace(',', '.');
   } else if (str.includes(',')) {
+    // Apenas vírgula: 1234,56 -> 1234.56
     str = str.replace(',', '.');
   }
   
@@ -174,9 +181,10 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   const idxData = findBestCol(headers, ['data', 'dia', 'registro', 'data de entrada', 'data de saida']);
   const idxCodigo = findBestCol(headers, ['codigo', 'cod', 'item', 'referencia', 'material', 'ref']);
   const idxQtd = findBestCol(headers, ['quantidade', 'qtd', 'qtde', 'quant', 'saida', 'volume', 'movimentado']);
-  const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo unit', 'preco unit']);
+  const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo unit', 'preco unit', 'valor unit', 'vlr unitario', 'preco', 'preço', 'valor', 'vlr']);
   const idxResp = findBestCol(headers, ['responsavel', 'solicitante', 'quem', 'funcionario', 'usuario']);
   const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
+  const idxForn = findBestCol(headers, ['fornecedor', 'forn', 'empresa', 'origem', 'vendor']);
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     const codigo = formatCodigo(row[idxCodigo]);
@@ -194,7 +202,8 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
       valorUnitario: valUnit,
       valorTotal: qtd * valUnit,
       responsavel: idxResp !== -1 ? row[idxResp] : undefined,
-      setor: idxSetor !== -1 ? row[idxSetor] : undefined
+      setor: idxSetor !== -1 ? row[idxSetor] : undefined,
+      fornecedor: idxForn !== -1 ? row[idxForn] : undefined
     };
   }).filter((m): m is Movement => m !== null && m.quantidade > 0);
 };
@@ -207,10 +216,11 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   
   const idxCodigo = findBestCol(headers, ['codigo', 'cod', 'item', 'referencia', 'material', 'ref']);
   const idxDesc = findBestCol(headers, ['descricao', 'descri', 'nome', 'material', 'produto']);
-  const idxQtd = findBestCol(headers, ['quantidade em estoque', 'quantidade', 'estoque', 'saldo', 'atual', 'qtd', 'estoque atual']);
-  const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo', 'preco']);
+  const idxQtd = findBestCol(headers, ['quantidade em estoque', 'quantidade', 'estoque', 'saldo', 'atual', 'qtd', 'estoque atual', 'balanço', 'balanço atual']);
+  const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo', 'preco', 'preço', 'valor', 'vlr', 'unitário', 'vlr. unit.']);
   const idxMin = findBestCol(headers, ['minimo', 'minim', 'reserva', 'estoque minimo']);
   const idxLoc = findBestCol(headers, ['localizacao', 'local', 'posicao', 'endereco']);
+  const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'ativo', 'equips']);
 
   return rows.slice(headerIdx + 1).map((row) => {
     const codigo = formatCodigo(row[idxCodigo]);
@@ -227,12 +237,12 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
         quantidadeMinima: idxMin !== -1 ? parseNumber(row[idxMin]) : 0,
         unidade: (row[findBestCol(headers, ['unidade', 'unid', 'und', 'medida'])] || 'un'),
         localizacao: idxLoc !== -1 ? row[idxLoc] : '',
+        equipamento: idxEquip !== -1 ? row[idxEquip] : '',
         valorUnitario: vUnit,
         valorTotal: (qAtual * vUnit),
         entradas: 0,
         saidas: 0,
         categoria: 'Geral',
-        equipamento: '',
         fornecedor: '',
         dataAtualizacao: new Date().toISOString()
     } as InventoryItem;
