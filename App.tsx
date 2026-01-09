@@ -17,6 +17,26 @@ import CentralDashboard from './pages/CentralDashboard';
 import CentralProfiles from './pages/CentralProfiles';
 
 const MASTER_PROFILE_ID = 'almox-pecas';
+const CENTRAL_PROFILE_ID = 'almox-central';
+
+// Função auxiliar para obter variáveis de ambiente de forma segura
+const getEnvVar = (key: string, defaultValue: string = ''): string => {
+  try {
+    // Tenta obter do process.env (injetado pelo Vercel/Ambiente)
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key] as string;
+    }
+    // Tenta obter do import.meta.env (padrão Vite) se estiver disponível
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+      // @ts-ignore
+      return import.meta.env[key] as string;
+    }
+  } catch (e) {
+    console.warn(`Erro ao acessar variável de ambiente ${key}:`, e);
+  }
+  return defaultValue;
+};
 
 const getDefaultProfiles = (): SectorProfile[] => {
   return [
@@ -24,13 +44,13 @@ const getDefaultProfiles = (): SectorProfile[] => {
       id: MASTER_PROFILE_ID,
       name: 'Almoxarifado de Peças',
       accessKey: '10',
-      inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
-      inUrl: '',
-      outUrl: '',
-      osUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
+      inventoryUrl: getEnvVar('VITE_INVENTORY_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv'),
+      inUrl: getEnvVar('VITE_IN_URL', ''),
+      outUrl: getEnvVar('VITE_OUT_URL', ''),
+      osUrl: getEnvVar('VITE_OS_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv')
     },
     {
-      id: 'almox-central',
+      id: CENTRAL_PROFILE_ID,
       name: 'Almoxarifado Central',
       accessKey: '20',
       inventoryUrl: '',
@@ -41,7 +61,7 @@ const getDefaultProfiles = (): SectorProfile[] => {
       sources: [
           { 
             label: 'Base Central', 
-            url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=1098843728&single=true&output=csv' 
+            url: getEnvVar('VITE_CENTRAL_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=1098843728&single=true&output=csv') 
           }
       ]
     }
@@ -58,8 +78,32 @@ const App: React.FC = () => {
       const savedSettings = localStorage.getItem('alumasa_config_v1');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
+        
         const profiles = Array.isArray(parsed.profiles) && parsed.profiles.length > 0 
-          ? parsed.profiles 
+          ? parsed.profiles.map((p: SectorProfile) => {
+              if (p.id === MASTER_PROFILE_ID) {
+                return {
+                  ...p,
+                  inUrl: getEnvVar('VITE_IN_URL', p.inUrl),
+                  outUrl: getEnvVar('VITE_OUT_URL', p.outUrl),
+                  inventoryUrl: getEnvVar('VITE_INVENTORY_URL', p.inventoryUrl),
+                  osUrl: getEnvVar('VITE_OS_URL', p.osUrl)
+                };
+              }
+              if (p.id === CENTRAL_PROFILE_ID) {
+                const envCentralUrl = getEnvVar('VITE_CENTRAL_URL');
+                if (envCentralUrl) {
+                  const updatedSources = [...(p.sources || [])];
+                  if (updatedSources.length > 0) {
+                    updatedSources[0].url = envCentralUrl;
+                  } else {
+                    updatedSources.push({ label: 'Base Central', url: envCentralUrl });
+                  }
+                  return { ...p, sources: updatedSources };
+                }
+              }
+              return p;
+            })
           : defaultProfiles;
           
         return { 
@@ -105,8 +149,6 @@ const App: React.FC = () => {
             const consolidated: Movement[] = [];
             results.forEach((res, idx) => {
                 if (res.status === 'fulfilled') {
-                    // MODIFICAÇÃO: Preserva o perfil extraído da planilha se ele não for vazio/genérico.
-                    // Caso contrário, usa o label da fonte (ex: "Memorandos") como fallback.
                     consolidated.push(...res.value.map(m => ({
                         ...m, 
                         perfil: (m.perfil && m.perfil !== 'N/D' && m.perfil !== '' && m.perfil !== 'Não especificado') 
@@ -132,7 +174,6 @@ const App: React.FC = () => {
         const outMoves = results[2].status === 'fulfilled' ? (results[2].value as Movement[]) : [];
         const osList = results[3].status === 'fulfilled' ? (results[3].value as ServiceOrder[]) : [];
         
-        // --- LOGICA DE PRECIFICAÇÃO DINÂMICA ---
         const priceMap = new Map<string, number>();
         inventoryItems.forEach(item => {
           if (item.valorUnitario > 0) priceMap.set(item.codigo, item.valorUnitario);
@@ -149,7 +190,6 @@ const App: React.FC = () => {
 
         const allMoves = [...inMoves, ...valuedOutMoves];
 
-        // LÓGICA DE RECONCILIAÇÃO DE ESTOQUE DINÂMICO
         const enrichedData = inventoryItems.map(item => {
           const itemMoves = allMoves.filter(m => m.codigo === item.codigo);
           const totalIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, curr) => acc + curr.quantidade, 0);
@@ -183,11 +223,8 @@ const App: React.FC = () => {
     if (activeProfile) loadData();
   }, [activeProfile, loadData]);
 
-  // Estatísticas globais enviadas para o Dashboard
   const dashboardStats = useMemo(() => {
     const totalItems = data.length;
-    
-    // NOVO CÁLCULO: Reflete estritamente o patrimônio líquido investido (Entradas - Saídas)
     let totalInValue = 0;
     let totalOutValue = 0;
     
