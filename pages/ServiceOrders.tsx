@@ -1,15 +1,14 @@
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, 
   PieChart, Pie, Legend
 } from 'recharts';
 import { 
-  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, BrainCircuit, Loader2, Filter, ChevronDown, Check
+  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
-import { GoogleGenAI } from "@google/genai";
 
 interface ServiceOrdersProps {
   osData: ServiceOrder[];
@@ -137,12 +136,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const [selectedEquipmentForModal, setSelectedEquipmentForModal] = useState<string | null>(null);
   const [selectedPartForReasons, setSelectedPartForReasons] = useState<string | null>(null);
   
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [aiInsights, setAiInsights] = useState<string | null>(null);
-  const [showAiPanel, setShowAiPanel] = useState(false);
-  
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printType, setPrintType] = useState<'report' | 'ai' | null>(null);
 
   const SECTOR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -310,46 +304,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       }));
   }, [selectedPartForReasons, selectedEquipmentForModal, filteredData]);
 
-  const handleGenerateAiInsights = async () => {
-    setIsAiLoading(true);
-    setShowAiPanel(true);
-    setAiInsights(null);
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const context = filteredData.slice(0, 50).map(os => 
-        `OS: ${os.numero} | Ativo: ${os.equipamento} | Técnico: ${os.professional} | Motivo: ${os.motivo} | Horas: ${os.horas}`
-      ).join('\n');
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Analise o seguinte histórico de manutenção e identifique gargalos operacionais: \n${context}`,
-        config: {
-          systemInstruction: "Você é um Engenheiro de Manutenção Sênior (PCM) da Alumasa. Sua tarefa é analisar o histórico de ordens de serviço, identificar padrões de falhas recorrentes e sugerir melhorias estratégicas de manutenção preventiva.",
-        }
-      });
-
-      if (response && response.text) {
-        setAiInsights(response.text);
-      } else {
-        throw new Error("Não foi possível obter uma resposta válida da IA.");
-      }
-    } catch (error: any) {
-      console.error("Erro crítico na API Gemini:", error);
-      setAiInsights(`Erro ao processar diagnóstico inteligente. Certifique-se de que a API_KEY foi configurada corretamente no painel do Vercel.`);
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const handleOpenReport = (type: 'report' | 'ai') => {
-    setPrintType(type);
-    setShowPrintPreview(true);
-  };
-
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
-    document.title = printType === 'ai' ? "diagnostico_inteligente_pcm" : "relatorio_gerencial_alumasa";
+    document.title = "relatorio_gerencial_alumasa";
     setTimeout(() => {
         window.print();
         document.title = originalTitle;
@@ -399,8 +356,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             </div>
           </div>
 
-          <button onClick={handleGenerateAiInsights} className="bg-blue-600 text-white p-2.5 rounded-xl shadow-lg flex items-center gap-2 font-bold transition-all hover:bg-blue-700 active:scale-95"><BrainCircuit className="w-4 h-4" /> IA PCM</button>
-          <button onClick={() => handleOpenReport('report')} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"><Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial</button>
+          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"><Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial</button>
         </div>
       </div>
 
@@ -410,25 +366,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         <StatCard title="Méd. Resposta" value={formatDetailedTime(stats.avgResponseTime)} icon={Timer} color="purple" />
         <StatCard title="Horas Totais" value={formatDetailedTime(stats.totalHours)} icon={Clock} color="blue" />
       </div>
-
-      {showAiPanel && (
-        <div className="fixed bottom-6 right-6 z-[100] w-full max-w-lg no-print ai-panel animate-in slide-in-from-bottom-10">
-          <div className="backdrop-blur-xl bg-slate-900/60 border border-white/20 shadow-2xl rounded-[2rem] overflow-hidden">
-            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-blue-500/20 to-purple-500/20">
-              <div className="flex items-center gap-3"><div className="p-2 bg-blue-500 rounded-xl shadow-lg shadow-blue-500/40"><BrainCircuit className="w-5 h-5 text-white animate-pulse" /></div><h3 className="text-sm font-black text-white uppercase tracking-widest">Diagnóstico inteligente PCM</h3></div>
-              <div className="flex items-center gap-2">
-                {!isAiLoading && aiInsights && (
-                  <button onClick={() => handleOpenReport('ai')} title="Imprimir Diagnóstico" className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"><Printer className="w-5 h-5" /></button>
-                )}
-                <button onClick={() => setShowAiPanel(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-white/70" /></button>
-              </div>
-            </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto scrollbar-thin text-white text-sm leading-relaxed font-medium">
-              {isAiLoading ? <div className="flex flex-col items-center justify-center py-12 gap-4"><Loader2 className="w-8 h-8 text-blue-400 animate-spin" /><p className="text-[10px] font-black uppercase text-blue-200 animate-pulse">Cruzando dados Alumasa...</p></div> : <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">{aiInsights}</div>}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* OVERLAY DE PRÉ-VISUALIZAÇÃO (PADRÃO ALUMASA) */}
       {showPrintPreview && (
@@ -458,128 +395,97 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             {/* Conteúdo do Relatório */}
             <div className="flex-1 p-4 md:p-12 print-container">
                 <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible">
-                    {printType === 'ai' && aiInsights && (
-                        <div className="w-full">
-                            <header className="mb-8 border-b-2 border-black pb-4 flex justify-between items-end">
-                                <div>
-                                    <h1 className="text-2xl font-black text-black">ALUMASA INDUSTRIAL</h1>
-                                    <h2 className="text-lg font-bold text-black uppercase tracking-wider">DIAGNÓSTICO INTELIGENTE PCM</h2>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold text-black">DATA DE GERAÇÃO: {new Date().toLocaleString('pt-BR')}</p>
-                                    <p className="text-[10px] font-bold text-black">MÓDULO IA / ANALYTICS</p>
-                                </div>
-                            </header>
-                            
-                            <div className="text-black text-sm whitespace-pre-wrap leading-relaxed break-words" style={{ pageBreakInside: 'auto' }}>
-                                {aiInsights}
+                    <div className="w-full">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4">
+                            <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
+                            <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
+                            <div className="py-2">
+                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL DE MANUTENÇÃO</h2>
+                                <p className="text-xs font-bold text-black">Módulo PCM / Auditoria de Ativos</p>
                             </div>
+                        </header>
 
-                            <footer className="mt-20 pt-16 flex justify-between gap-24">
-                                <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
-                                <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
-                            </footer>
-                            
-                            <div className="mt-8 pt-4 border-t border-gray-300 text-[8px] font-bold text-black uppercase flex justify-between">
-                                <span>Relatório de análise automatizada Alumasa PCM. As sugestões devem ser validadas pela engenharia.</span>
-                                <span>Emitido em: {new Date().toLocaleString('pt-BR')}</span>
-                            </div>
-                        </div>
-                    )}
+                        <section className="mb-8">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <tbody>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td><td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Responsável</td><td className="p-2 font-black text-black">Administrador PCM</td></tr>
+                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td><td className="p-2 font-black text-black">Gerencial / Auditoria Industrial</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
 
-                    {printType === 'report' && (
-                        <div className="w-full">
-                            <header className="mb-8 text-center border-b-[3px] border-black pb-4">
-                                <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
-                                <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
-                                <div className="py-2">
-                                    <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL DE MANUTENÇÃO</h2>
-                                    <p className="text-xs font-bold text-black">Módulo PCM / Auditoria de Ativos</p>
-                                </div>
-                            </header>
+                        <section className="mb-8">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <tbody>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.avgExecutionTime)}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.avgResponseTime)}</td></tr>
+                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.totalHours)}</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
 
-                            <section className="mb-8">
-                                <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
-                                <table className="w-full text-[10px] border-collapse border border-black">
-                                    <tbody>
-                                        <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td><td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td></tr>
-                                        <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Responsável</td><td className="p-2 font-black text-black">Administrador PCM</td></tr>
-                                        <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td><td className="p-2 font-black text-black">Gerencial / Auditoria Industrial</td></tr>
-                                    </tbody>
-                                </table>
-                            </section>
+                        <section className="mb-8">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
+                                <tbody>
+                                    {professionalStats.map((p, i) => (
+                                    <tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTime(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTime(p.avgResp)}</td></tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
 
-                            <section className="mb-8">
-                                <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
-                                <table className="w-full text-[10px] border-collapse border border-black">
-                                    <tbody>
-                                        <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
-                                        <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.avgExecutionTime)}</td></tr>
-                                        <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.avgResponseTime)}</td></tr>
-                                        <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.totalHours)}</td></tr>
-                                    </tbody>
-                                </table>
-                            </section>
-
-                            <section className="mb-8">
-                                <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
-                                <table className="w-full text-[10px] border-collapse border border-black">
-                                    <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
-                                    <tbody>
-                                        {professionalStats.map((p, i) => (
-                                        <tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTime(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTime(p.avgResp)}</td></tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </section>
-
-                            <div className="grid grid-cols-2 gap-4 mb-8">
-                                <section>
-                                    <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
-                                    <table className="w-full text-[9px] border-collapse border border-black">
-                                        <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
-                                    </table>
-                                </section>
-                                <section>
-                                    <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
-                                    <table className="w-full text-[9px] border-collapse border border-black">
-                                        <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d.name}</td><td className="p-2 text-right font-black text-red-700">{formatDetailedTime(d.value)}</td></tr>))}</tbody>
-                                    </table>
-                                </section>
-                            </div>
-
-                            <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
-                                <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
+                        <div className="grid grid-cols-2 gap-4 mb-8">
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
-                                    <thead><tr className="bg-gray-200">
-                                        <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
-                                    </tr></thead>
-                                    <tbody style={{ pageBreakInside: 'auto' }}>
-                                        {filteredData.map((os, i) => {
-                                        let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
-                                        let execTime = 0; if (os.dataFim && (os.dataInicio || os.dataAbertura)) execTime = (os.dataFim.getTime() - (os.dataInicio || os.dataAbertura)!.getTime()) / 3600000;
-                                        return (
-                                            <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
-                                                <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
-                                                <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
-                                                <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
-                                                <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTime(downtime) : '-'}</td>
-                                                <td className="border-r border-black p-1.5 font-black text-black">{os.professional}</td>
-                                                <td className="p-1.5 text-center font-black text-black">{formatDetailedTime(execTime)}</td>
-                                            </tr>
-                                        );
-                                        })}
-                                    </tbody>
+                                    <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
                                 </table>
-                            </div>
-
-                            <footer className="mt-8 pt-16 flex justify-between gap-24">
-                                <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
-                                <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
-                            </footer>
-                            <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black"><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
+                            </section>
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
+                                <table className="w-full text-[9px] border-collapse border border-black">
+                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d.name}</td><td className="p-2 text-right font-black text-red-700">{formatDetailedTime(d.value)}</td></tr>))}</tbody>
+                                </table>
+                            </section>
                         </div>
-                    )}
+
+                        <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black">
+                                <thead><tr className="bg-gray-200">
+                                    <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
+                                </tr></thead>
+                                <tbody style={{ pageBreakInside: 'auto' }}>
+                                    {filteredData.map((os, i) => {
+                                    let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
+                                    let execTime = 0; if (os.dataFim && (os.dataInicio || os.dataAbertura)) execTime = (os.dataFim.getTime() - (os.dataInicio || os.dataAbertura)!.getTime()) / 3600000;
+                                    return (
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
+                                            <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTime(downtime) : '-'}</td>
+                                            <td className="border-r border-black p-1.5 font-black text-black">{os.professional}</td>
+                                            <td className="p-1.5 text-center font-black text-black">{formatDetailedTime(execTime)}</td>
+                                        </tr>
+                                    );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <footer className="mt-8 pt-16 flex justify-between gap-24">
+                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
+                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
+                        </footer>
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black"><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -673,7 +579,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                   <th className="px-6 py-4 text-right">Média Resposta</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {professionalStats.map((p, i) => (
                   <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-800 dark:text-white">{p.name}</td>

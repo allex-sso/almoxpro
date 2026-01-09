@@ -4,7 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
-import { Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, ClipboardList, Clock } from 'lucide-react';
+import { 
+  Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, 
+  ClipboardList, Clock, Printer, X, Check 
+} from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { Movement } from '../types';
 
@@ -24,7 +27,7 @@ const CustomCentralTooltip = ({ active, payload, label, total, categoryLabel }: 
     const name = label || data.name;
     const value = payload[0].value;
     const percent = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
-    const metricLabel = categoryLabel === 'Motivo' ? 'Ocorrências' : 'Quantidade';
+    const metricLabel = 'Quantidade (Barras)';
     
     return (
       <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[220px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
@@ -60,6 +63,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
   
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
@@ -83,7 +87,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
     const byRequester: Record<string, { total: number, count: number }> = {};
     const byReason: Record<string, number> = {};
     let totalItems = 0;
-    let totalReasonCount = 0;
     
     let turno1Qty = 0;
     let turno2Qty = 0;
@@ -101,8 +104,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       byRequester[req].count += 1;
       
       const reason = m.motivo || 'Geral/Não especificado';
-      byReason[reason] = (byReason[reason] || 0) + 1;
-      totalReasonCount += 1;
+      byReason[reason] = (byReason[reason] || 0) + m.quantidade; // Agora soma quantidade real
 
       const t = String(m.turno || '').toLowerCase();
       if (t.includes('1')) {
@@ -114,7 +116,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
     const avgPerMovement = movementCount > 0 ? (totalItems / movementCount).toFixed(1) : "0";
     
-    // Novo layout visual para o valor dos turnos
     const shiftInfo = (
         <div className="flex items-center w-full justify-between">
             <div className="flex flex-col">
@@ -131,7 +132,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
     return {
       totalItems,
-      totalReasonCount,
       movementCount,
       avgPerMovement,
       shiftInfo,
@@ -141,16 +141,25 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         total: s.total, 
         count: s.count,
         avg: (s.total / s.count).toFixed(2) 
-      })).sort((a,b) => b.count - a.count).slice(0, 10),
+      })).sort((a,b) => b.total - a.total).slice(0, 10), // Ordena por volume total
       reasonData: Object.entries(byReason).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 8)
     };
   }, [filteredData]);
+
+  const handleConfirmPrint = () => {
+    const originalTitle = document.title;
+    document.title = "relatorio_gerencial_central_alumasa";
+    setTimeout(() => {
+        window.print();
+        document.title = originalTitle;
+    }, 100);
+  };
 
   if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Carregando indicadores central...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Indicadores Central</h1>
           <p className="text-sm text-slate-500 font-medium">Consolidado de todas as fontes de dados cadastradas.</p>
@@ -192,17 +201,24 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                    <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
                 </div>
             </div>
+
+            <button 
+                onClick={() => setShowPrintPreview(true)} 
+                className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"
+            >
+                <Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial
+            </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
         <StatCard title="Saída Total de Barras" value={metrics.totalItems.toLocaleString('pt-BR')} icon={Package} color="blue" />
         <StatCard title="Consumo por Turno" value={metrics.shiftInfo} icon={Clock} color="green" />
         <StatCard title="Solicitantes Ativos" value={metrics.requesterData.length} icon={Users} color="purple" />
         <StatCard title="Média de Itens p/ Saída" value={metrics.avgPerMovement} icon={Activity} color="blue" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
             <Building className="w-5 h-5 text-blue-500" /> Quantidade por Setor
@@ -236,7 +252,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-500" /> Frequência por Motivos
+            <TrendingUp className="w-5 h-5 text-emerald-500" /> Volume por Motivo
           </h3>
           <div className="h-72">
             {metrics.reasonData.length > 0 ? (
@@ -245,7 +261,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                   <Pie data={metrics.reasonData} innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
                     {metrics.reasonData.map((_, i) => <Cell key={`c-${i}`} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip content={<CustomCentralTooltip total={metrics.totalReasonCount} categoryLabel="Motivo" />} />
+                  <Tooltip content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Motivo" />} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -256,7 +272,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
       </div>
 
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden no-print">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 font-bold text-slate-800 dark:text-white uppercase tracking-widest text-xs flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-primary" />
             Ranking de Consumo por Solicitante
@@ -293,6 +309,207 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             </table>
           </div>
       </div>
+
+      {/* OVERLAY DE PRÉ-VISUALIZAÇÃO (PADRÃO ALUMASA) */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+            {/* Header de Controle */}
+            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
+                <div className="flex items-center">
+                    <Printer className="mr-2 w-5 h-5" />
+                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório Central</span>
+                </div>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setShowPrintPreview(false)}
+                        className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"
+                    >
+                        <X className="w-4 h-4 mr-2" /> Voltar
+                    </button>
+                    <button 
+                        onClick={handleConfirmPrint}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"
+                    >
+                        <Check className="w-4 h-4 mr-2" /> Confirmar Impressão
+                    </button>
+                </div>
+            </div>
+
+            {/* Conteúdo do Relatório */}
+            <div className="flex-1 p-4 md:p-12 print-container">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible">
+                    <div className="w-full">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4">
+                            <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
+                            <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
+                            <div className="py-2">
+                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO CENTRAL</h2>
+                                <p className="text-xs font-bold text-black">Consolidado de Consumo de Perfis</p>
+                            </div>
+                        </header>
+
+                        <section className="mb-8">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <tbody>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td>
+                                        <td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Período de Referência</td>
+                                        <td className="p-2 font-black text-black">{selectedMonth} / {selectedYear}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td>
+                                        <td className="p-2 font-black text-black">Gerencial / Auditoria Consolidada</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-8">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE CONSUMO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <tbody>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de Barras Despachadas</td>
+                                        <td className="p-2 font-black text-black">{metrics.totalItems.toLocaleString('pt-BR')}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Média de Itens por Requisição</td>
+                                        <td className="p-2 font-black text-black">{metrics.avgPerMovement}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Registros (Saídas)</td>
+                                        <td className="p-2 font-black text-black">{metrics.movementCount}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Nº de Solicitantes Atendidos</td>
+                                        <td className="p-2 font-black text-black">{metrics.requesterData.length}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <div className="grid grid-cols-2 gap-4 mb-8">
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO POR SETOR</h3>
+                                <table className="w-full text-[9px] border-collapse border border-black">
+                                    <thead>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black">Setor</th>
+                                            <th className="border border-black p-2 text-center font-black text-black">Barras</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {metrics.sectorData.map((s, i) => (
+                                            <tr key={i} className="border-b border-black">
+                                                <td className="border-r border-black p-1.5 font-bold text-black">{s.name}</td>
+                                                <td className="p-1.5 text-center font-black text-black">{s.value.toLocaleString('pt-BR')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </section>
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">CONSUMO POR MOTIVO</h3>
+                                <table className="w-full text-[9px] border-collapse border border-black">
+                                    <thead>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black">Motivo</th>
+                                            <th className="border border-black p-2 text-center font-black text-black">Barras</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {metrics.reasonData.map((r, i) => (
+                                            <tr key={i} className="border-b border-black">
+                                                <td className="border-r border-black p-1.5 font-bold text-black">{r.name}</td>
+                                                <td className="p-1.5 text-center font-black text-black">{r.value.toLocaleString('pt-BR')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </section>
+                        </div>
+
+                        <section className="mb-12">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE SOLICITANTES (TOP 10 POR VOLUME)</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2 text-left font-black text-black">Profissional</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Barras Totais</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Nº Saídas</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Média</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.requesterData.map((req, i) => (
+                                        <tr key={i} className="border-b border-black">
+                                            <td className="border-r border-black p-2 font-black text-black">{req.name}</td>
+                                            <td className="border-r border-black p-2 text-center font-black text-black">{req.total.toLocaleString('pt-BR')}</td>
+                                            <td className="border-r border-black p-2 text-center font-black text-black">{req.count}</td>
+                                            <td className="p-2 text-center font-black text-black">{req.avg}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (CENTRAL)</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2 font-black text-black">Data</th>
+                                        <th className="border border-black p-2 font-black text-left text-black">Perfil / Descrição</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Cor</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Qtd</th>
+                                        <th className="border border-black p-2 font-black text-left text-black">Solicitante</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Motivo</th>
+                                    </tr>
+                                </thead>
+                                <tbody style={{ pageBreakInside: 'auto' }}>
+                                    {filteredData.slice(0, 100).map((m, i) => (
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-1.5 font-bold text-black">{m.data?.toLocaleDateString('pt-BR')}</td>
+                                            <td className="border-r border-black p-1.5 text-black">{m.perfil || m.codigo}</td>
+                                            <td className="border-r border-black p-1.5 text-center text-black">{m.cor}</td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{m.quantidade}</td>
+                                            <td className="border-r border-black p-1.5 font-bold text-black">{m.responsavel}</td>
+                                            <td className="p-1.5 text-center text-black italic">{m.motivo || '-'}</td>
+                                        </tr>
+                                    ))}
+                                    {filteredData.length > 100 && (
+                                        <tr>
+                                            <td colSpan={6} className="p-2 text-center italic text-gray-500 font-bold">
+                                                Exibindo os primeiros 100 registros de {filteredData.length}.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <footer className="mt-8 pt-16 flex justify-between gap-24">
+                            <div className="text-center flex-1">
+                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador Central</div>
+                            </div>
+                            <div className="text-center flex-1">
+                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div>
+                            </div>
+                        </footer>
+
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black">
+                            <div>Documento Auditável Alumasa Industrial - Almoxarifado Central</div>
+                            <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
