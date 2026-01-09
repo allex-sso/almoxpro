@@ -5,13 +5,12 @@ import {
   PieChart, Pie, Legend
 } from 'recharts';
 import { 
-  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Fingerprint, FileStack, BrainCircuit, Loader2, Info, Sparkles, LayoutDashboard, Filter, ChevronDown, Check
+  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, BrainCircuit, Loader2, Filter, ChevronDown, Check
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
 import { GoogleGenAI } from "@google/genai";
 
-// Fix: Added missing ServiceOrdersProps interface to define the component's props
 interface ServiceOrdersProps {
   osData: ServiceOrder[];
   inventoryData: InventoryItem[];
@@ -314,16 +313,30 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const handleGenerateAiInsights = async () => {
     setIsAiLoading(true);
     setShowAiPanel(true);
+    setAiInsights(null);
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const context = filteredData.slice(0, 50).map(os => `${os.equipamento}|${os.professional}|${os.motivo}`).join('; ');
+      const context = filteredData.slice(0, 50).map(os => 
+        `OS: ${os.numero} | Ativo: ${os.equipamento} | Técnico: ${os.professional} | Motivo: ${os.motivo} | Horas: ${os.horas}`
+      ).join('\n');
+
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: `Como especialista PCM da Alumasa, analise: ${context}. Identifique padrões de falha e sugestões de melhoria contínua.` }] }]
+        contents: `Analise o seguinte histórico de manutenção e identifique gargalos operacionais: \n${context}`,
+        config: {
+          systemInstruction: "Você é um Engenheiro de Manutenção Sênior (PCM) da Alumasa. Sua tarefa é analisar o histórico de ordens de serviço, identificar padrões de falhas recorrentes e sugerir melhorias estratégicas de manutenção preventiva.",
+        }
       });
-      setAiInsights(response.text);
-    } catch (e) {
-      setAiInsights("Falha ao carregar diagnóstico inteligente.");
+
+      if (response && response.text) {
+        setAiInsights(response.text);
+      } else {
+        throw new Error("Não foi possível obter uma resposta válida da IA.");
+      }
+    } catch (error: any) {
+      console.error("Erro crítico na API Gemini:", error);
+      setAiInsights(`Erro ao processar diagnóstico inteligente. Certifique-se de que a API_KEY foi configurada corretamente no painel do Vercel.`);
     } finally {
       setIsAiLoading(false);
     }
@@ -458,7 +471,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                 </div>
                             </header>
                             
-                            {/* DIV em vez de SECTION para permitir quebras de página automáticas (page-break-inside: auto) */}
                             <div className="text-black text-sm whitespace-pre-wrap leading-relaxed break-words" style={{ pageBreakInside: 'auto' }}>
                                 {aiInsights}
                             </div>
@@ -536,7 +548,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                 </section>
                             </div>
 
-                            {/* DIV em vez de SECTION para Auditoria Detalhada, permitindo que a tabela se quebre entre páginas */}
                             <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
                                 <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
