@@ -303,18 +303,18 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
   if (headerIdx === -1) return [];
 
   const idxData = findBestCol(headers, ['data', 'dia', 'data saida', 'registro', 'data entrada']);
-  const idxDesc = findBestCol(headers, ['perfil', 'etapa', 'material', 'descricao', 'item', 'produto', 'codigo', 'cod']);
+  const idxDesc = findBestCol(headers, ['etapa', 'material', 'descricao', 'item', 'produto', 'codigo', 'cod']);
   const idxQtd = findBestCol(headers, ['quantidade', 'qtd', 'qtde', 'quant', 'saida', 'volume']);
   const idxResp = findBestCol(headers, ['solicitante', 'responsavel', 'pessoa que liberou', 'quem', 'funcionario']);
   const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
-  const idxPerfil = findBestCol(headers, ['perfil']);
+  const idxPerfil = findBestCol(headers, ['perfil']); // Prioridade total para esta coluna
   const idxMotivo = findBestCol(headers, ['motivo', 'razao', 'causa', 'justificativa']);
   const idxCor = findBestCol(headers, ['cor', 'coloracao', 'pintura']);
   const idxTurno = findBestCol(headers, ['turno', 'periodo', 'horario']);
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     const materialKey = idxDesc !== -1 ? row[idxDesc] : '';
-    if (!materialKey) return null;
+    if (!materialKey && idxPerfil === -1) return null;
     
     const qtd = parseNumber(row[idxQtd]);
     const dataMov = idxData !== -1 ? parseDate(row[idxData]) : new Date();
@@ -322,12 +322,12 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
     return {
       id: `central-${i}-${Date.now()}`,
       data: dataMov || new Date(),
-      codigo: formatCodigo(materialKey),
+      codigo: formatCodigo(materialKey || (idxPerfil !== -1 ? row[idxPerfil] : '')),
       quantidade: qtd,
       tipo: 'saida',
       responsavel: idxResp !== -1 ? row[idxResp] : 'N/D',
       setor: idxSetor !== -1 ? row[idxSetor] : 'Outros',
-      perfil: idxPerfil !== -1 ? row[idxPerfil] : materialKey,
+      perfil: idxPerfil !== -1 ? row[idxPerfil] : (materialKey || 'Não especificado'),
       motivo: idxMotivo !== -1 ? row[idxMotivo] : undefined,
       cor: idxCor !== -1 ? row[idxCor] : 'N/D',
       turno: idxTurno !== -1 ? row[idxTurno] : undefined

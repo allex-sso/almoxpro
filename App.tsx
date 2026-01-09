@@ -105,7 +105,14 @@ const App: React.FC = () => {
             const consolidated: Movement[] = [];
             results.forEach((res, idx) => {
                 if (res.status === 'fulfilled') {
-                    consolidated.push(...res.value.map(m => ({...m, perfil: sources[idx].label})));
+                    // MODIFICAÇÃO: Preserva o perfil extraído da planilha se ele não for vazio/genérico.
+                    // Caso contrário, usa o label da fonte (ex: "Memorandos") como fallback.
+                    consolidated.push(...res.value.map(m => ({
+                        ...m, 
+                        perfil: (m.perfil && m.perfil !== 'N/D' && m.perfil !== '' && m.perfil !== 'Não especificado') 
+                          ? m.perfil 
+                          : sources[idx].label 
+                    })));
                 }
             });
             setMovements(consolidated);

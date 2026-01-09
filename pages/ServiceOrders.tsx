@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, 
@@ -10,6 +11,7 @@ import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
 import { GoogleGenAI } from "@google/genai";
 
+// Fix: Added missing ServiceOrdersProps interface to define the component's props
 interface ServiceOrdersProps {
   osData: ServiceOrder[];
   inventoryData: InventoryItem[];
@@ -317,11 +319,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       const context = filteredData.slice(0, 50).map(os => `${os.equipamento}|${os.professional}|${os.motivo}`).join('; ');
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: `Como especialista PCM da Alumasa, analise: ${context}. Identifique padrões de falha e sugestões.` }] }]
+        contents: [{ parts: [{ text: `Como especialista PCM da Alumasa, analise: ${context}. Identifique padrões de falha e sugestões de melhoria contínua.` }] }]
       });
       setAiInsights(response.text);
     } catch (e) {
-      setAiInsights("Falha ao carregar diagnóstico.");
+      setAiInsights("Falha ao carregar diagnóstico inteligente.");
     } finally {
       setIsAiLoading(false);
     }
@@ -346,7 +348,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">PCM - Gestão de Ativos</h1>
-          <p className="text-sm text-slate-500">Relatórios auditáveis Alumasa.</p>
+          <p className="text-sm text-slate-500">Relatórios auditáveis Alumasa Industrial.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2">
@@ -455,12 +457,21 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                     <p className="text-[10px] font-bold text-black">MÓDULO IA / ANALYTICS</p>
                                 </div>
                             </header>
-                            <div className="text-black text-sm whitespace-pre-wrap leading-relaxed">
+                            
+                            {/* DIV em vez de SECTION para permitir quebras de página automáticas (page-break-inside: auto) */}
+                            <div className="text-black text-sm whitespace-pre-wrap leading-relaxed break-words" style={{ pageBreakInside: 'auto' }}>
                                 {aiInsights}
                             </div>
-                            <footer className="mt-20 pt-4 border-t border-gray-300 text-[8px] font-bold text-black uppercase">
-                                Relatório de análise automatizada Alumasa PCM. As sugestões devem ser validadas pela engenharia de manutenção.
+
+                            <footer className="mt-20 pt-16 flex justify-between gap-24">
+                                <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
+                                <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
                             </footer>
+                            
+                            <div className="mt-8 pt-4 border-t border-gray-300 text-[8px] font-bold text-black uppercase flex justify-between">
+                                <span>Relatório de análise automatizada Alumasa PCM. As sugestões devem ser validadas pela engenharia.</span>
+                                <span>Emitido em: {new Date().toLocaleString('pt-BR')}</span>
+                            </div>
                         </div>
                     )}
 
@@ -525,19 +536,19 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                 </section>
                             </div>
 
-                            {/* Auditoria detalhada com potencial quebra de página */}
-                            <section className="mb-12">
+                            {/* DIV em vez de SECTION para Auditoria Detalhada, permitindo que a tabela se quebre entre páginas */}
+                            <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
                                 <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
                                     <thead><tr className="bg-gray-200">
                                         <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
                                     </tr></thead>
-                                    <tbody>
+                                    <tbody style={{ pageBreakInside: 'auto' }}>
                                         {filteredData.map((os, i) => {
                                         let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
                                         let execTime = 0; if (os.dataFim && (os.dataInicio || os.dataAbertura)) execTime = (os.dataFim.getTime() - (os.dataInicio || os.dataAbertura)!.getTime()) / 3600000;
                                         return (
-                                            <tr key={i} className="border-b border-black">
+                                            <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
                                                 <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
                                                 <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
                                                 <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
@@ -549,7 +560,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                         })}
                                     </tbody>
                                 </table>
-                            </section>
+                            </div>
 
                             <footer className="mt-8 pt-16 flex justify-between gap-24">
                                 <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>

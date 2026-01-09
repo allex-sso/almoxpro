@@ -1,7 +1,8 @@
+
 import React, { useMemo, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
 import { Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, ClipboardList, Clock } from 'lucide-react';
 import StatCard from '../components/StatCard';
@@ -209,7 +210,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
           <div className="h-72">
             {metrics.sectorData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.sectorData} layout="vertical">
+                <BarChart data={metrics.sectorData} layout="vertical" margin={{ right: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10}} />
@@ -217,7 +218,14 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                     content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Setor" />} 
                     cursor={{fill: 'rgba(37, 99, 235, 0.05)'}} 
                   />
-                  <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} barSize={20}>
+                    <LabelList 
+                      dataKey="value" 
+                      position="right" 
+                      style={{ fill: '#64748b', fontSize: '14px', fontWeight: 'bold' }} 
+                      formatter={(val: number) => val.toLocaleString('pt-BR')}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
