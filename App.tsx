@@ -1,7 +1,7 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Menu, RefreshCw, LogOut } from 'lucide-react';
 import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile } from './types';
 import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from './services/sheetService';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Menu, RefreshCw, WifiOff, LogOut, AlertCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 
 // Pages
@@ -17,31 +17,16 @@ import CentralProfiles from './pages/CentralProfiles';
 
 const MASTER_PROFILE_ID = 'almox-pecas';
 
-const safeGetEnv = (key: string): string => {
-  try {
-    // @ts-ignore
-    const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
-    return env[key] || '';
-  } catch (e) {
-    return '';
-  }
-};
-
 const getDefaultProfiles = (): SectorProfile[] => {
-  const envInv = safeGetEnv('VITE_INVENTORY_URL');
-  const envIn = safeGetEnv('VITE_IN_URL');
-  const envOut = safeGetEnv('VITE_OUT_URL');
-  const envOs = safeGetEnv('VITE_OS_URL');
-
   return [
     {
       id: MASTER_PROFILE_ID,
       name: 'Almoxarifado de Peças',
       accessKey: '10',
-      inventoryUrl: envInv || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
-      inUrl: envIn || '',
-      outUrl: envOut || '',
-      osUrl: envOs || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
+      inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv',
+      inUrl: '',
+      outUrl: '',
+      osUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv'
     },
     {
       id: 'almox-central',
@@ -65,39 +50,25 @@ const getDefaultProfiles = (): SectorProfile[] => {
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.DASHBOARD);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [lastSync, setLastSync] = useState<string>('');
   
   const [settings, setSettings] = useState<AppSettings>(() => {
     const defaultProfiles = getDefaultProfiles();
-    const savedSettings = localStorage.getItem('almox_settings_v4');
-    
-    if (savedSettings) {
-      try {
+    try {
+      const savedSettings = localStorage.getItem('alumasa_config_v1');
+      if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        const profilesList = Array.isArray(parsed.profiles) ? parsed.profiles : defaultProfiles;
-        
-        // Atualiza urls se vierem do env e estiverem vazias
-        const updatedProfiles = profilesList.map((p: SectorProfile) => {
-          if (p.id === MASTER_PROFILE_ID) {
-            return {
-              ...p,
-              inventoryUrl: p.inventoryUrl || safeGetEnv('VITE_INVENTORY_URL'),
-              inUrl: p.inUrl || safeGetEnv('VITE_IN_URL'),
-              outUrl: p.outUrl || safeGetEnv('VITE_OUT_URL'),
-              osUrl: p.osUrl || safeGetEnv('VITE_OS_URL')
-            };
-          }
-          return p;
-        });
-
+        const profiles = Array.isArray(parsed.profiles) && parsed.profiles.length > 0 
+          ? parsed.profiles 
+          : defaultProfiles;
+          
         return { 
-          profiles: updatedProfiles,
+          profiles: profiles,
           activeProfileId: parsed.activeProfileId || null,
           refreshRate: parsed.refreshRate || 30
         };
-      } catch (e) { 
-        console.error("Erro ao carregar configurações salvas:", e); 
       }
+    } catch (e) {
+      console.error("Erro ao carregar configurações:", e);
     }
     return { profiles: defaultProfiles, activeProfileId: null, refreshRate: 30 };
   });
@@ -112,46 +83,33 @@ const App: React.FC = () => {
   const [movements, setMovements] = useState<Movement[]>([]);
   const [osData, setOsData] = useState<ServiceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false); 
-  const [syncError, setSyncError] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('almox_settings_v4', JSON.stringify(settings));
+    try {
+      localStorage.setItem('alumasa_config_v1', JSON.stringify(settings));
+    } catch (e) {
+      console.error("Erro ao salvar configurações:", e);
+    }
   }, [settings]);
 
   const loadData = useCallback(async () => {
     if (!activeProfile) return;
     setIsLoading(true);
-    setSyncError(false);
 
     try {
       if (activeProfile.isCentral) {
-        const sources = [...(activeProfile.sources || [])];
-        if (activeProfile.inUrl) sources.push({ label: 'Entradas ' + activeProfile.name, url: activeProfile.inUrl });
-        if (activeProfile.outUrl) sources.push({ label: 'Saídas ' + activeProfile.name, url: activeProfile.outUrl });
-
+        const sources = (activeProfile.sources || []);
         if (sources.length > 0) {
-            const results = await Promise.allSettled(
-                sources.map(source => fetchCentralData(source.url))
-            );
-            
-            const consolidatedMovements: Movement[] = [];
+            const results = await Promise.allSettled(sources.map(s => fetchCentralData(s.url)));
+            const consolidated: Movement[] = [];
             results.forEach((res, idx) => {
                 if (res.status === 'fulfilled') {
-                    const processedMoves = res.value.map(m => ({
-                        ...m,
-                        perfil: m.perfil || (sources[idx] ? sources[idx].label : 'Fonte Central')
-                    }));
-                    consolidatedMovements.push(...processedMoves);
+                    consolidated.push(...res.value.map(m => ({...m, perfil: sources[idx].label})));
                 }
             });
-
-            setMovements(consolidatedMovements);
-            setData([]);
+            setMovements(consolidated);
+            setData([]); 
             setOsData([]);
-            setLastSync(new Date().toLocaleTimeString());
-        } else {
-            setMovements([]);
-            setLastSync(new Date().toLocaleTimeString());
         }
       } else {
         const results = await Promise.allSettled([
@@ -166,123 +124,59 @@ const App: React.FC = () => {
         const outMoves = results[2].status === 'fulfilled' ? (results[2].value as Movement[]) : [];
         const osList = results[3].status === 'fulfilled' ? (results[3].value as ServiceOrder[]) : [];
         
-        if (results[0].status === 'rejected' || (inventoryItems.length === 0 && activeProfile.inventoryUrl)) {
-            setSyncError(true);
-        }
-
-        const priceMap = new Map<string, number>();
-        
-        inventoryItems.forEach(item => {
-          const code = String(item.codigo).trim().toLowerCase();
-          if (item.valorUnitario > 0) {
-            priceMap.set(code, item.valorUnitario);
-          }
-        });
-
-        inMoves.forEach(m => {
-          const code = String(m.codigo).trim().toLowerCase();
-          if (m.valorUnitario && m.valorUnitario > 0) {
-            priceMap.set(code, m.valorUnitario);
-          }
-        });
-
-        const enrichedInMoves = inMoves.map(m => {
-          const code = String(m.codigo).trim().toLowerCase();
-          const unitPrice = m.valorUnitario || priceMap.get(code) || 0;
-          return { ...m, valorUnitario: unitPrice, valorTotal: m.quantidade * unitPrice };
-        });
-
-        const enrichedOutMoves = outMoves.map(m => {
-          const code = String(m.codigo).trim().toLowerCase();
-          const unitPrice = priceMap.get(code) || m.valorUnitario || 0;
-          return { ...m, valorUnitario: unitPrice, valorTotal: m.quantidade * unitPrice };
-        });
-
-        const allMoves = [...enrichedInMoves, ...enrichedOutMoves];
-
-        const consolidatedItems = inventoryItems.map(item => {
-            const itemCode = String(item.codigo).trim().toLowerCase();
-            const currentPrice = priceMap.get(itemCode) || item.valorUnitario || 0;
-            const sheetQuantity = item.quantidadeAtual || 0;
-            const itemOut = enrichedOutMoves
-                .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
-                .reduce((acc, m) => acc + m.quantidade, 0);
-            const itemIn = enrichedInMoves
-                .filter(m => String(m.codigo).trim().toLowerCase() === itemCode)
-                .reduce((acc, m) => acc + m.quantidade, 0);
-            const dynamicStock = sheetQuantity - itemOut;
-            
-            return {
-                ...item,
-                quantidadeAtual: dynamicStock,
-                valorUnitario: currentPrice,
-                valorTotal: dynamicStock * currentPrice,
-                entradas: itemIn,
-                saidas: itemOut
-            };
-        });
-
-        setData(consolidatedItems);
-        setMovements(allMoves);
+        setData(inventoryItems);
+        setMovements([...inMoves, ...outMoves]);
         setOsData(osList);
-        setLastSync(new Date().toLocaleTimeString());
       }
     } catch (err) {
-      console.error("Erro fatal ao sincronizar:", err);
-      setSyncError(true);
+      console.error("Erro ao sincronizar dados:", err);
     } finally {
       setIsLoading(false);
     }
   }, [activeProfile]);
 
   useEffect(() => {
-    if (activeProfile) {
-      loadData();
-      if (activeProfile.isCentral && currentPage === Page.DASHBOARD) {
-        setCurrentPage(Page.CENTRAL_DASHBOARD);
-      } else if (!activeProfile.isCentral && currentPage === Page.CENTRAL_DASHBOARD) {
-        setCurrentPage(Page.DASHBOARD);
-      }
-    }
-  }, [settings.activeProfileId, activeProfile, loadData]);
-
-  const handleLogout = () => {
-    setSettings(s => ({ ...s, activeProfileId: null }));
-    setCurrentPage(Page.DASHBOARD);
-  };
+    if (activeProfile) loadData();
+  }, [activeProfile, loadData]);
 
   if (!settings.activeProfileId) {
     return (
       <LoginPage 
-        profiles={settings.profiles || []} 
-        onSelectProfile={(id) => setSettings(s => ({ ...s, activeProfileId: id }))} 
+        profiles={settings.profiles} 
+        onSelectProfile={(id) => setSettings(prev => ({ ...prev, activeProfileId: id }))} 
       />
     );
   }
 
   const renderPage = () => {
-    const totalInventoryValue = (data || []).reduce((acc, item) => acc + (item.valorTotal || 0), 0);
-
-    // Redirecionamento de segurança para páginas centrais
     if (activeProfile?.isCentral && (currentPage === Page.DASHBOARD || currentPage === Page.CENTRAL_DASHBOARD)) {
         return <CentralDashboard data={movements} isLoading={isLoading} />;
     }
     
     switch (currentPage) {
-      case Page.DASHBOARD: return <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
-      case Page.CENTRAL_DASHBOARD: return <CentralDashboard data={movements} isLoading={isLoading} />;
-      case Page.CENTRAL_PERFIL: return <CentralProfiles movements={movements} isLoading={isLoading} />;
-      case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
-      case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
-      case Page.SERVICE_ORDERS: return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
-      case Page.ALERTS: return <AlertPage data={data} />;
-      case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
-      default: return <Dashboard data={data} stats={{totalItems: data.length, totalValue: totalInventoryValue, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+      case Page.DASHBOARD: 
+        return <Dashboard data={data} stats={{totalItems: data.length, totalValue: data.reduce((a,b)=>a+b.valorTotal,0), totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
+      case Page.CENTRAL_DASHBOARD: 
+        return <CentralDashboard data={movements} isLoading={isLoading} />;
+      case Page.CENTRAL_PERFIL: 
+        return <CentralProfiles movements={movements} isLoading={isLoading} />;
+      case Page.INVENTORY: 
+        return <Inventory data={data} isLoading={isLoading} />;
+      case Page.CONSUMPTION: 
+        return <Consumption data={data} movements={movements} />;
+      case Page.SERVICE_ORDERS: 
+        return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
+      case Page.ALERTS: 
+        return <AlertPage data={data} />;
+      case Page.SETTINGS: 
+        return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
+      default: 
+        return <Dashboard data={data} stats={{totalItems: data.length, totalValue: 0, totalIn: 0, totalOut: 0}} movements={movements} isLoading={isLoading} />;
     }
   };
 
   return (
-    <div className="flex h-screen bg-dark overflow-hidden font-sans text-slate-100">
+    <div className="flex h-screen bg-dark overflow-hidden font-sans text-slate-100 print:block print:h-auto print:overflow-visible">
       <Sidebar 
         currentPage={currentPage} 
         onNavigate={setCurrentPage} 
@@ -291,52 +185,37 @@ const App: React.FC = () => {
         isCentral={activeProfile?.isCentral}
         isMaster={isMasterAccount}
       />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:h-auto print:overflow-visible">
         <header className="bg-dark-card border-b border-gray-700 h-16 flex items-center justify-between px-4 sm:px-6 no-print">
           <div className="flex items-center">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400 focus:outline-none"><Menu className="h-6 w-6" /></button>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400">
+              <Menu className="h-6 w-6" />
+            </button>
             <div className="ml-4 lg:ml-0 flex flex-col">
-              <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                ALUMASA - GESTÃO DE ATIVOS
-                {syncError && <WifiOff className="w-3 h-3 text-red-500 animate-pulse" />}
-              </h2>
+              <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">ALUMASA - GESTÃO INDUSTRIAL</h2>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{activeProfile?.name}</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            {lastSync && (
-              <span className="hidden md:block text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Última Carga: {lastSync}
-              </span>
-            )}
             <button 
-              onClick={() => loadData()} 
-              disabled={isLoading}
-              className={`p-2 rounded-full hover:bg-slate-800 transition-all ${isLoading ? 'animate-spin text-primary' : 'text-slate-400'}`}
-              title="Sincronizar dados agora"
+              onClick={loadData} 
+              className={`p-2 rounded-full transition-all ${isLoading ? 'animate-spin text-primary' : 'text-slate-400'}`}
+              title="Sincronizar dados"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
-            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-rose-900/30 text-slate-400 hover:text-rose-600 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest">
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sair</span>
+            <button 
+              onClick={() => setSettings(prev => ({...prev, activeProfileId: null}))} 
+              className="px-3 py-1.5 bg-slate-800 text-slate-400 hover:text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Sair
             </button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-dark">
-          {syncError && (
-            <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl flex items-center gap-4 animate-in slide-in-from-top-4">
-              <div className="bg-red-900 p-2 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-red-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-black text-red-200 uppercase tracking-widest">Falha de Comunicação com as Planilhas</p>
-                <p className="text-[10px] text-red-400 font-bold uppercase mt-1">Verifique se as planilhas estão "Publicadas na Web" como CSV. Se persistir, verifique os nomes das colunas ou se os links de Entrada/Saída estão configurados.</p>
-              </div>
-              <button onClick={loadData} className="px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase rounded-lg shadow-lg shadow-red-500/20 active:scale-95 transition-all">Reconectar</button>
-            </div>
-          )}
-          <div className="max-w-7xl mx-auto">{renderPage()}</div>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-dark print:block print:h-auto print:overflow-visible print:bg-white">
+          <div className="max-w-7xl mx-auto print:max-w-none">
+            {renderPage()}
+          </div>
         </main>
       </div>
     </div>

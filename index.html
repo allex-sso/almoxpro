@@ -44,88 +44,171 @@
         background: #94a3b8;
       }
 
-      /* --- CSS CRÍTICO DE IMPRESSÃO --- */
+      /* Estilo para a tela de pré-visualização no navegador (Modo de Edição) */
+      .print-mode-wrapper {
+        background-color: #f1f5f9; 
+      }
+      .dark .print-mode-wrapper {
+        background-color: #0f172a;
+      }
+
+      /* --- CONFIGURAÇÃO DE CONTRASTE PARA O RELATÓRIO --- */
+      .printable-area {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      
+      /* Forçar visibilidade do texto nos títulos pretos (Branco sobre Preto) */
+      .printable-area .bg-black,
+      .printable-area .text-white {
+        color: #ffffff !important;
+        background-color: #000000 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      /* Forçar texto preto em áreas de dados (Preto sobre Branco/Cinza) */
+      .printable-area *:not(.bg-black):not(.text-white) {
+        color: #000000 !important;
+      }
+
+      .printable-area table {
+        border-collapse: collapse !important;
+      }
+      
+      .printable-area th, 
+      .printable-area td {
+        border: 1px solid #000000 !important;
+      }
+
+      /* --- CSS DE IMPRESSÃO --- */
       @media print {
-        /* Reseta restrições de altura e rolagem que SPAs usam */
-        html, body, #root {
-          height: auto !important;
-          width: 100% !important;
-          overflow: visible !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: white !important;
-        }
-
-        /* Esconde a interface do aplicativo explicitamente */
-        aside, header, nav, .no-print {
-          display: none !important;
-        }
-
-        /* Esconde tudo por padrão para garantir limpeza */
-        body * {
-          visibility: hidden;
-        }
-
-        /* Mostra apenas a área de impressão e seus filhos */
-        .printable-area, .printable-area * {
-          visibility: visible !important;
-        }
-        
-        /* CLASSE MÁGICA: Destrava overlays fixos para permitir impressão de múltiplas páginas */
-        .print-mode-wrapper {
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: auto !important;
-          overflow: visible !important;
-          z-index: 9999 !important;
-          background: white !important;
-          visibility: visible !important;
-        }
-        .print-mode-wrapper * {
-          visibility: visible !important;
-        }
-
-        /* Posiciona a área de impressão no topo absoluto do papel */
-        .printable-area {
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: white !important;
-        }
-        
-        /* Quebra de página para etiquetas */
-        .break-after-page {
-          page-break-after: always;
-          break-after: page;
-        }
-
-        /* Ajustes de página - MARGEM ZERO É CRÍTICA PARA TÉRMICA */
         @page {
-          margin: 0mm;
-          size: auto;
+          margin: 10mm;
+          size: A4 portrait;
+        }
+
+        /* 1. Reset Global de Efeitos Visuais - Remove Sombreamentos */
+        * {
+          box-shadow: none !important;
+          text-shadow: none !important;
+          -webkit-filter: none !important;
+          filter: none !important;
+        }
+
+        /* 2. Técnica de visibilidade: Mostra apenas o conteúdo necessário */
+        body {
+          visibility: hidden !important;
+          background: #ffffff !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* 3. Reset de containers pais */
+        #root, 
+        #root > div:not(.flex), 
+        main, 
+        .max-w-7xl, 
+        .print-mode-wrapper,
+        .print-container {
+          visibility: visible !important;
+          display: block !important;
+          position: static !important;
+          overflow: visible !important;
+          height: auto !important;
+          min-height: auto !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+
+        /* 4. OCULTAR UI DO SISTEMA */
+        .no-print, 
+        aside, 
+        nav, 
+        button, 
+        .preview-header,
+        .ai-panel {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
+        /* 5. ÁREA IMPRIMÍVEL REAL */
+        .printable-area {
+          visibility: visible !important;
+          position: relative !important;
+          width: 100% !important;
+          display: block !important;
+          background-color: white !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          box-shadow: none !important; /* Garantia adicional */
+          border: none !important; /* Remove bordas externas no print */
+        }
+
+        /* Forçar cabeçalho do relatório a ser visível */
+        .printable-area header {
+          display: block !important;
+          visibility: visible !important;
+        }
+
+        /* Garantir que containers FLEX dentro do relatório mantenham o comportamento */
+        .printable-area .flex {
+          display: flex !important;
+          flex-direction: row !important;
+          justify-content: space-between !important;
+          visibility: visible !important;
+        }
+
+        /* Garantir que fundos e cores sejam respeitados */
+        .bg-black { background-color: #000000 !important; -webkit-print-color-adjust: exact !important; }
+        .text-white { color: #ffffff !important; -webkit-print-color-adjust: exact !important; }
+        .bg-gray-100 { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact !important; }
+        .bg-gray-200 { background-color: #e5e7eb !important; -webkit-print-color-adjust: exact !important; }
+
+        /* 6. Quebra de Página Inteligente */
+        table {
+          page-break-inside: auto !important;
+          width: 100% !important;
+        }
+        
+        thead {
+          display: table-header-group !important;
+        }
+
+        tr {
+          page-break-inside: avoid !important;
+          page-break-after: auto !important;
+        }
+
+        section {
+          page-break-inside: avoid !important;
+          margin-bottom: 20px !important;
         }
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0"
-  }
-}
-</script>
-</head>
+    <script type="importmap">
+    {
+      "imports": {
+        "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+        "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+        "react/": "https://aistudiocdn.com/react@^19.2.0/",
+        "react": "https://aistudiocdn.com/react@^19.2.0",
+        "vite": "https://aistudiocdn.com/vite@^7.2.4",
+        "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+        "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0",
+        "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+      }
+    }
+    </script>
+  </head>
   <body class="bg-dark text-slate-100 transition-colors duration-200">
     <div id="root"></div>
-    <!-- Script de entrada para o Vite -->
     <script type="module" src="index.tsx"></script>
   </body>
 </html>
