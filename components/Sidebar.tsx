@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers } from 'lucide-react';
 import { Page } from '../types';
@@ -38,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
   const menuItems = [];
   
   if (isCentral) {
-    menuItems.push({ id: Page.CENTRAL_DASHBOARD, label: 'Indicadores Central', icon: LayoutDashboard });
+    menuItems.push({ id: Page.CENTRAL_DASHBOARD, label: 'Indicadores de Perfil', icon: LayoutDashboard });
     menuItems.push({ id: Page.CENTRAL_PERFIL, label: 'Perfis', icon: Layers });
   } else {
     menuItems.push({ id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard });

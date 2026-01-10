@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, 
-  PieChart, Pie, Legend
+  PieChart, Pie, Legend, LabelList
 } from 'recharts';
 import { 
   ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check
@@ -23,111 +23,18 @@ const formatDetailedTime = (decimalHours: number | string): string => {
   const m = Math.round((hoursNum - h) * 60);
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
+  // Removido espaço para garantir exibição em linha única no gráfico
+  return `${h}h${m}m`;
+};
+
+const formatDetailedTimeWithSpace = (decimalHours: number | string): string => {
+  const hoursNum = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
+  if (isNaN(hoursNum) || hoursNum <= 0) return "0m";
+  const h = Math.floor(hoursNum);
+  const m = Math.round((hoursNum - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
-};
-
-// Tooltip para o gráfico de Equipamentos (Barras)
-const CustomEquipmentTooltip = ({ active, payload, total }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const percent = total > 0 ? ((data.value / total) * 100).toFixed(1) : "0";
-    return (
-      <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
-        <p className="font-black text-lg mb-3 tracking-tight">{data.name}</p>
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quantidade:</span>
-            <span className="font-black text-blue-400">{data.value}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Porcentagem:</span>
-            <span className="font-black text-emerald-400">{percent}%</span>
-          </div>
-        </div>
-        <div className="pt-3 border-t border-slate-700/50">
-           <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.15em] text-center">
-             Clique para ver peças
-           </p>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-// Tooltip para o gráfico de Peças (Modal)
-const CustomPieceTooltip = ({ active, payload, total }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const percent = total > 0 ? ((data.value / total) * 100).toFixed(1) : "0";
-    return (
-      <div className="bg-[#1e293b] border border-slate-700 p-5 rounded-2xl shadow-2xl text-white min-w-[240px] animate-in fade-in zoom-in-95 duration-200">
-        <div className="mb-4">
-          <p className="font-black text-xl tracking-tight leading-tight">{data.name}</p>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{data.name}</p>
-        </div>
-        
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-blue-500">Ocorrências:</span>
-            <span className="text-sm font-black text-white">{data.value}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-white">Frequência:</span>
-            <span className="text-sm font-black text-white">{percent}%</span>
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-slate-700/50">
-           <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] text-center">
-             Clique para ver motivos
-           </p>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-// Tooltip para o gráfico de Setores (Rosca)
-const CustomSectorTooltip = ({ active, payload, total }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const percent = total > 0 ? ((data.value / total) * 100).toFixed(1) : "0";
-    return (
-      <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[180px] animate-in fade-in zoom-in-95 duration-200">
-        <p className="font-black text-lg mb-3 tracking-tight">{data.name}</p>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quantidade:</span>
-            <span className="font-black text-blue-400">{data.value}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Porcentagem:</span>
-            <span className="font-black text-emerald-400">{percent}%</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-// Tooltip para o gráfico de Tempo Parado
-const CustomDowntimeTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[180px] animate-in fade-in zoom-in-95 duration-200">
-        <p className="font-black text-sm mb-2 tracking-tight">{data.name}</p>
-        <div className="flex flex-col">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Tempo Total Parado:</span>
-          <span className="font-black text-rose-500 text-lg">{formatDetailedTime(data.value)}</span>
-        </div>
-      </div>
-    );
-  }
-  return null;
 };
 
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
@@ -293,15 +200,34 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
   const partReasons = useMemo(() => {
     if (!selectedPartForReasons || !selectedEquipmentForModal) return [];
-    return filteredData
+    const grouped: Record<string, { reason: string, count: number, lastDate: string }> = {};
+    
+    filteredData
       .filter(os => 
         os.equipamento === selectedEquipmentForModal && 
         os.peca?.includes(selectedPartForReasons)
       )
-      .map(os => ({
-        date: os.dataAbertura.toLocaleDateString('pt-BR'),
-        reason: os.motivo || 'Manutenção preventiva/corretiva'
-      }));
+      .forEach(os => {
+        const reasonStr = os.motivo || 'Manutenção preventiva/corretiva';
+        if (!grouped[reasonStr]) {
+          grouped[reasonStr] = { 
+            reason: reasonStr, 
+            count: 0, 
+            lastDate: os.dataAbertura.toLocaleDateString('pt-BR') 
+          };
+        }
+        grouped[reasonStr].count++;
+        
+        // Atualiza para a data mais recente caso encontre uma
+        const currentData = os.dataAbertura.getTime();
+        const storedDateParts = grouped[reasonStr].lastDate.split('/');
+        const storedDateObj = new Date(parseInt(storedDateParts[2]), parseInt(storedDateParts[1]) - 1, parseInt(storedDateParts[0])).getTime();
+        if (currentData > storedDateObj) {
+            grouped[reasonStr].lastDate = os.dataAbertura.toLocaleDateString('pt-BR');
+        }
+      });
+      
+    return Object.values(grouped).sort((a, b) => b.count - a.count);
   }, [selectedPartForReasons, selectedEquipmentForModal, filteredData]);
 
   const handleConfirmPrint = () => {
@@ -362,9 +288,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
         <StatCard title="Total OS" value={stats.total} icon={ClipboardList} color="blue" />
-        <StatCard title="Méd. Execução" value={formatDetailedTime(stats.avgExecutionTime)} icon={Zap} color="green" />
-        <StatCard title="Méd. Resposta" value={formatDetailedTime(stats.avgResponseTime)} icon={Timer} color="purple" />
-        <StatCard title="Horas Totais" value={formatDetailedTime(stats.totalHours)} icon={Clock} color="blue" />
+        <StatCard title="Méd. Execução" value={formatDetailedTimeWithSpace(stats.avgExecutionTime)} icon={Zap} color="green" />
+        <StatCard title="Méd. Resposta" value={formatDetailedTimeWithSpace(stats.avgResponseTime)} icon={Timer} color="purple" />
+        <StatCard title="Horas Totais" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
       </div>
 
       {/* OVERLAY DE PRÉ-VISUALIZAÇÃO (PADRÃO ALUMASA) */}
@@ -421,9 +347,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <tbody>
                                     <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.avgExecutionTime)}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.avgResponseTime)}</td></tr>
-                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTime(stats.totalHours)}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgResponseTime)}</td></tr>
+                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.totalHours)}</td></tr>
                                 </tbody>
                             </table>
                         </section>
@@ -434,7 +360,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                 <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
                                 <tbody>
                                     {professionalStats.map((p, i) => (
-                                    <tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTime(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTime(p.avgResp)}</td></tr>
+                                    <tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td></tr>
                                     ))}
                                 </tbody>
                             </table>
@@ -450,7 +376,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             <section>
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
-                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d.name}</td><td className="p-2 text-right font-black text-red-700">{formatDetailedTime(d.value)}</td></tr>))}</tbody>
+                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d.name}</td><td className="p-2 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
                                 </table>
                             </section>
                         </div>
@@ -470,9 +396,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                             <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
                                             <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
                                             <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTime(downtime) : '-'}</td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTimeWithSpace(downtime) : '-'}</td>
                                             <td className="border-r border-black p-1.5 font-black text-black">{os.professional}</td>
-                                            <td className="p-1.5 text-center font-black text-black">{formatDetailedTime(execTime)}</td>
+                                            <td className="p-1.5 text-center font-black text-black">{formatDetailedTimeWithSpace(execTime)}</td>
                                         </tr>
                                     );
                                     })}
@@ -500,14 +426,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
               <BarChart 
                 data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} 
                 layout="vertical"
+                margin={{ right: 80 }}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
-                <Tooltip 
-                   content={<CustomEquipmentTooltip total={stats.total} />}
-                   cursor={{fill: 'rgba(59, 130, 246, 0.05)'}}
-                />
                 <Bar 
                   dataKey="value" 
                   name="Quantidade" 
@@ -520,7 +443,25 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                       setSelectedEquipmentForModal(data.name);
                     }
                   }}
-                />
+                >
+                  <LabelList 
+                    dataKey="value" 
+                    position="insideRight" 
+                    offset={10}
+                    formatter={(value: number) => {
+                      const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0";
+                      return `${percent}%`;
+                    }}
+                    style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
+                  />
+                  <LabelList 
+                    dataKey="value" 
+                    position="right" 
+                    offset={10}
+                    formatter={(value: number) => `${value}`}
+                    style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -531,25 +472,39 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           <div className="h-72">
             {sectorDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={sectorDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={85}
-                    paddingAngle={5}
-                    dataKey="value"
+                <BarChart 
+                  data={sectorDistribution} 
+                  margin={{ top: 30, right: 30, left: 20, bottom: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
+                  <YAxis type="number" hide />
+                  <Bar 
+                    dataKey="value" 
+                    name="Quantidade" 
+                    fill="#10b981" 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={40}
                   >
-                    {sectorDistribution.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    content={<CustomSectorTooltip total={totalSectorOS} />}
-                  />
-                  <Legend />
-                </PieChart>
+                    <LabelList 
+                      dataKey="value" 
+                      position="insideTop" 
+                      offset={10}
+                      formatter={(value: number) => {
+                        const percent = totalSectorOS > 0 ? ((value / totalSectorOS) * 100).toFixed(1) : "0";
+                        return `${percent}%`;
+                      }}
+                      style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
+                    />
+                    <LabelList 
+                      dataKey="value" 
+                      position="top" 
+                      offset={10}
+                      formatter={(value: number) => `${value}`}
+                      style={{ fill: '#10b981', fontSize: '12px', fontWeight: 'bold' }}
+                    />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
@@ -584,10 +539,10 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                   <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-800 dark:text-white">{p.name}</td>
                     <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
-                    <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTime(p.hours)}</td>
+                    <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
                     <td className="px-6 py-4 text-right">
                       <span className="inline-flex items-center px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[11px] font-black">
-                        {formatDetailedTime(p.avgResp)}
+                        {formatDetailedTimeWithSpace(p.avgResp)}
                       </span>
                     </td>
                   </tr>
@@ -605,7 +560,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           <div className="h-80">
             {downtimeByEquipment.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={downtimeByEquipment.slice(0, 10)} margin={{ bottom: 20 }}>
+                <BarChart data={downtimeByEquipment.slice(0, 10)} margin={{ top: 30, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
                   <XAxis 
                     dataKey="name" 
@@ -621,11 +576,17 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     fontSize={10} 
                     tickFormatter={(val) => `${val}h`} 
                   />
-                  <Tooltip content={<CustomDowntimeTooltip />} cursor={{fill: 'rgba(239, 68, 68, 0.05)'}} />
                   <Bar dataKey="value" name="Tempo Parado (h)" radius={[4, 4, 0, 0]} barSize={35}>
                     {downtimeByEquipment.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
                     ))}
+                    <LabelList 
+                      dataKey="value" 
+                      position="top" 
+                      offset={12}
+                      formatter={(val: any) => formatDetailedTime(val)}
+                      style={{ fill: '#ef4444', fontSize: '11px', fontWeight: '900' }}
+                    />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -649,6 +610,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight uppercase">Peças Citadas em OS</h2>
                   <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedEquipmentForModal}</p>
+                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Ocorrências: {totalPieceOccurrences}</p>
                 </div>
               </div>
               <button onClick={() => setSelectedEquipmentForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
@@ -657,12 +619,37 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
               <div className="h-96">
                 {equipmentPartsData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={equipmentPartsData} layout="vertical">
+                    <BarChart data={equipmentPartsData} layout="vertical" margin={{ right: 80 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" />
                       <XAxis type="number" hide />
                       <YAxis dataKey="name" type="category" width={180} tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 'bold'}} />
-                      <Tooltip content={<CustomPieceTooltip total={totalPieceOccurrences} />} cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} />
-                      <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) setSelectedPartForReasons(data.name); }} />
+                      <Bar 
+                        dataKey="value" 
+                        name="Quantidade" 
+                        fill="#3b82f6" 
+                        radius={[0, 4, 4, 0]} 
+                        barSize={25} 
+                        className="cursor-pointer" 
+                        onClick={(data) => { if (data && data.name) setSelectedPartForReasons(data.name); }}
+                      >
+                        <LabelList 
+                          dataKey="value" 
+                          position="insideRight" 
+                          offset={10}
+                          formatter={(value: number) => {
+                            const percent = totalPieceOccurrences > 0 ? ((value / totalPieceOccurrences) * 100).toFixed(1) : "0";
+                            return `${percent}%`;
+                          }}
+                          style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
+                        />
+                        <LabelList 
+                          dataKey="value" 
+                          position="right" 
+                          offset={10}
+                          formatter={(value: number) => `${value}`}
+                          style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
+                        />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -680,7 +667,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
       {selectedPartForReasons && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
-          <div className="bg-[#1e293b] w-full max-w-lg rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden">
+          <div className="bg-[#1e293b] w-full max-w-md rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden">
             <div className="p-8 border-b border-slate-700 flex justify-between items-start">
               <div className="flex items-center gap-4"><div className="p-3 bg-blue-500/10 rounded-2xl"><MessageCircle className="w-6 h-6 text-blue-400" /></div><div><h2 className="text-xl font-black text-white tracking-tight uppercase">Motivos de Troca</h2><p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedPartForReasons}</p></div></div>
               <button onClick={() => setSelectedPartForReasons(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
@@ -688,7 +675,23 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto">
               {partReasons.length > 0 ? (
                 partReasons.map((item, idx) => (
-                  <div key={idx} className="flex gap-4 group"><div className="relative mt-1"><div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div><div className="absolute top-0 left-[-4px] w-3.5 h-3.5 bg-blue-500 rounded-full blur-[2px] opacity-40"></div></div><div className="flex-1"><p className="text-white text-sm font-bold italic"><span className="text-blue-400 not-italic mr-2">{item.date}:</span>{item.reason}</p></div></div>
+                  <div key={idx} className="flex gap-4 group">
+                    <div className="relative mt-1">
+                      <div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                      <div className="absolute top-0 left-[-4px] w-3.5 h-3.5 bg-blue-500 rounded-full blur-[2px] opacity-40"></div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <p className="text-white text-sm font-bold italic pr-4">
+                          {item.reason}
+                        </p>
+                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[10px] font-black whitespace-nowrap">
+                          {item.count}x
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Última ocorrência: {item.lastDate}</p>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <p className="text-slate-500 text-center italic text-sm">Nenhum motivo detalhado encontrado.</p>

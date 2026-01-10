@@ -1,12 +1,12 @@
 
 import React, { useMemo, useState } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend, LabelList
+  Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  Cell, Legend, LabelList
 } from 'recharts';
 import { 
   Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, 
-  ClipboardList, Clock, Printer, X, Check 
+  ClipboardList, Clock, Printer, X, Check, MessageCircle, AlertCircle
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { Movement } from '../types';
@@ -21,49 +21,13 @@ const months = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-const CustomCentralTooltip = ({ active, payload, label, total, categoryLabel }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const name = label || data.name;
-    const value = payload[0].value;
-    const percent = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
-    const metricLabel = 'Quantidade (Barras)';
-    
-    return (
-      <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl text-white min-w-[220px] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
-        <h4 className="font-black text-[10px] mb-3 text-blue-400 leading-tight uppercase tracking-[0.2em] border-b border-slate-800 pb-2 flex justify-between items-center">
-          <span>Detalhes da Análise</span>
-          <Activity className="w-3 h-3" />
-        </h4>
-        <div className="space-y-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">{categoryLabel || 'Item'}:</span>
-            <span className="font-black text-white text-sm">{name}</span>
-          </div>
-          
-          <div className="pt-2 border-t border-slate-800/50 space-y-1.5">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{metricLabel}:</span>
-              <span className="font-black text-white">{value.toLocaleString('pt-BR')}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Participação:</span>
-              <span className="font-black text-emerald-400">{percent}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
 const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) => {
-  const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+  const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#475569'];
   
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [selectedSectorForModal, setSelectedSectorForModal] = useState<string | null>(null);
 
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
@@ -104,7 +68,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       byRequester[req].count += 1;
       
       const reason = m.motivo || 'Geral/Não especificado';
-      byReason[reason] = (byReason[reason] || 0) + m.quantidade; // Agora soma quantidade real
+      byReason[reason] = (byReason[reason] || 0) + m.quantidade;
 
       const t = String(m.turno || '').toLowerCase();
       if (t.includes('1')) {
@@ -130,6 +94,20 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
     );
 
+    // Lógica para gráfico de barras duplas (Qtd e %)
+    const rawReasons = Object.entries(byReason)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a,b) => b.value - a.value)
+      .slice(0, 6); // Reduzido para 6 categorias para caber as barras duplas confortavelmente
+
+    const reasonDataWithMetrics = rawReasons.map(r => {
+      const percent = totalItems > 0 ? Number(((r.value / totalItems) * 100).toFixed(1)) : 0;
+      return {
+        ...r,
+        percent
+      };
+    });
+
     return {
       totalItems,
       movementCount,
@@ -141,27 +119,49 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         total: s.total, 
         count: s.count,
         avg: (s.total / s.count).toFixed(2) 
-      })).sort((a,b) => b.total - a.total).slice(0, 10), // Ordena por volume total
-      reasonData: Object.entries(byReason).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 8)
+      })).sort((a,b) => b.count - a.count).slice(0, 10),
+      reasonData: reasonDataWithMetrics
     };
   }, [filteredData]);
 
+  const sectorReasonsData = useMemo(() => {
+    if (!selectedSectorForModal) return [];
+    const map: Record<string, { reason: string, qty: number, count: number }> = {};
+    
+    filteredData
+      .filter(m => m.setor === selectedSectorForModal)
+      .forEach(m => {
+        const reason = m.motivo || 'Geral / Não especificado';
+        if (!map[reason]) {
+          map[reason] = { reason, qty: 0, count: 0 };
+        }
+        map[reason].qty += m.quantidade;
+        map[reason].count += 1;
+      });
+      
+    return Object.values(map).sort((a, b) => b.qty - a.qty);
+  }, [selectedSectorForModal, filteredData]);
+
+  const totalQtyInModal = useMemo(() => 
+    sectorReasonsData.reduce((acc, curr) => acc + curr.qty, 0)
+  , [sectorReasonsData]);
+
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
-    document.title = "relatorio_gerencial_central_alumasa";
+    document.title = "relatorio_gerencial_perfil_alumasa";
     setTimeout(() => {
         window.print();
         document.title = originalTitle;
     }, 100);
   };
 
-  if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Carregando indicadores central...</div>;
+  if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Carregando indicadores de perfil...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Indicadores Central</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Indicadores de Perfil</h1>
           <p className="text-sm text-slate-500 font-medium">Consolidado de todas as fontes de dados cadastradas.</p>
         </div>
 
@@ -219,6 +219,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
+        {/* Gráfico: Quantidade por Setor */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
             <Building className="w-5 h-5 text-blue-500" /> Quantidade por Setor
@@ -226,19 +227,36 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
           <div className="h-72">
             {metrics.sectorData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.sectorData} layout="vertical" margin={{ right: 60 }}>
+                <BarChart data={metrics.sectorData} layout="vertical" margin={{ right: 80 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10}} />
-                  <Tooltip 
-                    content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Setor" />} 
-                    cursor={{fill: 'rgba(37, 99, 235, 0.05)'}} 
-                  />
-                  <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} barSize={20}>
+                  <Bar 
+                    dataKey="value" 
+                    fill="#2563eb" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={24}
+                    className="cursor-pointer"
+                    onClick={(data) => {
+                      if (data && data.name) {
+                        setSelectedSectorForModal(data.name);
+                      }
+                    }}
+                  >
+                    <LabelList 
+                      dataKey="value" 
+                      position="insideRight" 
+                      offset={10}
+                      formatter={(value: number) => {
+                        const percent = metrics.totalItems > 0 ? ((value / metrics.totalItems) * 100).toFixed(1) : "0";
+                        return `${percent}%`;
+                      }}
+                      style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
+                    />
                     <LabelList 
                       dataKey="value" 
                       position="right" 
-                      style={{ fill: '#64748b', fontSize: '14px', fontWeight: 'bold' }} 
+                      style={{ fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }} 
                       formatter={(val: number) => val.toLocaleString('pt-BR')}
                     />
                   </Bar>
@@ -250,20 +268,70 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
           </div>
         </div>
 
+        {/* Gráfico: Volume por Motivo (Barras Duplas: Qtd e %) */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-500" /> Volume por Motivo
+            <TrendingUp className="w-5 h-5 text-emerald-500" /> Consumo por Motivo (Volume e Percentual)
           </h3>
           <div className="h-72">
             {metrics.reasonData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={metrics.reasonData} innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
-                    {metrics.reasonData.map((_, i) => <Cell key={`c-${i}`} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip content={<CustomCentralTooltip total={metrics.totalItems} categoryLabel="Motivo" />} />
-                  <Legend />
-                </PieChart>
+                <BarChart 
+                  data={metrics.reasonData} 
+                  margin={{ top: 30, right: 30, left: 10, bottom: 20 }}
+                  barGap={8}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{fontSize: 9, fontWeight: 'bold'}} 
+                    interval={0} 
+                    angle={-15} 
+                    textAnchor="end" 
+                  />
+                  {/* Eixo Esquerdo para Quantidade */}
+                  <YAxis yAxisId="left" type="number" hide />
+                  {/* Eixo Direito para Porcentagem */}
+                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} hide />
+                  
+                  {/* Tooltip removido conforme solicitação */}
+                  
+                  <Bar 
+                    yAxisId="left"
+                    dataKey="value" 
+                    name="Barras"
+                    fill="#3b82f6"
+                    radius={[4, 4, 0, 0]} 
+                    barSize={20}
+                  >
+                    <LabelList 
+                      dataKey="value" 
+                      position="top" 
+                      offset={10}
+                      style={{ fill: '#3b82f6', fontSize: '10px', fontWeight: '900' }} 
+                      formatter={(val: number) => val.toLocaleString('pt-BR')}
+                    />
+                  </Bar>
+
+                  <Bar 
+                    yAxisId="right"
+                    dataKey="percent" 
+                    name="Percentual (%)"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]} 
+                    barSize={20}
+                  >
+                    <LabelList 
+                      dataKey="percent" 
+                      position="top" 
+                      offset={10}
+                      formatter={(val: number) => `${val}%`}
+                      style={{ fill: '#10b981', fontSize: '10px', fontWeight: '900' }}
+                    />
+                  </Bar>
+                  
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
@@ -310,14 +378,14 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
           </div>
       </div>
 
-      {/* OVERLAY DE PRÉ-VISUALIZAÇÃO (PADRÃO ALUMASA) */}
+      {/* OVERLAY DE PRÉ-VISUALIZAÇÃO */}
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
             {/* Header de Controle */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório Central</span>
+                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório de Perfil</span>
                 </div>
                 <div className="flex gap-3">
                     <button 
@@ -343,7 +411,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
                             <div className="py-2">
-                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO CENTRAL</h2>
+                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO DE PERFIL</h2>
                                 <p className="text-xs font-bold text-black">Consolidado de Consumo de Perfis</p>
                             </div>
                         </header>
@@ -458,7 +526,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                         </section>
 
                         <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (CENTRAL)</h3>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
                                 <thead>
                                     <tr className="bg-gray-200">
@@ -494,7 +562,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
                         <footer className="mt-8 pt-16 flex justify-between gap-24">
                             <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador Central</div>
+                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador de Perfil</div>
                             </div>
                             <div className="text-center flex-1">
                                 <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div>
@@ -502,12 +570,82 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                         </footer>
 
                         <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black">
-                            <div>Documento Auditável Alumasa Industrial - Almoxarifado Central</div>
+                            <div>Documento Auditável Alumasa Industrial - Almoxarifado de Perfil</div>
                             <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* MODAL DE MOTIVOS POR SETOR */}
+      {selectedSectorForModal && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-700 flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                  <MessageCircle className="w-6 h-6 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Motivos de Saída</h2>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedSectorForModal}</p>
+                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Total de Barras: {totalQtyInModal.toLocaleString('pt-BR')}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedSectorForModal(null)} 
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-8 flex-1 overflow-y-auto space-y-6">
+              {sectorReasonsData.length > 0 ? (
+                sectorReasonsData.map((item, idx) => (
+                  <div key={idx} className="flex gap-4 group items-center">
+                    <div className="relative">
+                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                    </div>
+                    <div className="flex-1 flex justify-between items-center bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                      <div>
+                        <p className="text-white text-sm font-bold uppercase tracking-tight">
+                          {item.reason}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">
+                          {item.count} Lançamentos registrados
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="px-4 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-black text-sm whitespace-nowrap">
+                          {item.qty.toLocaleString('pt-BR')} Barras
+                        </span>
+                        <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mt-1">
+                          {((item.qty / totalQtyInModal) * 100).toFixed(1)}% do setor
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12">
+                  <AlertCircle className="w-12 h-12 opacity-20" />
+                  <p className="font-bold uppercase tracking-widest text-xs">Nenhum motivo detalhado encontrado</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
+              <button 
+                onClick={() => setSelectedSectorForModal(null)} 
+                className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700"
+              >
+                Fechar Detalhes
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

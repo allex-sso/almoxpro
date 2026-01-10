@@ -51,7 +51,7 @@ const getDefaultProfiles = (): SectorProfile[] => {
     },
     {
       id: CENTRAL_PROFILE_ID,
-      name: 'Almoxarifado Central',
+      name: 'Almoxarifado de Perfil',
       accessKey: '20',
       inventoryUrl: '',
       inUrl: '',
@@ -60,7 +60,7 @@ const getDefaultProfiles = (): SectorProfile[] => {
       isCentral: true,
       sources: [
           { 
-            label: 'Base Central', 
+            label: 'Base Perfil', 
             url: getEnvVar('VITE_CENTRAL_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=1098843728&single=true&output=csv') 
           }
       ]
@@ -97,9 +97,9 @@ const App: React.FC = () => {
                   if (updatedSources.length > 0) {
                     updatedSources[0].url = envCentralUrl;
                   } else {
-                    updatedSources.push({ label: 'Base Central', url: envCentralUrl });
+                    updatedSources.push({ label: 'Base Perfil', url: envCentralUrl });
                   }
-                  return { ...p, sources: updatedSources };
+                  return { ...p, sources: updatedSources, name: 'Almoxarifado de Perfil' };
                 }
               }
               return p;

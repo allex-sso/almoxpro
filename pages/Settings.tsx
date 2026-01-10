@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Save, Plus, Trash2, Shield, Settings, Layout, ClipboardList, Link as LinkIcon, Calendar, Hash, ExternalLink, Copy, Upload, Download, AlertCircle } from 'lucide-react';
 import { AppSettings, SectorProfile, CentralSource } from '../types';
@@ -155,7 +156,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                 
                 <div className="col-span-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                     <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Perfil Almoxarifado Central</h4>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Perfil Almoxarifado de Perfil</h4>
                         <p className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">Ativa indicadores de consumo e múltiplas fontes de dados</p>
                     </div>
                     <button 
@@ -186,7 +187,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                           <div className="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-800/50 space-y-4">
                               <div className="flex justify-between items-center">
                                   <h5 className="text-[10px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2">
-                                      <LinkIcon className="w-3 h-3" /> Fontes de Dados Central
+                                      <LinkIcon className="w-3 h-3" /> Fontes de Dados de Perfil
                                   </h5>
                                   <button 
                                     onClick={() => addSource(currentProfile.id)}
