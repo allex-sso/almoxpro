@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR" class="dark">
   <head>
@@ -76,6 +77,7 @@
 
       .printable-area table {
         border-collapse: collapse !important;
+        width: 100% !important;
       }
       
       .printable-area th, 
@@ -86,58 +88,60 @@
       /* --- CSS DE IMPRESSÃO --- */
       @media print {
         @page {
-          margin: 10mm;
+          margin: 15mm 10mm;
           size: A4 portrait;
         }
 
-        /* 1. Reset Global de Efeitos Visuais - Remove Sombreamentos */
+        /* Reset Global de Efeitos Visuais */
         * {
           box-shadow: none !important;
           text-shadow: none !important;
           -webkit-filter: none !important;
           filter: none !important;
+          transition: none !important;
         }
 
-        /* 2. Técnica de visibilidade: Mostra apenas o conteúdo necessário */
-        body {
+        /* Oculta tudo por padrão e reseta o fluxo do documento */
+        html, body {
           visibility: hidden !important;
           background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
+          overflow: visible !important;
+          height: auto !important;
+          min-height: auto !important;
         }
 
-        /* 3. Reset de containers pais */
+        /* Reset CRÍTICO de todos os containers pais para permitir que o conteúdo flua infinitamente */
         #root, 
-        #root > div:not(.flex), 
+        #root > div, 
         main, 
         .max-w-7xl, 
         .print-mode-wrapper,
         .print-container {
           visibility: visible !important;
-          display: block !important;
-          position: static !important;
+          display: block !important; /* Desativa Flexbox para evitar quebra de cálculo de altura */
+          position: static !important; /* MUITO IMPORTANTE: Desativa Fixed/Absolute que bloqueiam a paginação */
           overflow: visible !important;
           height: auto !important;
           min-height: auto !important;
           width: 100% !important;
           margin: 0 !important;
           padding: 0 !important;
-          box-shadow: none !important;
-          border: none !important;
         }
 
-        /* 4. OCULTAR UI DO SISTEMA */
+        /* OCULTAR UI DO SISTEMA */
         .no-print, 
         aside, 
         nav, 
         button, 
-        .preview-header,
-        .ai-panel {
+        header:not(.printable-header),
+        .preview-header {
           display: none !important;
           visibility: hidden !important;
         }
 
-        /* 5. ÁREA IMPRIMÍVEL REAL */
+        /* ÁREA IMPRIMÍVEL REAL */
         .printable-area {
           visibility: visible !important;
           position: relative !important;
@@ -146,48 +150,45 @@
           background-color: white !important;
           padding: 0 !important;
           margin: 0 !important;
-          box-shadow: none !important; /* Garantia adicional */
-          border: none !important; /* Remove bordas externas no print */
+          overflow: visible !important;
         }
 
-        /* Forçar cabeçalho do relatório a ser visível */
-        .printable-area header {
-          display: block !important;
-          visibility: visible !important;
-        }
-
-        /* Garantir que containers FLEX dentro do relatório mantenham o comportamento */
-        .printable-area .flex {
-          display: flex !important;
-          flex-direction: row !important;
-          justify-content: space-between !important;
-          visibility: visible !important;
-        }
-
-        /* Garantir que fundos e cores sejam respeitados */
-        .bg-black { background-color: #000000 !important; -webkit-print-color-adjust: exact !important; }
-        .text-white { color: #ffffff !important; -webkit-print-color-adjust: exact !important; }
-        .bg-gray-100 { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact !important; }
-        .bg-gray-200 { background-color: #e5e7eb !important; -webkit-print-color-adjust: exact !important; }
-
-        /* 6. Quebra de Página Inteligente */
+        /* Controle de Fluxo de Tabelas */
         table {
           page-break-inside: auto !important;
+          break-inside: auto !important;
           width: 100% !important;
+          table-layout: auto !important;
         }
         
         thead {
-          display: table-header-group !important;
+          display: table-header-group !important; /* REPETE O CABEÇALHO EM TODAS AS PÁGINAS */
         }
 
         tr {
           page-break-inside: avoid !important;
+          break-inside: avoid !important;
           page-break-after: auto !important;
+          break-after: auto !important;
         }
 
-        section {
+        /* Classes utilitárias para quebra de página */
+        .break-before {
+          page-break-before: always !important;
+          break-before: page !important;
+          display: block !important;
+          clear: both !important;
+        }
+
+        .no-break-inside {
           page-break-inside: avoid !important;
-          margin-bottom: 20px !important;
+          break-inside: avoid !important;
+        }
+
+        /* Ajuste de imagens e gráficos para não quebrar */
+        img, svg {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
         }
       }
     </style>

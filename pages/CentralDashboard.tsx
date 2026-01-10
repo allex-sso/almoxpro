@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { 
   Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, 
-  ClipboardList, Clock, Printer, X, Check, MessageCircle, AlertCircle
+  ClipboardList, Clock, Printer, X, Check, MessageCircle, AlertCircle, User
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { Movement } from '../types';
@@ -28,6 +28,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedSectorForModal, setSelectedSectorForModal] = useState<string | null>(null);
+  const [selectedRequesterForModal, setSelectedRequesterForModal] = useState<string | null>(null);
 
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
@@ -94,11 +95,10 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
     );
 
-    // Lógica para gráfico de barras duplas (Qtd e %)
     const rawReasons = Object.entries(byReason)
       .map(([name, value]) => ({ name, value }))
       .sort((a,b) => b.value - a.value)
-      .slice(0, 6); // Reduzido para 6 categorias para caber as barras duplas confortavelmente
+      .slice(0, 6); 
 
     const reasonDataWithMetrics = rawReasons.map(r => {
       const percent = totalItems > 0 ? Number(((r.value / totalItems) * 100).toFixed(1)) : 0;
@@ -142,9 +142,31 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
     return Object.values(map).sort((a, b) => b.qty - a.qty);
   }, [selectedSectorForModal, filteredData]);
 
-  const totalQtyInModal = useMemo(() => 
+  const requesterReasonsData = useMemo(() => {
+    if (!selectedRequesterForModal) return [];
+    const map: Record<string, { reason: string, qty: number, count: number }> = {};
+    
+    filteredData
+      .filter(m => m.responsavel === selectedRequesterForModal)
+      .forEach(m => {
+        const reason = m.motivo || 'Geral / Não especificado';
+        if (!map[reason]) {
+          map[reason] = { reason, qty: 0, count: 0 };
+        }
+        map[reason].qty += m.quantidade;
+        map[reason].count += 1;
+      });
+      
+    return Object.values(map).sort((a, b) => b.qty - a.qty);
+  }, [selectedRequesterForModal, filteredData]);
+
+  const totalQtyInSectorModal = useMemo(() => 
     sectorReasonsData.reduce((acc, curr) => acc + curr.qty, 0)
   , [sectorReasonsData]);
+
+  const totalQtyInRequesterModal = useMemo(() => 
+    requesterReasonsData.reduce((acc, curr) => acc + curr.qty, 0)
+  , [requesterReasonsData]);
 
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
@@ -268,7 +290,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
           </div>
         </div>
 
-        {/* Gráfico: Volume por Motivo (Barras Duplas: Qtd e %) */}
+        {/* Gráfico: Volume por Motivo (Barras Duplas) */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-500" /> Consumo por Motivo (Volume e Percentual)
@@ -289,13 +311,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                     angle={-15} 
                     textAnchor="end" 
                   />
-                  {/* Eixo Esquerdo para Quantidade */}
                   <YAxis yAxisId="left" type="number" hide />
-                  {/* Eixo Direito para Porcentagem */}
                   <YAxis yAxisId="right" orientation="right" domain={[0, 100]} hide />
-                  
-                  {/* Tooltip removido conforme solicitação */}
-                  
                   <Bar 
                     yAxisId="left"
                     dataKey="value" 
@@ -312,7 +329,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                       formatter={(val: number) => val.toLocaleString('pt-BR')}
                     />
                   </Bar>
-
                   <Bar 
                     yAxisId="right"
                     dataKey="percent" 
@@ -329,7 +345,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                       style={{ fill: '#10b981', fontSize: '10px', fontWeight: '900' }}
                     />
                   </Bar>
-                  
                   <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </BarChart>
               </ResponsiveContainer>
@@ -350,16 +365,26 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
               <thead className="text-[10px] uppercase bg-slate-50 dark:bg-slate-800 text-slate-400 font-bold">
                 <tr>
                   <th className="px-6 py-4">Nome</th>
-                  <th className="px-6 py-4 text-center">Total de Itens (Barras)</th>
+                  <th className="px-6 py-4 text-right">Total de Itens (Barras)</th>
                   <th className="px-6 py-4 text-center">Qtd. Requisições</th>
                   <th className="px-6 py-4 text-center">Média por Saída</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {metrics.requesterData.map((req, i) => (
-                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors group">
                     <td className="px-6 py-4 font-bold dark:text-white">{req.name}</td>
-                    <td className="px-6 py-4 text-center font-black text-blue-600">{req.total.toLocaleString('pt-BR')}</td>
+                    <td 
+                      className="px-6 py-4 text-right cursor-pointer"
+                      onClick={() => setSelectedRequesterForModal(req.name)}
+                    >
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="px-4 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-xl font-black text-sm transition-all group-hover:bg-blue-500/20">
+                            {req.total.toLocaleString('pt-BR')}
+                        </span>
+                        <MessageCircle className="w-3.5 h-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-center">
                         <span className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-lg font-black text-[11px]">
                             {req.count}
@@ -385,7 +410,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório de Perfil</span>
+                    <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial de Perfil</span>
                 </div>
                 <div className="flex gap-3">
                     <button 
@@ -405,9 +430,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
             {/* Conteúdo do Relatório */}
             <div className="flex-1 p-4 md:p-12 print-container">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block">
                     <div className="w-full">
-                        <header className="mb-8 text-center border-b-[3px] border-black pb-4">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
                             <div className="py-2">
@@ -416,7 +441,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </div>
                         </header>
 
-                        <section className="mb-8">
+                        <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <tbody>
@@ -436,7 +461,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <section className="mb-8">
+                        <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE CONSUMO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <tbody>
@@ -460,7 +485,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="grid grid-cols-2 gap-4 mb-8 no-break-inside">
                             <section>
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO POR SETOR</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
@@ -501,8 +526,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </section>
                         </div>
 
-                        <section className="mb-12">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE SOLICITANTES (TOP 10 POR VOLUME)</h3>
+                        <section className="mb-12 break-before">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE SOLICITANTES (TOP 10)</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <thead>
                                     <tr className="bg-gray-200">
@@ -525,10 +550,11 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
+                        {/* SEÇÃO COM QUEBRA DE PÁGINA FORÇADA PARA A TABELA LONGA DE AUDITORIA */}
+                        <div className="mb-12 break-before">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
-                                <thead>
+                                <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-200">
                                         <th className="border border-black p-2 font-black text-black">Data</th>
                                         <th className="border border-black p-2 font-black text-left text-black">Perfil / Descrição</th>
@@ -538,9 +564,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                         <th className="border border-black p-2 text-center font-black text-black">Motivo</th>
                                     </tr>
                                 </thead>
-                                <tbody style={{ pageBreakInside: 'auto' }}>
-                                    {filteredData.slice(0, 100).map((m, i) => (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                <tbody>
+                                    {filteredData.map((m, i) => (
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <td className="border-r border-black p-1.5 font-bold text-black">{m.data?.toLocaleDateString('pt-BR')}</td>
                                             <td className="border-r border-black p-1.5 text-black">{m.perfil || m.codigo}</td>
                                             <td className="border-r border-black p-1.5 text-center text-black">{m.cor}</td>
@@ -549,18 +575,11 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                             <td className="p-1.5 text-center text-black italic">{m.motivo || '-'}</td>
                                         </tr>
                                     ))}
-                                    {filteredData.length > 100 && (
-                                        <tr>
-                                            <td colSpan={6} className="p-2 text-center italic text-gray-500 font-bold">
-                                                Exibindo os primeiros 100 registros de {filteredData.length}.
-                                            </td>
-                                        </tr>
-                                    )}
                                 </tbody>
                             </table>
                         </div>
 
-                        <footer className="mt-8 pt-16 flex justify-between gap-24">
+                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside">
                             <div className="text-center flex-1">
                                 <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador de Perfil</div>
                             </div>
@@ -569,7 +588,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </div>
                         </footer>
 
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black">
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside">
                             <div>Documento Auditável Alumasa Industrial - Almoxarifado de Perfil</div>
                             <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
                         </div>
@@ -591,7 +610,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight uppercase">Motivos de Saída</h2>
                   <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedSectorForModal}</p>
-                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Total de Barras: {totalQtyInModal.toLocaleString('pt-BR')}</p>
+                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Total de Barras: {totalQtyInSectorModal.toLocaleString('pt-BR')}</p>
                 </div>
               </div>
               <button 
@@ -623,7 +642,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                           {item.qty.toLocaleString('pt-BR')} Barras
                         </span>
                         <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mt-1">
-                          {((item.qty / totalQtyInModal) * 100).toFixed(1)}% do setor
+                          {((item.qty / totalQtyInSectorModal) * 100).toFixed(1)}% do setor
                         </p>
                       </div>
                     </div>
@@ -640,6 +659,76 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
               <button 
                 onClick={() => setSelectedSectorForModal(null)} 
+                className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700"
+              >
+                Fechar Detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE MOTIVOS POR SOLICITANTE */}
+      {selectedRequesterForModal && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-700 flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                  <User className="w-6 h-6 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Motivos do Solicitante</h2>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedRequesterForModal}</p>
+                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Total de Barras: {totalQtyInRequesterModal.toLocaleString('pt-BR')}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedRequesterForModal(null)} 
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-8 flex-1 overflow-y-auto space-y-6">
+              {requesterReasonsData.length > 0 ? (
+                requesterReasonsData.map((item, idx) => (
+                  <div key={idx} className="flex gap-4 group items-center">
+                    <div className="relative">
+                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                    </div>
+                    <div className="flex-1 flex justify-between items-center bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                      <div>
+                        <p className="text-white text-sm font-bold uppercase tracking-tight">
+                          {item.reason}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">
+                          {item.count} Lançamentos registrados
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="px-4 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-black text-sm whitespace-nowrap">
+                          {item.qty.toLocaleString('pt-BR')} Barras
+                        </span>
+                        <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mt-1">
+                          {((item.qty / totalQtyInRequesterModal) * 100).toFixed(1)}% do total
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12">
+                  <AlertCircle className="w-12 h-12 opacity-20" />
+                  <p className="font-bold uppercase tracking-widest text-xs">Nenhum motivo detalhado encontrado</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
+              <button 
+                onClick={() => setSelectedRequesterForModal(null)} 
                 className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700"
               >
                 Fechar Detalhes

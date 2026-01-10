@@ -4,7 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
   PieChart, Pie, Cell
 } from 'recharts';
-import { DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, Filter, X, Info, Package } from 'lucide-react';
+import { 
+  DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, 
+  Filter, X, Info, Package, Printer, Check, ClipboardList, ShieldCheck 
+} from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { DashboardStats, InventoryItem, Movement } from '../types';
 
@@ -21,6 +24,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
   const [viewType, setViewType] = useState<'financial' | 'quantity'>('quantity');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const applyFilters = () => {
     setStartDate(tempStart);
@@ -63,22 +67,14 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
     ].filter(d => d.value > 0);
   }, [data]);
 
-  // --- CÁLCULO DO VALOR REAL EM ESTOQUE (FLUXO FINANCEIRO) ---
-  // Seguindo a solicitação: (Soma das Entradas) - (Soma das Saídas)
   const stockTotalFinancial = useMemo(() => {
     let totalIn = 0;
     let totalOut = 0;
-    
     movements.forEach(m => {
       const val = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (m.tipo === 'entrada') {
-        totalIn += val;
-      } else if (m.tipo === 'saida') {
-        totalOut += val;
-      }
+      if (m.tipo === 'entrada') totalIn += val;
+      else if (m.tipo === 'saida') totalOut += val;
     });
-    
-    // Retorna a diferença, garantindo que não seja negativa (mínimo 0)
     return Math.max(0, totalIn - totalOut);
   }, [movements]);
 
@@ -141,6 +137,15 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
       ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(val)
       : val.toLocaleString('pt-BR');
 
+  const handleConfirmPrint = () => {
+    const originalTitle = document.title;
+    document.title = "relatorio_almoxarifado_pecas_alumasa";
+    setTimeout(() => {
+        window.print();
+        document.title = originalTitle;
+    }, 100);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
@@ -154,43 +159,52 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 no-print">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Monitoramento de fluxos e saúde do estoque.</p>
         </div>
         
-        <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3 no-print">
-           <div className="flex items-center gap-2 px-2">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Filtrar Histórico:</span>
-           </div>
-           <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
-             <input type="date" className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" value={tempStart} onChange={e => setTempStart(e.target.value)} onKeyDown={handleKeyDown}/>
-             <span className="text-slate-300">-</span>
-             <input type="date" className="bg-transparent text-sm text-slate-700 dark:text-white focus:outline-none" value={tempEnd} onChange={e => setTempEnd(e.target.value)} onKeyDown={handleKeyDown}/>
-           </div>
-           <div className="flex gap-2">
-             <button onClick={applyFilters} className="flex items-center px-3 py-1.5 bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm">
-               <Filter className="w-3 h-3 mr-1" /> Aplicar
-             </button>
-             {(startDate || endDate) && (
-               <button onClick={clearFilters} className="flex items-center px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg transition-colors">
-                 <X className="w-3 h-3 mr-1" /> Limpar
-               </button>
-             )}
-           </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3">
+            <div className="flex items-center gap-2 px-2 border-r border-gray-100 dark:border-gray-800 mr-1">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar Histórico:</span>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
+              <input type="date" className="bg-transparent text-xs font-bold text-slate-700 dark:text-white focus:outline-none" value={tempStart} onChange={e => setTempStart(e.target.value)} onKeyDown={handleKeyDown}/>
+              <span className="text-slate-300">-</span>
+              <input type="date" className="bg-transparent text-xs font-bold text-slate-700 dark:text-white focus:outline-none" value={tempEnd} onChange={e => setTempEnd(e.target.value)} onKeyDown={handleKeyDown}/>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={applyFilters} className="flex items-center px-3 py-1.5 bg-primary hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95">
+                <Filter className="w-3 h-3 mr-1" /> Aplicar
+              </button>
+              {(startDate || endDate) && (
+                <button onClick={clearFilters} className="flex items-center px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all">
+                  <X className="w-3 h-3 mr-1" /> Limpar
+                </button>
+              )}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => setShowPrintPreview(true)} 
+            className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"
+          >
+            <Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
         <StatCard title="Valor em Estoque" value={formatValue(stockTotalFinancial, true)} icon={DollarSign} color="blue" />
         <StatCard title="Entradas (Lançamentos)" value={formatValue(totals.in, false)} icon={TrendingUp} color="green" />
         <StatCard title="Saídas (Lançamentos)" value={formatValue(totals.out, false)} icon={TrendingDown} color="purple" />
         <StatCard title="Itens Críticos" value={totals.critical} icon={AlertTriangle} color="red" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 no-print">
         <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center">
@@ -250,6 +264,162 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
           </div>
         </div>
       </div>
+
+      {/* --- OVERLAY DE PRÉ-VISUALIZAÇÃO DO RELATÓRIO GERENCIAL --- */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+            {/* Header de Controle */}
+            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
+                <div className="flex items-center">
+                    <Printer className="mr-2 w-5 h-5" />
+                    <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial de Peças</span>
+                </div>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setShowPrintPreview(false)}
+                        className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"
+                    >
+                        <X className="w-4 h-4 mr-2" /> Voltar
+                    </button>
+                    <button 
+                        onClick={handleConfirmPrint}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"
+                    >
+                        <Check className="w-4 h-4 mr-2" /> Confirmar Impressão
+                    </button>
+                </div>
+            </div>
+
+            {/* Conteúdo do Relatório */}
+            <div className="flex-1 p-4 md:p-12 print-container">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block">
+                    <div className="w-full">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
+                            <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
+                            <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
+                            <div className="py-2">
+                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO DE PEÇAS</h2>
+                                <p className="text-xs font-bold text-black">Consolidado de Movimentação e Auditoria Financeira</p>
+                            </div>
+                        </header>
+
+                        <section className="mb-8 no-break-inside">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <tbody>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td>
+                                        <td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Período Selecionado</td>
+                                        <td className="p-2 font-black text-black">
+                                          {startDate ? new Date(startDate).toLocaleDateString('pt-BR') : 'Início'} até {endDate ? new Date(endDate).toLocaleDateString('pt-BR') : 'Hoje'}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td>
+                                        <td className="p-2 font-black text-black">Gerencial / Auditoria de Estoque</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-8 no-break-inside">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO FINANCEIRO E DE LANÇAMENTOS</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <tbody>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Valor Total em Estoque</td>
+                                        <td className="p-2 font-black text-black">{formatValue(stockTotalFinancial, true)}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Entradas (Lançamentos)</td>
+                                        <td className="p-2 font-black text-black">{totals.in} registros</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Saídas (Lançamentos)</td>
+                                        <td className="p-2 font-black text-black">{totals.out} registros</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Itens Críticos (Abaixo do Mínimo)</td>
+                                        <td className="p-2 font-black text-red-600">{totals.critical} itens</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-8 no-break-inside">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">SAÚDE GERAL DO ESTOQUE</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2 text-left font-black text-black">Status</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Quantidade de Itens</th>
+                                        <th className="border border-black p-2 text-center font-black text-black">Percentual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {healthData.map((d, i) => (
+                                        <tr key={i} className="border-b border-black">
+                                            <td className="border-r border-black p-2 font-bold text-black">{d.name}</td>
+                                            <td className="border-r border-black p-2 text-center font-black text-black">{d.value}</td>
+                                            <td className="p-2 text-center font-black text-black">{((d.value / (data.length || 1)) * 100).toFixed(1)}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        {/* SEÇÃO COM QUEBRA DE PÁGINA FORÇADA PARA A TABELA LONGA */}
+                        <div className="mb-12 break-before">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE ESTOQUE ATUAL (PEÇAS)</h3>
+                            <table className="w-full text-[8px] border-collapse border border-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-1 font-black text-black">Código</th>
+                                        <th className="border border-black p-1 font-black text-left text-black">Descrição</th>
+                                        <th className="border border-black p-1 font-black text-left text-black">Equipamento</th>
+                                        <th className="border border-black p-1 text-center font-black text-black">Estoque</th>
+                                        <th className="border border-black p-1 text-center font-black text-black">Mínimo</th>
+                                        <th className="border border-black p-1 text-center font-black text-black">Vlr. Unit</th>
+                                        <th className="border border-black p-1 text-right font-black text-black">Vlr. Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.map((item, i) => (
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-1 font-bold text-black font-mono">{item.codigo}</td>
+                                            <td className="border-r border-black p-1 text-black">{item.descricao}</td>
+                                            <td className="border-r border-black p-1 text-black">{item.equipamento || '-'}</td>
+                                            <td className={`border-r border-black p-1 text-center font-black ${item.quantidadeAtual <= item.quantidadeMinima ? 'text-red-600' : 'text-black'}`}>{item.quantidadeAtual}</td>
+                                            <td className="border-r border-black p-1 text-center text-black">{item.quantidadeMinima}</td>
+                                            <td className="border-r border-black p-1 text-center text-black">R$ {item.valorUnitario.toFixed(2)}</td>
+                                            <td className="p-1 text-right font-black text-black">R$ {item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside">
+                            <div className="text-center flex-1">
+                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador de Peças</div>
+                            </div>
+                            <div className="text-center flex-1">
+                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div>
+                            </div>
+                        </footer>
+
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside">
+                            <div>Documento Auditável Alumasa Industrial - Almoxarifado de Peças</div>
+                            <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
