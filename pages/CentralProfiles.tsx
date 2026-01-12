@@ -12,7 +12,7 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
   const [searchTerm, setSearchTerm] = useState('');
   const [colorFilter, setColorFilter] = useState('Todas');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; 
+  const itemsPerPage = 15; 
 
   // Agregação dos dados por Perfil e Cor
   const aggregatedData = useMemo(() => {
@@ -162,24 +162,24 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
         </div>
 
         {filteredData.length > 0 && (
-          <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-slate-800/50">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Pag. {currentPage} de {totalPages}
+          <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
+            <span className="text-sm text-gray-700 dark:text-gray-400">
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
             </span>
             <div className="inline-flex gap-2">
               <button 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
+                className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
               <button 
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
+                className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
