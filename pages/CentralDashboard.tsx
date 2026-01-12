@@ -485,8 +485,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <div className="grid grid-cols-2 gap-4 mb-8 no-break-inside">
-                            <section>
+                        {/* SEÇÃO EMPILHADA - AJUSTADA PARA LARGURA TOTAL */}
+                        <div className="space-y-8 mb-8">
+                            <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO POR SETOR</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
                                     <thead>
@@ -505,7 +506,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                     </tbody>
                                 </table>
                             </section>
-                            <section>
+                            
+                            <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">CONSUMO POR MOTIVO</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
                                     <thead>
@@ -551,8 +553,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </div>
 
-                        {/* QUEBRA DE PÁGINA FORÇADA APÓS O RANKING - AUDITORIA COMEÇA SEMPRE EM NOVA PÁGINA */}
-                        <div className="mb-12 break-before">
+                        {/* AUDITORIA CONTINUA SEM QUEBRA FORÇADA (REMOVIDA CLASSE break-before) */}
+                        <div className="mb-12">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
                                 <thead style={{ display: 'table-header-group' }}>

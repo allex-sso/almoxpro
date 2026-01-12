@@ -372,8 +372,8 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                             </table>
                         </section>
 
-                        {/* QUEBRA DE PÁGINA FORÇADA PARA A TABELA LONGA DE AUDITORIA */}
-                        <div className="mb-12 break-before">
+                        {/* AUDITORIA CONTINUA SEM QUEBRA FORÇADA (REMOVIDA CLASSE break-before) */}
+                        <div className="mb-12">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE ESTOQUE ATUAL (PEÇAS)</h3>
                             <table className="w-full text-[8px] border-collapse border border-black">
                                 <thead style={{ display: 'table-header-group' }}>

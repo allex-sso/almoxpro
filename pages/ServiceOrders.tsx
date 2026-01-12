@@ -366,16 +366,30 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </section>
 
-                        <div className="grid grid-cols-2 gap-4 mb-8">
-                            <section>
+                        {/* SEÇÃO EMPILHADA - AJUSTADA PARA LARGURA TOTAL */}
+                        <div className="space-y-8 mb-8">
+                            <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
+                                    <thead>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black">Ativo</th>
+                                            <th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
                                 </table>
                             </section>
-                            <section>
+                            
+                            <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
+                                    <thead>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black">Equipamento</th>
+                                            <th className="border border-black p-2 text-right font-black text-black">Tempo Total</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d.name}</td><td className="p-2 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
                                 </table>
                             </section>
