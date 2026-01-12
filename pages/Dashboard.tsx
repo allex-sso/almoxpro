@@ -349,6 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                             </table>
                         </section>
 
+                        {/* SEÇÃO DE SAÚDE DO ESTOQUE - Agora na mesma página que o resumo */}
                         <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">SAÚDE GERAL DO ESTOQUE</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
@@ -371,7 +372,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                             </table>
                         </section>
 
-                        {/* SEÇÃO COM QUEBRA DE PÁGINA FORÇADA PARA A TABELA LONGA */}
+                        {/* QUEBRA DE PÁGINA FORÇADA PARA A TABELA LONGA DE AUDITORIA */}
                         <div className="mb-12 break-before">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE ESTOQUE ATUAL (PEÇAS)</h3>
                             <table className="w-full text-[8px] border-collapse border border-black">

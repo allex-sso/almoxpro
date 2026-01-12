@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Search, Palette, Box, Download, Filter, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movement } from '../types';
@@ -11,7 +12,7 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
   const [searchTerm, setSearchTerm] = useState('');
   const [colorFilter, setColorFilter] = useState('Todas');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 10; 
 
   // Agregação dos dados por Perfil e Cor
   const aggregatedData = useMemo(() => {
@@ -84,37 +85,34 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
   if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Processando Perfis...</div>;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Consolidado de Perfis</h1>
-          <p className="text-sm text-slate-500 font-medium">Quantitativo agrupado por modelo de perfil e cor disponível.</p>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Consolidado de Perfis</h1>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Estoque agrupado por modelo e cor.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="bg-white dark:bg-dark-card p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="Buscar Perfil ou Cor..." 
+                placeholder="Buscar..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary w-64"
+                className="pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold outline-none focus:ring-1 focus:ring-primary w-48"
               />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3 h-3" /></button>
-              )}
             </div>
 
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+            <div className="h-5 w-px bg-slate-200 dark:bg-slate-700"></div>
 
-            <div className="flex items-center gap-2">
-              <Palette className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-1.5 px-2">
+              <Palette className="w-3.5 h-3.5 text-primary" />
               <select 
                 value={colorFilter}
                 onChange={(e) => setColorFilter(e.target.value)}
-                className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer"
+                className="bg-transparent text-[11px] font-black text-slate-800 dark:text-white outline-none cursor-pointer"
               >
                 {uniqueColors.map(c => <option key={c} value={c} className="bg-white dark:bg-slate-800">{c}</option>)}
               </select>
@@ -123,46 +121,32 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
 
           <button 
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95"
           >
-            <Download className="w-4 h-4" /> Exportar Consolidado
+            <Download className="w-3.5 h-3.5" /> Exportar
           </button>
         </div>
       </div>
 
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg"><Box className="w-5 h-5 text-primary" /></div>
-                <h3 className="font-black uppercase tracking-widest text-xs text-slate-800 dark:text-white">Resumo de Estoque por Especificação</h3>
-            </div>
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <Info className="w-3 h-3" />
-                {filteredData.length} Combinações Encontradas
-            </div>
-        </div>
-        
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-[10px] uppercase bg-slate-50 dark:bg-slate-800 text-slate-400 font-bold">
               <tr>
-                <th className="px-6 py-4">Modelo do Perfil</th>
-                <th className="px-6 py-4">Especificação de Cor</th>
-                <th className="px-6 py-4 text-right">Quantidade Total Consolidada</th>
+                <th className="px-6 py-3">Modelo do Perfil</th>
+                <th className="px-6 py-3">Especificação de Cor</th>
+                <th className="px-6 py-3 text-right">Quantidade Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {paginatedData.map((d, i) => (
                 <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                  <td className="px-6 py-4 font-black text-slate-800 dark:text-white">{d.perfil}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse"></div>
-                      <span className="font-bold text-slate-600 dark:text-slate-400">{d.cor}</span>
-                    </div>
+                  <td className="px-6 py-3 font-black text-slate-800 dark:text-white">{d.perfil}</td>
+                  <td className="px-6 py-3">
+                    <span className="font-bold text-slate-500 text-xs">{d.cor}</span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="px-4 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-xl font-black text-sm">
+                  <td className="px-6 py-3 text-right">
+                    <span className="px-3 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-lg font-black text-xs">
                       {d.quantidade.toLocaleString('pt-BR')}
                     </span>
                   </td>
@@ -170,38 +154,32 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
               ))}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400 italic">
-                        <Box className="w-8 h-8 opacity-20" />
-                        <p>Nenhum dado encontrado para os filtros atuais.</p>
-                    </div>
-                  </td>
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-400 text-xs italic">Nenhum dado encontrado</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Barra de Paginação */}
         {filteredData.length > 0 && (
-          <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-slate-800/50">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
+          <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-slate-800/50">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Pag. {currentPage} de {totalPages}
             </span>
             <div className="inline-flex gap-2">
               <button 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
               >
-                <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <ChevronLeft className="w-4 h-4" />
               </button>
               <button 
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
               >
-                <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>

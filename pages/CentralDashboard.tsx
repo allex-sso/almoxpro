@@ -526,10 +526,11 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </section>
                         </div>
 
-                        <section className="mb-12 break-before">
+                        {/* RANKING - AGORA PERMANECE NA PRIMEIRA PÁGINA COM OS RESUMOS (SE HOUVER ESPAÇO) */}
+                        <div className="mb-12 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE SOLICITANTES (TOP 10)</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
-                                <thead>
+                                <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-200">
                                         <th className="border border-black p-2 text-left font-black text-black">Profissional</th>
                                         <th className="border border-black p-2 text-center font-black text-black">Barras Totais</th>
@@ -539,7 +540,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                 </thead>
                                 <tbody>
                                     {metrics.requesterData.map((req, i) => (
-                                        <tr key={i} className="border-b border-black">
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-2 font-black text-black">{req.name}</td>
                                             <td className="border-r border-black p-2 text-center font-black text-black">{req.total.toLocaleString('pt-BR')}</td>
                                             <td className="border-r border-black p-2 text-center font-black text-black">{req.count}</td>
@@ -548,9 +549,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                     ))}
                                 </tbody>
                             </table>
-                        </section>
+                        </div>
 
-                        {/* SEÇÃO COM QUEBRA DE PÁGINA FORÇADA PARA A TABELA LONGA DE AUDITORIA */}
+                        {/* QUEBRA DE PÁGINA FORÇADA APÓS O RANKING - AUDITORIA COMEÇA SEMPRE EM NOVA PÁGINA */}
                         <div className="mb-12 break-before">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
@@ -598,7 +599,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
       )}
 
-      {/* MODAL DE MOTIVOS POR SETOR */}
+      {/* MODAL DE MOTIVOS POR SETOR (MANTIDO) */}
       {selectedSectorForModal && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
@@ -668,7 +669,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
       )}
 
-      {/* MODAL DE MOTIVOS POR SOLICITANTE */}
+      {/* MODAL DE MOTIVOS POR SOLICITANTE (MANTIDO) */}
       {selectedRequesterForModal && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">

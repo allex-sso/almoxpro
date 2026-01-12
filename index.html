@@ -120,8 +120,8 @@
         .print-mode-wrapper,
         .print-container {
           visibility: visible !important;
-          display: block !important; /* Desativa Flexbox para evitar quebra de cálculo de altura */
-          position: static !important; /* MUITO IMPORTANTE: Desativa Fixed/Absolute que bloqueiam a paginação */
+          display: block !important; 
+          position: static !important; 
           overflow: visible !important;
           height: auto !important;
           min-height: auto !important;
@@ -151,6 +151,7 @@
           padding: 0 !important;
           margin: 0 !important;
           overflow: visible !important;
+          height: auto !important;
         }
 
         /* Controle de Fluxo de Tabelas */
@@ -159,6 +160,7 @@
           break-inside: auto !important;
           width: 100% !important;
           table-layout: auto !important;
+          margin-bottom: 20px !important;
         }
         
         thead {
@@ -168,8 +170,12 @@
         tr {
           page-break-inside: avoid !important;
           break-inside: avoid !important;
-          page-break-after: auto !important;
-          break-after: auto !important;
+        }
+
+        /* Títulos não podem ficar sozinhos no fim da página */
+        h1, h2, h3, h4 {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
         }
 
         /* Classes utilitárias para quebra de página */
@@ -178,6 +184,7 @@
           break-before: page !important;
           display: block !important;
           clear: both !important;
+          margin-top: 30px !important;
         }
 
         .no-break-inside {
