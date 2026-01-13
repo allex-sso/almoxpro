@@ -295,7 +295,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
       {/* OVERLAY DE PRÉ-VISUALIZAÇÃO (PADRÃO ALUMASA) */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:relative print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
             {/* Header de Controle */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
@@ -319,10 +319,10 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             </div>
 
             {/* Conteúdo do Relatório */}
-            <div className="flex-1 p-4 md:p-12 print-container">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible">
+            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
                     <div className="w-full">
-                        <header className="mb-8 text-center border-b-[3px] border-black pb-4">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
                             <div className="py-2">
@@ -331,7 +331,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </div>
                         </header>
 
-                        <section className="mb-8">
+                        <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <tbody>
@@ -342,7 +342,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </section>
 
-                        <section className="mb-8">
+                        <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <tbody>
@@ -354,7 +354,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </section>
 
-                        <section className="mb-8">
+                        <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
@@ -366,7 +366,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </section>
 
-                        {/* SEÇÃO EMPILHADA - AJUSTADA PARA LARGURA TOTAL */}
                         <div className="space-y-8 mb-8">
                             <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
@@ -398,15 +397,17 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
-                                <thead><tr className="bg-gray-200">
-                                    <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
-                                </tr></thead>
-                                <tbody style={{ pageBreakInside: 'auto' }}>
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                     {filteredData.map((os, i) => {
                                     let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
                                     let execTime = 0; if (os.dataFim && (os.dataInicio || os.dataAbertura)) execTime = (os.dataFim.getTime() - (os.dataInicio || os.dataAbertura)!.getTime()) / 3600000;
                                     return (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
                                             <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
                                             <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
@@ -420,11 +421,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </div>
 
-                        <footer className="mt-8 pt-16 flex justify-between gap-24">
+                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside">
                             <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
                             <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
                         </footer>
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black"><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside"><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
                     </div>
                 </div>
             </div>

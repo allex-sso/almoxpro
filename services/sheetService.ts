@@ -24,17 +24,13 @@ const parseNumber = (value: string | number): number => {
   if (typeof value === 'number') return value;
   
   let str = value.toString().trim();
-  // Limpeza de caracteres não numéricos mas preservando pontos e vírgulas decimais
   str = str.replace(/R\$/gi, '').replace(/\s/g, '').replace(/[^-0-9,.]/g, '');
   
   if (str === "" || str === "-") return 0;
 
-  // Lógica para detectar se o separador decimal é vírgula ou ponto
   if (str.includes(',') && str.includes('.')) {
-    // Formato europeu/brasileiro com milhar em ponto: 1.234,56 -> 1234.56
     str = str.replace(/\./g, '').replace(',', '.');
   } else if (str.includes(',')) {
-    // Apenas vírgula: 1234,56 -> 1234.56
     str = str.replace(',', '.');
   }
   
@@ -216,7 +212,10 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   
   const idxCodigo = findBestCol(headers, ['codigo', 'cod', 'item', 'referencia', 'material', 'ref']);
   const idxDesc = findBestCol(headers, ['descricao', 'descri', 'nome', 'material', 'produto']);
+  
+  // Prioridade total para o termo exato solicitado pelo usuário: "Quantidade em Estoque"
   const idxQtd = findBestCol(headers, ['quantidade em estoque', 'quantidade', 'estoque', 'saldo', 'atual', 'qtd', 'estoque atual', 'balanço', 'balanço atual']);
+  
   const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo', 'preco', 'preço', 'valor', 'vlr', 'unitário', 'vlr. unit.']);
   const idxMin = findBestCol(headers, ['minimo', 'minim', 'reserva', 'estoque minimo']);
   const idxLoc = findBestCol(headers, ['localizacao', 'local', 'posicao', 'endereco']);
@@ -307,7 +306,7 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
   const idxQtd = findBestCol(headers, ['quantidade', 'qtd', 'qtde', 'quant', 'saida', 'volume']);
   const idxResp = findBestCol(headers, ['solicitante', 'responsavel', 'pessoa que liberou', 'quem', 'funcionario']);
   const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
-  const idxPerfil = findBestCol(headers, ['perfil']); // Prioridade total para esta coluna
+  const idxPerfil = findBestCol(headers, ['perfil']); 
   const idxMotivo = findBestCol(headers, ['motivo', 'razao', 'causa', 'justificativa']);
   const idxCor = findBestCol(headers, ['cor', 'coloracao', 'pintura']);
   const idxTurno = findBestCol(headers, ['turno', 'periodo', 'horario']);

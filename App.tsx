@@ -19,14 +19,11 @@ import CentralProfiles from './pages/CentralProfiles';
 const MASTER_PROFILE_ID = 'almox-pecas';
 const CENTRAL_PROFILE_ID = 'almox-central';
 
-// Função auxiliar para obter variáveis de ambiente de forma segura
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
   try {
-    // Tenta obter do process.env (injetado pelo Vercel/Ambiente)
     if (typeof process !== 'undefined' && process.env && process.env[key]) {
       return process.env[key] as string;
     }
-    // Tenta obter do import.meta.env (padrão Vite) se estiver disponível
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
       // @ts-ignore
@@ -195,16 +192,17 @@ const App: React.FC = () => {
           const totalIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, curr) => acc + curr.quantidade, 0);
           const totalOut = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, curr) => acc + curr.quantidade, 0);
           
-          const dynamicQty = item.quantidadeAtual + totalIn - totalOut;
+          // O usuário solicitou que a Quantidade Estoque venha diretamente da coluna da planilha "Estoque Atual".
+          // Portanto, removemos o cálculo dinâmico baseado em entradas/saídas para este campo específico na listagem.
           const unitPrice = priceMap.get(item.codigo) || item.valorUnitario || 0;
           
           return {
             ...item,
-            quantidadeAtual: dynamicQty,
+            quantidadeAtual: item.quantidadeAtual, // Valor direto da planilha
             entradas: totalIn,
             saidas: totalOut,
             valorUnitario: unitPrice,
-            valorTotal: dynamicQty * unitPrice
+            valorTotal: item.quantidadeAtual * unitPrice
           };
         });
 

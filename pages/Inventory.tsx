@@ -70,15 +70,23 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
     setSelectedItems(newSelection);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedItems.size === filteredData.length && filteredData.length > 0) {
-      setSelectedItems(new Set());
-    } else {
-      setSelectedItems(new Set(filteredData.map(i => i.id)));
-    }
-  };
+  // Verifica se TODOS os itens que estão na filtragem atual estão selecionados
+  const isAllFilteredSelected = useMemo(() => {
+    if (filteredData.length === 0) return false;
+    return filteredData.every(item => selectedItems.has(item.id));
+  }, [filteredData, selectedItems]);
 
-  const isAllSelected = filteredData.length > 0 && selectedItems.size === filteredData.length;
+  const toggleSelectAll = () => {
+    const newSelection = new Set(selectedItems);
+    if (isAllFilteredSelected) {
+      // Se todos os visíveis estão selecionados, desmarcamos apenas os visíveis
+      filteredData.forEach(item => newSelection.delete(item.id));
+    } else {
+      // Caso contrário, marcamos todos os visíveis (mantendo seleções de outros filtros se houver)
+      filteredData.forEach(item => newSelection.add(item.id));
+    }
+    setSelectedItems(newSelection);
+  };
 
   const handleExportCSV = async () => {
     setIsExportingCSV(true);
@@ -272,7 +280,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
                   <th className="px-4 py-3 w-4">
                     <input 
                       type="checkbox" 
-                      checked={isAllSelected}
+                      checked={isAllFilteredSelected}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded cursor-pointer"
                     />

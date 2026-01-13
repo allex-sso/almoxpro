@@ -246,7 +246,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
 
       {/* --- PREVIEW OVERLAY (Com classe .printable-area) --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col print-mode-wrapper">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col print-mode-wrapper print:relative print:block print:h-auto print:overflow-visible">
            <div className="sticky top-0 bg-gray-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
              <div className="flex items-center">
                <Printer className="mr-2" />
@@ -271,9 +271,9 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
           </div>
 
           {/* ÁREA IMPRESSA: Adicionada a classe 'printable-area' */}
-           <div className="printable-area p-8 max-w-[210mm] mx-auto bg-white min-h-screen">
-             <div className="bg-white p-10 shadow-none">
-                <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end">
+           <div className="printable-area p-8 max-w-[210mm] mx-auto bg-white min-h-screen print:p-0 print:block print:h-auto">
+             <div className="bg-white p-10 shadow-none print:p-0 print:block print:h-auto">
+                <div className="border-b-2 border-black mb-6 pb-4 flex justify-between items-end no-break-inside">
                   <div>
                     <h1 className="text-3xl font-bold uppercase tracking-wide text-black">Requisição de Compras</h1>
                     <p className="text-sm text-gray-600 mt-1">Relatório automático de itens abaixo do estoque mínimo</p>
@@ -284,7 +284,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   </div>
               </div>
 
-              <table className="w-full text-sm border-collapse border border-gray-400">
+              <table className="w-full text-sm border-collapse border border-gray-400 print:w-full">
                   <thead>
                     <tr className="bg-gray-200 text-black">
                         <th className="border border-gray-400 px-3 py-2 text-left w-16">Cód.</th>
@@ -302,7 +302,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                         const diff = min - item.quantidadeAtual;
                         const note = orderNotes[item.id] || '';
                         return (
-                          <tr key={item.id}>
+                          <tr key={item.id} className="no-break-inside">
                               <td className="border border-gray-400 px-3 py-2 font-mono font-bold text-lg">{item.codigo}</td>
                               <td className="border border-gray-400 px-3 py-2">
                                 <span className="font-bold block text-base">{item.descricao}</span>
@@ -320,7 +320,7 @@ const Alerts: React.FC<AlertsProps> = ({ data }) => {
                   </tbody>
               </table>
               
-              <div className="mt-20 flex justify-between px-10 text-black">
+              <div className="mt-20 flex justify-between px-10 text-black no-break-inside">
                   <div className="text-center">
                     <div className="w-64 border-t border-black h-px"></div>
                     <p className="text-sm mt-2">Solicitante</p>
