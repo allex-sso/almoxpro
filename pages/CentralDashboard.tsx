@@ -1,12 +1,13 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Cell, Legend, LabelList
 } from 'recharts';
 import { 
   Users, Building, Package, TrendingUp, Activity, ChevronDown, Calendar, 
-  ClipboardList, Clock, Printer, X, Check, MessageCircle, AlertCircle, User
+  ClipboardList, Clock, Printer, X, Check, MessageCircle, AlertCircle, User,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { Movement } from '../types';
@@ -29,6 +30,15 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedSectorForModal, setSelectedSectorForModal] = useState<string | null>(null);
   const [selectedRequesterForModal, setSelectedRequesterForModal] = useState<string | null>(null);
+
+  // Estados para Paginação do Ranking
+  const [requesterPage, setRequesterPage] = useState(1);
+  const requesterItemsPerPage = 10;
+
+  // Resetar página quando mudar o filtro
+  useEffect(() => {
+    setRequesterPage(1);
+  }, [selectedYear, selectedMonth]);
 
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
@@ -123,6 +133,13 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       reasonData: reasonDataWithMetrics
     };
   }, [filteredData]);
+
+  // Paginação da Tabela de Solicitantes
+  const totalRequesterPages = Math.ceil(metrics.requesterData.length / requesterItemsPerPage);
+  const paginatedRequesterData = useMemo(() => {
+    const start = (requesterPage - 1) * requesterItemsPerPage;
+    return metrics.requesterData.slice(start, start + requesterItemsPerPage);
+  }, [metrics.requesterData, requesterPage]);
 
   const sectorReasonsData = useMemo(() => {
     if (!selectedSectorForModal) return [];
@@ -358,7 +375,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden no-print">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 font-bold text-slate-800 dark:text-white uppercase tracking-widest text-xs flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-primary" />
-            Ranking de Consumo por Solicitante (Top 10)
+            Ranking de Consumo por Solicitante
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -371,7 +388,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {metrics.requesterData.slice(0, 10).map((req, i) => (
+                {paginatedRequesterData.map((req, i) => (
                   <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors group">
                     <td className="px-6 py-4 font-bold dark:text-white">{req.name}</td>
                     <td 
@@ -401,6 +418,30 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
               </tbody>
             </table>
           </div>
+
+          {metrics.requesterData.length > 0 && (
+            <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
+              <span className="text-sm text-gray-700 dark:text-gray-400">
+                Mostrando {(requesterPage - 1) * requesterItemsPerPage + 1} a {Math.min(requesterPage * requesterItemsPerPage, metrics.requesterData.length)} de {metrics.requesterData.length}
+              </span>
+              <div className="inline-flex gap-2">
+                <button 
+                  onClick={() => setRequesterPage(p => Math.max(1, p - 1))}
+                  disabled={requesterPage === 1}
+                  className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => setRequesterPage(p => Math.min(totalRequesterPages, p + 1))}
+                  disabled={requesterPage === totalRequesterPages}
+                  className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
       </div>
 
       {/* OVERLAY DE PRÉ-VISUALIZAÇÃO */}

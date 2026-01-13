@@ -539,7 +539,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             </div>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ordenado por Média de Resposta</span>
           </div>
-          <div className="overflow-x-auto max-h-[350px]">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0">
                 <tr>
