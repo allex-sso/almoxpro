@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, PieChart, Pie, Legend, LabelList, Tooltip } from 'recharts';
 import { Filter, Users, PackageMinus, UserCheck, ClipboardList, Info, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { InventoryItem, Movement } from '../types';
 
@@ -46,11 +46,9 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       }));
   }, [filteredData]);
 
-  // --- SOLICITAÇÃO: Custo por Equipamento (Entradas x Equipamento do Estoque) ---
+  // --- Custo por Equipamento ---
   const costByEquipment = useMemo(() => {
     const map: Record<string, number> = {};
-    
-    // 1. Criar mapa de Código -> Equipamento (extraído da aba Estoque Atual)
     const codeToEquipment = new Map<string, string>();
     data.forEach(item => {
       if (item.equipamento) {
@@ -58,16 +56,11 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       }
     });
 
-    // 2. Filtrar movimentos de Entrada (Compras)
     const inMovements = movements.filter(m => m.tipo === 'entrada');
 
-    // 3. Somar custos financeiros agrupando pelo equipamento definido no estoque
     inMovements.forEach(m => {
       const eq = codeToEquipment.get(m.codigo) || 'Geral/Não Vinculado';
-      
-      // Respeitar filtro de equipamento selecionado no topo
       if (equipmentFilter !== 'Todos' && eq !== equipmentFilter) return;
-
       const cost = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
       if (cost > 0) {
         if (!map[eq]) map[eq] = 0;
@@ -81,7 +74,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       .slice(0, 10);
   }, [movements, data, equipmentFilter]);
 
-  // --- SOLICITAÇÃO: Top Fornecedores (Valor total de compras nas Entradas) ---
+  // --- Top Fornecedores ---
   const supplierData = useMemo(() => {
     const map: Record<string, number> = {};
     const inMovements = movements.filter(m => m.tipo === 'entrada');
@@ -89,10 +82,8 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
     inMovements.forEach(m => {
       let forn = m.fornecedor?.trim() || 'Não Identificado';
       if (forn.toLowerCase() === 'n/d' || forn === '-' || forn === '') forn = 'Outros';
-      
       const key = forn.toUpperCase();
       const value = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      
       if (value > 0) {
         if (!map[key]) map[key] = 0;
         map[key] += value;
@@ -108,10 +99,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
   }, [movements]);
-
-  const totalSupplierValue = useMemo(() => {
-    return supplierData.reduce((acc, curr) => acc + curr.value, 0);
-  }, [supplierData]);
 
   // Estatísticas por Responsável (Saídas)
   const responsibleStats = useMemo(() => {
@@ -139,7 +126,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
         .sort((a, b) => b.totalQty - a.totalQty);
   }, [movements, data]);
 
-  // Paginação da tabela de responsáveis
   const totalResponsiblePages = Math.ceil(responsibleStats.length / responsibleItemsPerPage);
   const paginatedResponsibleStats = useMemo(() => {
     const start = (currentResponsiblePage - 1) * responsibleItemsPerPage;
@@ -148,40 +134,6 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
-
-  const CustomCostTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      return (
-        <div className="bg-slate-900 p-4 border border-slate-700 shadow-2xl rounded-xl">
-          <p className="font-bold text-white text-sm mb-2">{d.name}</p>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Total Gasto em Compras</span>
-            <span className="text-lg font-black text-blue-400 leading-none">{formatCurrency(d.value)}</span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomQuantityTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      return (
-        <div className="bg-slate-900 p-4 border border-slate-700 shadow-2xl rounded-xl min-w-[200px]">
-          <p className="font-bold text-white text-sm mb-3 leading-tight">{d.name}</p>
-          <div className="flex flex-col border-t border-slate-800 pt-2">
-            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Quantidade Retirada</span>
-            <span className="text-xl font-black text-orange-400 leading-none">
-              {d.value} <span className="text-xs text-slate-400 font-medium lowercase">{d.unit || 'un'}</span>
-            </span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -209,26 +161,32 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
             </div>
             <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Custo de Compras por Equipamento</h3>
-                <p className="text-xs text-slate-500">Valor total das ENTRADAS cruzado com o EQUIPAMENTO do item no estoque.</p>
+                <p className="text-xs text-slate-500">Valor total das ENTRADAS vinculadas ao EQUIPAMENTO.</p>
             </div>
           </div>
           <div className="h-80">
             {costByEquipment.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={costByEquipment} layout="vertical" margin={{ left: 40 }}>
+                <BarChart data={costByEquipment} layout="vertical" margin={{ left: 40, right: 100 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={120} stroke="#64748b" tick={{fontSize: 10, fontWeight: 700}} />
-                  <Tooltip content={<CustomCostTooltip />} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
                       {costByEquipment.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                      <LabelList 
+                        dataKey="value" 
+                        position="right" 
+                        offset={10}
+                        formatter={(val: number) => formatCurrency(val)}
+                        style={{ fill: '#64748b', fontSize: '11px', fontWeight: 'bold' }} 
+                      />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400">
                  <Info className="w-8 h-8 mb-2 opacity-20" />
-                 <p className="text-sm">Vincule equipamentos na aba Estoque Atual para visualizar os custos.</p>
+                 <p className="text-sm">Sem dados para os filtros selecionados.</p>
               </div>
             )}
           </div>
@@ -241,7 +199,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
             </div>
             <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Top Fornecedores (Investimento)</h3>
-                <p className="text-xs text-slate-500">Baseado no volume financeiro total das Entradas de Itens.</p>
+                <p className="text-xs text-slate-500">Financeiro total das Entradas de Itens.</p>
             </div>
           </div>
           <div className="h-80">
@@ -268,7 +226,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400">
                  <Info className="w-8 h-8 mb-2 opacity-20" />
-                 <p className="text-sm">Sem dados de fornecedores ou valores nas Entradas.</p>
+                 <p className="text-sm">Sem dados financeiros nas Entradas.</p>
               </div>
             )}
           </div>
@@ -282,19 +240,33 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
             </div>
             <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Itens com Maior Volume de Saída</h3>
-                <p className="text-xs text-slate-500">Top 10 itens com maior movimentação física (Saídas).</p>
+                <p className="text-xs text-slate-500">Top 10 itens com maior movimentação física de retirada.</p>
             </div>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topConsumedItems} layout="vertical" margin={{ left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="shortName" type="category" width={150} stroke="#64748b" tick={{fontSize: 11, fontWeight: 500}} />
-                <Tooltip content={<CustomQuantityTooltip />} cursor={{fill: 'rgba(249, 115, 22, 0.05)'}} />
-                <Bar dataKey="value" name="Qtd. Saída" radius={[0, 4, 4, 0]} barSize={20} fill="#f97316" />
-              </BarChart>
-            </ResponsiveContainer>
+            {topConsumedItems.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topConsumedItems} layout="vertical" margin={{ left: 10, right: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="shortName" type="category" width={150} stroke="#64748b" tick={{fontSize: 11, fontWeight: 500}} />
+                  <Bar dataKey="value" name="Qtd. Saída" radius={[0, 4, 4, 0]} barSize={20} fill="#f97316">
+                    <LabelList 
+                        dataKey="value" 
+                        position="right" 
+                        offset={10}
+                        formatter={(val: number) => `${val} un.`}
+                        style={{ fill: '#f97316', fontSize: '12px', fontWeight: '900' }} 
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                 <Info className="w-8 h-8 mb-2 opacity-20" />
+                 <p className="text-sm">Nenhuma saída registrada para os filtros atuais.</p>
+              </div>
+            )}
           </div>
       </div>
 

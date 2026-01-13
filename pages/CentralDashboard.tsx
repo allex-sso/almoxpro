@@ -119,7 +119,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         total: s.total, 
         count: s.count,
         avg: (s.total / s.count).toFixed(2) 
-      })).sort((a,b) => b.count - a.count).slice(0, 10),
+      })).sort((a,b) => b.count - a.count),
       reasonData: reasonDataWithMetrics
     };
   }, [filteredData]);
@@ -358,7 +358,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden no-print">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 font-bold text-slate-800 dark:text-white uppercase tracking-widest text-xs flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-primary" />
-            Ranking de Consumo por Solicitante
+            Ranking de Consumo por Solicitante (Top 10)
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -371,7 +371,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {metrics.requesterData.map((req, i) => (
+                {metrics.requesterData.slice(0, 10).map((req, i) => (
                   <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors group">
                     <td className="px-6 py-4 font-bold dark:text-white">{req.name}</td>
                     <td 
@@ -405,7 +405,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
       {/* OVERLAY DE PRÉ-VISUALIZAÇÃO */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:relative print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
             {/* Header de Controle */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
@@ -429,8 +429,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             </div>
 
             {/* Conteúdo do Relatório */}
-            <div className="flex-1 p-4 md:p-12 print-container">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block">
+            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
                     <div className="w-full">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
@@ -485,7 +485,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        {/* SEÇÃO EMPILHADA - AJUSTADA PARA LARGURA TOTAL */}
                         <div className="space-y-8 mb-8">
                             <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO POR SETOR</h3>
@@ -528,9 +527,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </section>
                         </div>
 
-                        {/* RANKING - AGORA PERMANECE NA PRIMEIRA PÁGINA COM OS RESUMOS (SE HOUVER ESPAÇO) */}
-                        <div className="mb-12 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE SOLICITANTES (TOP 10)</h3>
+                        <div className="mb-12">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING COMPLETO DE SOLICITANTES</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-200">
@@ -553,7 +551,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </div>
 
-                        {/* AUDITORIA CONTINUA SEM QUEBRA FORÇADA (REMOVIDA CLASSE break-before) */}
                         <div className="mb-12">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
@@ -601,7 +598,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
       )}
 
-      {/* MODAL DE MOTIVOS POR SETOR (MANTIDO) */}
       {selectedSectorForModal && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
@@ -671,7 +667,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         </div>
       )}
 
-      {/* MODAL DE MOTIVOS POR SOLICITANTE (MANTIDO) */}
       {selectedRequesterForModal && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">

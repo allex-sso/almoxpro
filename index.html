@@ -5,7 +5,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Alumasa - Controle de Estoque</title>
-    <!-- Mantemos o Tailwind via CDN para facilitar a configuração local sem build steps complexos de CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -23,180 +22,116 @@
       };
     </script>
     <style>
-      /* Estilos globais para a interface de tela */
       body {
         font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         background-color: #0f172a;
       }
       
-      /* Scrollbar personalizada dark */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #475569;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-      /* Estilo para a tela de pré-visualização no navegador (Modo de Edição) */
-      .print-mode-wrapper {
-        background-color: #f1f5f9; 
-      }
-      .dark .print-mode-wrapper {
-        background-color: #0f172a;
-      }
+      .print-mode-wrapper { background-color: #f1f5f9; }
+      .dark .print-mode-wrapper { background-color: #0f172a; }
 
-      /* --- CONFIGURAÇÃO DE CONTRASTE PARA O RELATÓRIO --- */
+      /* Estilos base para área de impressão */
       .printable-area {
         color: #000000 !important;
         background-color: #ffffff !important;
-        opacity: 1 !important;
-        visibility: visible !important;
+        box-sizing: border-box !important;
       }
       
-      /* Forçar visibilidade do texto nos títulos pretos (Branco sobre Preto) */
-      .printable-area .bg-black,
-      .printable-area .text-white {
-        color: #ffffff !important;
+      .printable-area .bg-black {
         background-color: #000000 !important;
+        color: #ffffff !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
 
-      /* Forçar texto preto em áreas de dados (Preto sobre Branco/Cinza) */
-      .printable-area *:not(.bg-black):not(.text-white) {
-        color: #000000 !important;
-      }
+      .printable-area table { border-collapse: collapse !important; width: 100% !important; }
+      .printable-area th, .printable-area td { border: 1px solid #000000 !important; }
 
-      .printable-area table {
-        border-collapse: collapse !important;
-        width: 100% !important;
-      }
-      
-      .printable-area th, 
-      .printable-area td {
-        border: 1px solid #000000 !important;
-      }
-
-      /* --- CSS DE IMPRESSÃO --- */
       @media print {
+        /* CONFIGURAÇÃO GLOBAL DE PÁGINA (A4 e similares) */
         @page {
-          margin: 15mm 10mm;
           size: A4 portrait;
+          margin: 15mm !important;
         }
 
-        /* Reset Global de Efeitos Visuais */
-        * {
-          box-shadow: none !important;
-          text-shadow: none !important;
-          -webkit-filter: none !important;
-          filter: none !important;
-          transition: none !important;
+        /* PÁGINA ESPECÍFICA PARA ETIQUETAS TÉRMICAS */
+        @page thermal {
+          size: auto;
+          margin: 0 !important;
         }
 
-        /* Oculta tudo por padrão e reseta o fluxo do documento */
+        .thermal-label-container {
+          page: thermal;
+        }
+
+        /* RESET DE LAYOUT PARA IMPRESSÃO */
         html, body {
-          visibility: hidden !important;
           background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
-          overflow: visible !important;
           height: auto !important;
-          min-height: auto !important;
+          min-height: 100% !important;
+          overflow: visible !important;
         }
 
-        /* Reset CRÍTICO de todos os containers pais para permitir que o conteúdo flua infinitamente */
-        #root, 
-        #root > div, 
-        main, 
-        .max-w-7xl, 
-        .print-mode-wrapper,
-        .print-container {
-          visibility: visible !important;
-          display: block !important; 
-          position: static !important; 
-          overflow: visible !important;
-          height: auto !important;
-          min-height: auto !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        /* OCULTAR UI DO SISTEMA */
-        .no-print, 
-        aside, 
-        nav, 
-        button, 
-        header:not(.printable-header),
+        #root > div > aside,
+        #root > div > div > header,
+        .no-print,
+        nav,
+        button,
         .preview-header {
           display: none !important;
-          visibility: hidden !important;
         }
 
-        /* ÁREA IMPRIMÍVEL REAL */
-        .printable-area {
-          visibility: visible !important;
-          position: relative !important;
-          width: 100% !important;
+        /* Força todos os wrappers de sistema a permitirem rolagem/paginação infinita */
+        #root, #root > div, main, .max-w-7xl, .print-mode-wrapper, .print-container {
           display: block !important;
-          background-color: white !important;
+          position: relative !important; /* Mudado de static para relative para melhor fluxo */
+          width: 100% !important;
+          height: auto !important;
+          min-height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          visibility: visible !important;
+        }
+
+        .printable-area {
+          display: block !important;
+          width: 100% !important;
           padding: 0 !important;
           margin: 0 !important;
-          overflow: visible !important;
           height: auto !important;
+          overflow: visible !important;
         }
 
-        /* Controle de Fluxo de Tabelas */
-        table {
-          page-break-inside: auto !important;
-          break-inside: auto !important;
-          width: 100% !important;
-          table-layout: auto !important;
-          margin-bottom: 20px !important;
+        /* Estilos específicos para etiquetas térmicas */
+        .thermal-label {
+          page-break-after: auto !important;
+          break-after: auto !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          width: 50mm !important;
+          height: 50mm !important;
+          padding: 2mm !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
         }
+
+        table { page-break-inside: auto !important; width: 100% !important; }
+        tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+        thead { display: table-header-group !important; }
+        tfoot { display: table-footer-group !important; }
         
-        thead {
-          display: table-header-group !important; /* REPETE O CABEÇALHO EM TODAS AS PÁGINAS */
-        }
-
-        tr {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
-
-        /* Títulos não podem ficar sozinhos no fim da página */
-        h1, h2, h3, h4 {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-        }
-
-        /* Classes utilitárias para quebra de página */
-        .break-before {
-          page-break-before: always !important;
-          break-before: page !important;
-          display: block !important;
-          clear: both !important;
-          margin-top: 30px !important;
-        }
-
-        .no-break-inside {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
-
-        /* Ajuste de imagens e gráficos para não quebrar */
-        img, svg {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
+        .break-before { page-break-before: always !important; break-before: page !important; }
+        .no-break-inside { page-break-inside: avoid !important; break-inside: avoid !important; }
       }
     </style>
     <script type="importmap">
