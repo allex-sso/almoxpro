@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { SectorProfile } from '../types';
 import { Key, ArrowRight, User, Eye, EyeOff, ShieldCheck } from 'lucide-react';
@@ -56,7 +57,7 @@ const LoginPage: React.FC<LoginProps> = ({ profiles = [], onSelectProfile }) => 
             
             {/* Campo de Setor */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">UNIDADE / ALMOXARIFADO</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">UNIDADE</label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
                   <User className="w-5 h-5 text-slate-500" />
