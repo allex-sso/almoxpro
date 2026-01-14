@@ -174,12 +174,12 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Pr
   const { index: headerIdx, headers } = findHeaderRow(rows, ['cod', 'codigo', 'data', 'quantidade', 'material', 'descricao']);
   if (headerIdx === -1) return [];
 
-  const idxData = findBestCol(headers, ['data', 'dia', 'registro', 'data de entrada', 'data de saida']);
+  const idxData = findBestCol(headers, ['data de entrada', 'data de saida', 'data entrada', 'data saida', 'data', 'dia', 'registro']);
   const idxCodigo = findBestCol(headers, ['codigo', 'cod', 'item', 'referencia', 'material', 'ref']);
-  const idxQtd = findBestCol(headers, ['quantidade', 'qtd', 'qtde', 'quant', 'saida', 'volume', 'movimentado']);
+  const idxQtd = findBestCol(headers, ['quantidade recebida', 'quantidade retirada', 'quantidade', 'qtd', 'qtde', 'quant', 'saida', 'volume', 'movimentado']);
   const idxValUnit = findBestCol(headers, ['valor unitario', 'unitario', 'vlr unit', 'custo unit', 'preco unit', 'valor unit', 'vlr unitario', 'preco', 'preço', 'valor', 'vlr']);
   const idxResp = findBestCol(headers, ['responsavel', 'solicitante', 'quem', 'funcionario', 'usuario']);
-  const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
+  const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento', 'setor solicitante']);
   const idxForn = findBestCol(headers, ['fornecedor', 'forn', 'empresa', 'origem', 'vendor']);
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {

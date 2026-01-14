@@ -53,10 +53,10 @@
       .printable-area th, .printable-area td { border: 1px solid #000000 !important; }
 
       @media print {
-        /* CONFIGURAÇÃO GLOBAL DE PÁGINA (A4 e similares) */
+        /* CONFIGURAÇÃO GLOBAL DE PÁGINA */
         @page {
           size: A4 portrait;
-          margin: 15mm !important;
+          margin: 10mm !important;
         }
 
         /* PÁGINA ESPECÍFICA PARA ETIQUETAS TÉRMICAS */
@@ -69,14 +69,22 @@
           page: thermal;
         }
 
-        /* RESET DE LAYOUT PARA IMPRESSÃO */
+        /* RESET DE LAYOUT PARA IMPRESSÃO - CRITICAL FIX */
         html, body {
           background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
           height: auto !important;
-          min-height: 100% !important;
+          min-height: auto !important;
           overflow: visible !important;
+          position: static !important;
+        }
+
+        #root, #root > div {
+          height: auto !important;
+          min-height: auto !important;
+          overflow: visible !important;
+          display: block !important;
         }
 
         #root > div > aside,
@@ -85,22 +93,19 @@
         nav,
         button,
         .preview-header,
-        .sticky {
+        .sticky,
+        .fixed:not(.print-mode-wrapper) {
           display: none !important;
-          position: static !important;
         }
 
-        /* CRITICAL FIX: Ensure overlays do not trap content to one page */
+        /* Força containers que podem estar 'presos' por flex ou fixed a se expandirem */
         .print-mode-wrapper, 
         .fixed.inset-0, 
-        #root, 
         main, 
         .max-w-7xl, 
         .print-container {
           display: block !important;
-          position: relative !important;
-          top: 0 !important;
-          left: 0 !important;
+          position: static !important;
           width: 100% !important;
           height: auto !important;
           min-height: auto !important;
@@ -109,11 +114,14 @@
           overflow: visible !important;
           visibility: visible !important;
           background: transparent !important;
+          box-shadow: none !important;
+          border: none !important;
         }
 
         .printable-area {
           display: block !important;
           width: 100% !important;
+          max-width: 100% !important;
           padding: 0 !important;
           margin: 0 !important;
           height: auto !important;
@@ -135,7 +143,12 @@
           overflow: hidden !important;
         }
 
-        table { page-break-inside: auto !important; width: 100% !important; border-collapse: collapse !important; }
+        table { 
+          page-break-inside: auto !important; 
+          width: 100% !important; 
+          border-collapse: collapse !important; 
+          table-layout: auto !important;
+        }
         tr { page-break-inside: avoid !important; page-break-after: auto !important; }
         thead { display: table-header-group !important; }
         tfoot { display: table-footer-group !important; }

@@ -103,19 +103,34 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
     filteredMovements.forEach(m => {
       if (m.tipo === 'entrada') recordsInTotal++; 
       if (m.tipo === 'saida') recordsOutTotal++;
+      
       const d = m.data || new Date();
-      const dateIso = d.toISOString().split('T')[0];
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      
+      // Data ISO para ordenação correta na linha do tempo
+      const dateIso = `${year}-${month}-${day}`;
+      // displayDate para rótulo do gráfico
       const displayDate = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      if (!grouped[dateIso]) {
-        grouped[dateIso] = { dateIso, displayDate, entradaFinanceiro: 0, saidaFinanceiro: 0, entradaQtd: 0, saidaQtd: 0 };
+      
+      // Chave de agrupamento baseada no rótulo exibido para consolidar registros do mesmo dia calendárico
+      if (!grouped[displayDate]) {
+        grouped[displayDate] = { dateIso, displayDate, entradaFinanceiro: 0, saidaFinanceiro: 0, entradaQtd: 0, saidaQtd: 0 };
       }
+      
+      // Mantém a dateIso mais recente para garantir a ordem cronológica correta dos meses/dias
+      if (dateIso > grouped[displayDate].dateIso) {
+        grouped[displayDate].dateIso = dateIso;
+      }
+      
       const valTotal = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
       if (m.tipo === 'entrada') {
-          grouped[dateIso].entradaFinanceiro += valTotal;
-          grouped[dateIso].entradaQtd += 1;
+          grouped[displayDate].entradaFinanceiro += valTotal;
+          grouped[displayDate].entradaQtd += 1;
       } else {
-          grouped[dateIso].saidaFinanceiro += valTotal;
-          grouped[dateIso].saidaQtd += 1;
+          grouped[displayDate].saidaFinanceiro += valTotal;
+          grouped[displayDate].saidaQtd += 1;
       }
     });
 

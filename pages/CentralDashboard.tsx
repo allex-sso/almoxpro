@@ -446,7 +446,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
 
       {/* OVERLAY DE PRÉ-VISUALIZAÇÃO */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:relative print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:static print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
             {/* Header de Controle */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
@@ -470,8 +470,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             </div>
 
             {/* Conteúdo do Relatório */}
-            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
+            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto print:static">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:static">
                     <div className="w-full">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
@@ -592,9 +592,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </div>
 
-                        <div className="mb-12">
+                        <div className="mb-12" style={{ display: 'block', height: 'auto', overflow: 'visible' }}>
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black">
+                            <table className="w-full text-[9px] border-collapse border border-black" style={{ tableLayout: 'auto' }}>
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-200">
                                         <th className="border border-black p-2 font-black text-black">Data</th>
