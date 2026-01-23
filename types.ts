@@ -1,3 +1,4 @@
+
 export interface InventoryItem {
   id: string;
   codigo: string;
@@ -35,6 +36,24 @@ export interface Movement {
   turno?: string;
 }
 
+export interface ProductionEntry {
+  id: string;
+  data: Date;
+  tipologia: string;
+  metaDia: number;
+  pecasHoraAlvo: number; 
+  mesa: string;
+  horasTrabalhadas: number;
+  produzido: number;
+  percentual: number;
+  turno: string;
+  semana: string;
+  setor?: string;
+  valA?: number;
+  valB?: number;
+  valC?: number;
+}
+
 export interface ServiceOrder {
   id: string;
   numero: string;
@@ -66,6 +85,7 @@ export interface SectorProfile {
   outUrl: string;
   osUrl: string;
   isCentral?: boolean;
+  isProduction?: boolean;
   sources?: CentralSource[];
 }
 
@@ -90,5 +110,7 @@ export enum Page {
   ALERTS = 'alerts',
   SETTINGS = 'settings',
   CENTRAL_DASHBOARD = 'central_dashboard',
-  CENTRAL_PERFIL = 'central_perfil'
+  CENTRAL_PERFIL = 'central_perfil',
+  PRODUCTION_DASHBOARD = 'production_dashboard',
+  PRODUCTION_DETAILS = 'production_details'
 }

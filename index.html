@@ -56,7 +56,7 @@
         /* CONFIGURAÇÃO GLOBAL DE PÁGINA */
         @page {
           size: A4 portrait;
-          margin: 10mm !important;
+          margin: 15mm !important;
         }
 
         /* PÁGINA ESPECÍFICA PARA ETIQUETAS TÉRMICAS */
@@ -69,24 +69,20 @@
           page: thermal;
         }
 
-        /* RESET DE LAYOUT PARA IMPRESSÃO - CRITICAL FIX */
-        html, body {
+        /* RESET TOTAL DE LAYOUT PARA MÚLTIPLAS PÁGINAS */
+        html, body, #root, #root > div, main, .flex-1, .print-mode-wrapper, .print-container {
           background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
           height: auto !important;
-          min-height: auto !important;
+          min-height: 0 !important;
           overflow: visible !important;
           position: static !important;
-        }
-
-        #root, #root > div {
-          height: auto !important;
-          min-height: auto !important;
-          overflow: visible !important;
           display: block !important;
+          width: 100% !important;
         }
 
+        /* Esconder elementos de interface */
         #root > div > aside,
         #root > div > div > header,
         .no-print,
@@ -98,49 +94,16 @@
           display: none !important;
         }
 
-        /* Força containers que podem estar 'presos' por flex ou fixed a se expandirem */
-        .print-mode-wrapper, 
-        .fixed.inset-0, 
-        main, 
-        .max-w-7xl, 
-        .print-container {
-          display: block !important;
-          position: static !important;
-          width: 100% !important;
-          height: auto !important;
-          min-height: auto !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow: visible !important;
-          visibility: visible !important;
-          background: transparent !important;
-          box-shadow: none !important;
-          border: none !important;
-        }
-
         .printable-area {
           display: block !important;
           width: 100% !important;
-          max-width: 100% !important;
+          height: auto !important;
           padding: 0 !important;
           margin: 0 !important;
-          height: auto !important;
           overflow: visible !important;
-        }
-
-        /* Estilos específicos para etiquetas térmicas */
-        .thermal-label {
-          page-break-after: auto !important;
-          break-after: auto !important;
-          display: flex !important;
-          flex-direction: column !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          width: 50mm !important;
-          height: 50mm !important;
-          padding: 2mm !important;
-          box-sizing: border-box !important;
-          overflow: hidden !important;
+          border: none !important;
+          max-width: none !important;
+          color: black !important;
         }
 
         table { 
@@ -149,12 +112,32 @@
           border-collapse: collapse !important; 
           table-layout: auto !important;
         }
-        tr { page-break-inside: avoid !important; page-break-after: auto !important; }
-        thead { display: table-header-group !important; }
-        tfoot { display: table-footer-group !important; }
         
-        .break-before { page-break-before: always !important; break-before: page !important; }
-        .no-break-inside { page-break-inside: avoid !important; break-inside: avoid !important; }
+        thead { 
+          display: table-header-group !important; 
+        }
+        
+        tr { 
+          page-break-inside: avoid !important; 
+          page-break-after: auto !important; 
+        }
+
+        td, th {
+          word-break: break-word !important;
+        }
+        
+        .no-break-inside { 
+          page-break-inside: avoid !important; 
+          break-inside: avoid !important; 
+        }
+        
+        /* Força a cor do texto para preto na impressão */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          text-shadow: none !important;
+        }
       }
     </style>
     <script type="importmap">

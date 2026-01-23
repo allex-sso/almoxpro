@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List } from 'lucide-react';
 import { Page } from '../types';
 
 interface SidebarProps {
@@ -9,38 +9,19 @@ interface SidebarProps {
   isOpen: boolean;
   toggleOpen: () => void;
   isCentral?: boolean;
+  isProduction?: boolean;
   isMaster?: boolean;
 }
 
-const AlumasaLogo = ({ className }: { className?: string }) => (
-  <svg 
-    version="1.1" 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 720.13 170.5" 
-    className={className}
-    fill="currentColor"
-  >
-    <path d="M58.08,82.26c9.26,0,16.76,7.5,16.76,16.76c0,9.26-7.5,16.76-16.76,16.76c-9.25,0-16.76-7.5-16.76-16.76 C41.33,89.77,48.83,82.26,58.08,82.26" />
-    <path d="M73.45,13.56l35.19,101.65c0.49,1.42,0.27,3-0.61,4.23c-0.87,1.23-2.29,1.96-3.8,1.96H92.88 c-1.99,0-3.76-1.26-4.41-3.14L58.08,30.48L27.7,118.27c-0.65,1.88-2.42,3.14-4.41,3.14H11.94c-1.51,0-2.92-0.73-3.8-1.96 c-0.88-1.23-1.1-2.8-0.61-4.23L42.72,13.56c0.65-1.88,2.42-3.14,4.41-3.14h21.91C71.03,10.43,72.8,11.69,73.45,13.56" />
-    <path d="M179.18,102.72c0.87,0.87,1.37,2.06,1.37,3.3v10.72c0,2.57-2.09,4.66-4.66,4.66h-42.09 c-4.88,0-9.56-1.94-13.01-5.39c-3.45-3.45-5.39-8.13-5.39-13.01V15.09c0-1.24,0.49-2.42,1.37-3.3c0.87-0.87,2.06-1.36,3.3-1.36 h10.72c1.24,0,2.42,0.49,3.3,1.36c0.87,0.88,1.36,2.06,1.36,3.3v81.66c0,1.22,0.49,2.39,1.35,3.25c0.86,0.86,2.03,1.35,3.25,1.35 h35.84C177.12,101.35,178.31,101.84,179.18,102.72" />
-    <path d="M662.04,82.26c9.25,0,16.76,7.5,16.76,16.76c0,9.26-7.5,16.76-16.76,16.76c-9.25,0-16.76-7.5-16.76-16.76 C645.28,89.77,652.78,82.26,662.04,82.26" />
-    <path d="M673,10.43c1.99,0,3.76,1.26,4.41,3.14l35.18,101.65c0.49,1.43,0.27,3-0.61,4.23 c-0.87,1.23-2.29,1.96-3.8,1.96h-11.35c-1.99,0-3.76-1.26-4.41-3.14l-30.39-87.79l-30.39,87.79c-0.65,1.88-2.42,3.14-4.41,3.14 H615.9c-1.51,0-2.92-0.73-3.8-1.96c-0.87-1.23-1.1-2.8-0.61-4.23l35.19-101.65c0.65-1.88,2.42-3.14,4.41-3.14H673z" />
-    <path d="M397.91,11.79c-0.88-0.87-2.06-1.36-3.3-1.36h-27.8c-2.19,0-4.09,1.53-4.55,3.67l-18.95,87.25L324.37,14.1 c-0.46-2.15-2.36-3.67-4.55-3.67h-27.8c-1.24,0-2.42,0.49-3.3,1.36c-0.87,0.88-1.36,2.06-1.36,3.3v101.65 c0,2.58,2.09,4.67,4.66,4.67h10.72c1.24,0,2.42-0.49,3.3-1.37c0.88-0.88,1.37-2.06,1.37-3.3V30.48l18.94,87.25 c0.46,2.14,2.36,3.67,4.55,3.67h24.82c2.19,0,4.09-1.54,4.55-3.67l18.94-87.25v86.26c0,1.24,0.49,2.42,1.37,3.3 c0.88,0.88,2.06,1.37,3.3,1.37h10.72c2.57,0,4.66-2.09,4.66-4.67V15.09C399.27,13.85,398.77,12.66,397.91,11.79" />
-    <path d="M272.4,11.66c-0.88-0.87-2.06-1.36-3.3-1.36h-10.72c-1.24,0-2.42,0.49-3.3,1.36c-0.87,0.88-1.36,2.06-1.36,3.3 v69.42c0,8.93-6.77,16.42-15.66,17.3c-4.78,0.48-9.6,0.48-14.39,0c-8.89-0.89-15.66-8.38-15.66-17.3V14.96 c0-1.24-0.49-2.42-1.36-3.3c-0.88-0.87-2.06-1.36-3.3-1.36h-10.72c-1.24,0-2.43,0.49-3.3,1.36c-0.88,0.88-1.37,2.06-1.37,3.3v69.42 c0,19.22,14.57,35.33,33.71,37.26c6.11,0.61,12.28,0.61,18.39,0c19.13-1.92,33.71-18.03,33.71-37.26V14.96 C273.77,13.72,273.28,12.54,272.4,11.66" />
-    <path d="M689.92,3.68c-3.2,0-5.79,2.59-5.79,5.79s2.59,5.79,5.79,5.79c3.2,0,5.79-2.59,5.79-5.79 S693.12,3.68,689.92,3.68 M692.29,13.06l-0.95-1.49c-0.28-0.43-0.51-0.76-0.69-0.99c-0.18-0.23-0.34-0.39-0.48-0.48 c-0.14-0.09-0.29-0.16-0.43-0.19c-0.11-0.02-0.28-0.03-0.53-0.03h-1.1v3.19h-0.95V5.88h3.18c0.64,0,1.13,0.07,1.46,0.19 c0.33,0.13,0.6,0.36,0.8,0.68c0.2,0.33,0.3,0.69,0.3,1.08c0,0.51-0.16,0.94-0.49,1.29c-0.33,0.35-0.84,0.57-1.53,0.67 c0.25,0.12,0.44,0.24,0.57,0.36c0.28,0.25,0.54,0.57,0.79,0.96l1.25,1.95H692.29z" />
-    <path d="M691.72,8.48c0.13-0.2,0.19-0.41,0.19-0.64c0-0.34-0.12-0.62-0.37-0.84c-0.25-0.22-0.63-0.33-1.17-0.33h-2.27 v2.37h2.04c0.43,0,0.77-0.05,1.02-0.14C691.41,8.82,691.59,8.68,691.72,8.48" />
-    <path d="M461.02,82.26c9.25,0,16.76,7.5,16.76,16.76c0,9.26-7.5,16.76-16.76,16.76c-9.25,0-16.76-7.5-16.76-16.76 C444.26,89.77,451.77,82.26,461.02,82.26" />
-    <path d="M471.98,10.43c1.99,0,3.76,1.26,4.41,3.14l35.18,101.65c0.49,1.43,0.27,3-0.61,4.23 c-0.87,1.23-2.29,1.96-3.8,1.96h-11.35c-1.99,0-3.76-1.26-4.41-3.14l-30.39-87.79l-30.39,87.79c-0.65,1.88-2.42,3.14-4.41,3.14 h-11.35c-1.51,0-2.92-0.73-3.8-1.96c-0.87-1.23-1.1-2.8-0.61-4.23l35.19-101.65c0.65-1.88,2.42-3.14,4.41-3.14H471.98z" />
-    <path d="M573.96,51.46h-21.68c-3.75,0-7.21-2-9.08-5.24c-1.88-3.24-1.88-7.24,0-10.49c1.87-3.24,5.33-5.24,9.08-5.24 h38.26c2.58,0,4.67-2.09,4.67-4.66V15.09c0-1.23-0.49-2.42-1.37-3.3c-0.88-0.87-2.06-1.36-3.3-1.36h-38.26 c-10.92,0-21,5.82-26.45,15.27c-5.45,9.45-5.45,21.09,0,30.54c5.46,9.45,15.54,15.27,26.45,15.27h21.68 c8.24,0,14.93,6.68,14.93,14.93c0,8.24-6.69,14.92-14.93,14.92h-47.54c-2.58,0-4.67,2.09-4.67,4.66v10.73 c0,1.23,0.49,2.42,1.37,3.3c0.88,0.87,2.06,1.36,3.3,1.36h47.54c19.31,0,34.97-15.66,34.97-34.97 C608.93,67.11,593.27,51.46,573.96,51.46" />
-  </svg>
-);
-
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isMaster }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isProduction, isMaster }) => {
   const menuItems = [];
   
   if (isCentral) {
     menuItems.push({ id: Page.CENTRAL_DASHBOARD, label: 'Indicadores de Perfil', icon: LayoutDashboard });
     menuItems.push({ id: Page.CENTRAL_PERFIL, label: 'Perfis', icon: Layers });
+  } else if (isProduction) {
+    menuItems.push({ id: Page.PRODUCTION_DASHBOARD, label: 'Painel de Produção', icon: Factory });
+    menuItems.push({ id: Page.PRODUCTION_DETAILS, label: 'Detalhamento Diário', icon: List });
   } else {
     menuItems.push({ id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard });
     menuItems.push({ id: Page.INVENTORY, label: 'Inventário', icon: Package });
@@ -49,38 +30,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
     menuItems.push({ id: Page.ALERTS, label: 'Alertas', icon: AlertTriangle });
   }
 
-  // Apenas exibe Configurações para o perfil MASTER (Almoxarifado de Peças)
   if (isMaster) {
     menuItems.push({ id: Page.SETTINGS, label: 'Configurações', icon: Settings });
   }
 
   return (
     <>
-      <div 
-        className={`fixed inset-0 bg-black/50 z-20 lg:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={toggleOpen}
-      />
+      <div className={`fixed inset-0 bg-black/50 z-20 lg:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={toggleOpen} />
       <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white dark:bg-dark-card border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} no-print`}>
         <div className="h-full flex flex-col">
-          <div className="py-6 px-6 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center">
-            <AlumasaLogo className="h-8 w-auto text-slate-800 dark:text-white" />
-          </div>
+          <div className="py-6 px-6 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center font-black text-xl tracking-tighter uppercase">ALUMASA</div>
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentPage === item.id;
               return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    onNavigate(item.id);
-                    if (window.innerWidth < 1024) toggleOpen();
-                  }}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-blue-400'
-                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                  }`}
+                <button 
+                  key={item.id} 
+                  onClick={() => { onNavigate(item.id); if (window.innerWidth < 1024) toggleOpen(); }} 
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${isActive ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-blue-400' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}
                 >
                   <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary' : 'text-slate-400'}`} />
                   {item.label}

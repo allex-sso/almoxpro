@@ -1,4 +1,5 @@
 
+// Import React explicitly to support React.FC and other React namespace types
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, 
@@ -23,7 +24,6 @@ const formatDetailedTime = (decimalHours: number | string): string => {
   const m = Math.round((hoursNum - h) * 60);
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
-  // Removido espaço para garantir exibição em linha única no gráfico
   return `${h}h${m}m`;
 };
 
@@ -79,67 +79,69 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const stats = useMemo(() => {
     const total = filteredData.length;
     let totalHours = 0;
-    let executionSum = 0, executionCount = 0;
-    const profResponseMap: Record<string, { sum: number, count: number }> = {};
+    
+    // Mapa para calcular médias por profissional primeiro
+    const profMap: Record<string, { count: number, respSum: number }> = {};
 
     filteredData.forEach(os => {
-      let dHours = 0;
-      if (os.dataInicio && os.dataFim) {
-        const diff = (os.dataFim.getTime() - os.dataInicio.getTime()) / 3600000;
-        if (diff > 0 && diff < 48) dHours = diff;
-      }
-      if (dHours === 0 && os.horas > 0) dHours = os.horas >= 100 ? (Math.floor(os.horas / 100) + (os.horas % 100 / 60)) : os.horas;
-      totalHours += dHours;
+      totalHours += (os.horas || 0);
 
-      if (os.dataAbertura && os.dataInicio) {
-        const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / 3600000;
-        if (diff >= 0 && diff < 1000) {
-          const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['N/A'];
-          names.forEach(name => {
-            if (!profResponseMap[name]) profResponseMap[name] = { sum: 0, count: 0 };
-            profResponseMap[name].sum += diff;
-            profResponseMap[name].count++;
-          });
-        }
-      }
-
-      const startExec = os.dataInicio || os.dataAbertura;
-      if (startExec && os.dataFim) {
-        const diff = (os.dataFim.getTime() - startExec.getTime()) / 3600000;
-        if (diff >= 0 && diff < 1000) { executionSum += diff; executionCount++; }
-      }
-    });
-
-    const sumOfProfAverages = Object.values(profResponseMap).reduce((acc, curr) => acc + (curr.count > 0 ? curr.sum / curr.count : 0), 0);
-    const avgResponseTime = total > 0 ? (sumOfProfAverages / total) : 0;
-
-    return { total, totalHours, avgResponseTime, avgExecutionTime: executionCount > 0 ? executionSum / executionCount : 0 };
-  }, [filteredData]);
-
-  const professionalStats = useMemo(() => {
-    const map: Record<string, { count: number, hours: number, respSum: number, respCount: number }> = {};
-    filteredData.forEach(os => {
-      const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['N/A'];
-      let dHours = 0;
-      if (os.dataInicio && os.dataFim) {
-        const diff = (os.dataFim.getTime() - os.dataInicio.getTime()) / 3600000;
-        if (diff > 0 && diff < 48) dHours = diff;
-      }
-      if (dHours === 0 && os.horas > 0) dHours = os.horas >= 100 ? (Math.floor(os.horas / 100) + (os.horas % 100 / 60)) : os.horas;
-
+      const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['N/D'];
       names.forEach(n => {
-        if (!map[n]) map[n] = { count: 0, hours: 0, respSum: 0, respCount: 0 };
-        map[n].count++;
-        map[n].hours += dHours;
+        if (!profMap[n]) profMap[n] = { count: 0, respSum: 0 };
+        profMap[n].count++;
+        
         if (os.dataAbertura && os.dataInicio) {
           const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / 3600000;
-          if (diff >= 0 && diff < 1000) { map[n].respSum += diff; map[n].respCount++; }
+          if (diff > 0 && diff < 1000) { 
+            profMap[n].respSum += diff; 
+          }
         }
       });
     });
+
+    // LÓGICA SOLICITADA: Soma das Médias dos Profissionais / Total de OS
+    const sumOfProfAverages = Object.values(profMap).reduce((acc, curr) => {
+        const avg = curr.count > 0 ? curr.respSum / curr.count : 0;
+        return acc + avg;
+    }, 0);
+
+    const avgResponseTime = total > 0 ? (sumOfProfAverages / total) : 0;
+    const avgExecutionTime = total > 0 ? (totalHours / total) : 0;
+
+    return { total, totalHours, avgResponseTime, avgExecutionTime };
+  }, [filteredData]);
+
+  const professionalStats = useMemo(() => {
+    const map: Record<string, { count: number, hours: number, respSum: number }> = {};
+    filteredData.forEach(os => {
+      const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['N/D'];
+      const dHours = os.horas || 0;
+
+      names.forEach(n => {
+        if (!map[n]) map[n] = { count: 0, hours: 0, respSum: 0 };
+        map[n].count++;
+        map[n].hours += dHours;
+        
+        if (os.dataAbertura && os.dataInicio) {
+          const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / 3600000;
+          if (diff > 0 && diff < 1000) { 
+            map[n].respSum += diff; 
+          }
+        }
+      });
+    });
+
     return Object.entries(map).map(([name, s]) => ({
-      name, count: s.count, hours: s.hours, avgResp: s.respCount > 0 ? s.respSum / s.respCount : 0
-    })).sort((a, b) => a.avgResp - b.avgResp);
+      name, 
+      count: s.count, 
+      hours: s.hours, 
+      avgResp: s.count > 0 ? s.respSum / s.count : 0
+    })).sort((a, b) => {
+      if (a.avgResp === 0) return 1;
+      if (b.avgResp === 0) return -1;
+      return a.avgResp - b.avgResp;
+    });
   }, [filteredData]);
 
   const assetsDemand = useMemo(() => {
@@ -218,7 +220,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         }
         grouped[reasonStr].count++;
         
-        // Atualiza para a data mais recente caso encontre uma
         const currentData = os.dataAbertura.getTime();
         const storedDateParts = grouped[reasonStr].lastDate.split('/');
         const storedDateObj = new Date(parseInt(storedDateParts[2]), parseInt(storedDateParts[1]) - 1, parseInt(storedDateParts[0])).getTime();
@@ -282,7 +283,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             </div>
           </div>
 
-          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"><Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial</button>
+          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"><Printer className="w-4 h-4 text-rose-500" /> Relatório</button>
         </div>
       </div>
 
@@ -293,10 +294,8 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         <StatCard title="Horas Totais" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
       </div>
 
-      {/* OVERLAY DE PRÉ-VISUALIZAÇÃO (PADRÃO ALUMASA) */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:relative print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
-            {/* Header de Controle */}
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
@@ -318,8 +317,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 </div>
             </div>
 
-            {/* Conteúdo do Relatório */}
-            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto">
+            <div className="print-container flex-1 p-4 md:p-12">
                 <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
                     <div className="w-full">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
@@ -366,7 +364,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </section>
 
-                        <div className="space-y-8 mb-8">
+                        <div className="space-y-8 mb-8 overflow-visible">
                             <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
                                 <table className="w-full text-[9px] border-collapse border border-black">
@@ -389,12 +387,12 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                             <th className="border border-black p-2 text-right font-black text-black">Tempo Total</th>
                                         </tr>
                                     </thead>
-                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d.name}</td><td className="p-2 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
+                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-1.5 font-black bg-gray-100 text-black">{d.name}</td><td className="p-1.5 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
                                 </table>
                             </section>
                         </div>
 
-                        <div className="mb-12" style={{ pageBreakInside: 'auto' }}>
+                        <div className="mb-12 overflow-visible">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
                             <table className="w-full text-[9px] border-collapse border border-black">
                                 <thead style={{ display: 'table-header-group' }}>
@@ -405,9 +403,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                 <tbody>
                                     {filteredData.map((os, i) => {
                                     let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
-                                    let execTime = 0; if (os.dataFim && (os.dataInicio || os.dataAbertura)) execTime = (os.dataFim.getTime() - (os.dataInicio || os.dataAbertura)!.getTime()) / 3600000;
+                                    let execTime = os.horas || 0;
                                     return (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
                                             <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
                                             <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
@@ -432,7 +430,6 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       )}
 
-      {/* DASHBOARD EM TELA (no-print) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <div className="flex items-center mb-6"><Wrench className="w-5 h-5 text-blue-600 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">Abertura por Equipamento (Top 5)</h3></div>
@@ -556,7 +553,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
                     <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
                     <td className="px-6 py-4 text-right">
-                      <span className="inline-flex items-center px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[11px] font-black">
+                      <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${p.avgResp > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>
                         {formatDetailedTimeWithSpace(p.avgResp)}
                       </span>
                     </td>
@@ -668,14 +665,14 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12">
                     <AlertCircle className="w-12 h-12 opacity-20" />
                     <p className="font-bold uppercase tracking-widest text-xs">Nenhuma peça registrada para este equipamento</p>
                   </div>
                 )}
               </div>
             </div>
-            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end"><button onClick={() => setSelectedEquipmentForModal(null)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95">Fechar</button></div>
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end"><button onClick={() => setSelectedEquipmentForModal(null)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700">Fechar</button></div>
           </div>
         </div>
       )}

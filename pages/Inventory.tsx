@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, X, Check, PackageX, Loader2 } from 'lucide-react';
+import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, X, Check, PackageX, Loader2, Trash2 } from 'lucide-react';
 import { InventoryItem } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -79,10 +79,8 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
   const toggleSelectAll = () => {
     const newSelection = new Set(selectedItems);
     if (isAllFilteredSelected) {
-      // Se todos os visíveis estão selecionados, desmarcamos apenas os visíveis
       filteredData.forEach(item => newSelection.delete(item.id));
     } else {
-      // Caso contrário, marcamos todos os visíveis (mantendo seleções de outros filtros se houver)
       filteredData.forEach(item => newSelection.add(item.id));
     }
     setSelectedItems(newSelection);
@@ -200,15 +198,50 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
         </p>
       </div>
       
-      <div className="space-y-6 no-print">
-        <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center sticky top-0 z-20">
+      <div className="space-y-4 no-print sticky top-0 z-20">
+        {/* BARRA DE AÇÕES DE SELEÇÃO (APARECE ACIMA DOS FILTROS) */}
+        {selectedItems.size > 0 && (
+          <div className="flex justify-end animate-in slide-in-from-top-2 duration-300">
+            <div className="bg-white dark:bg-dark-card p-2 px-3 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 flex items-center gap-3">
+              <span className="text-[10px] font-black text-primary uppercase tracking-widest px-2 border-r border-gray-200 dark:border-gray-700 mr-1 flex items-center gap-2">
+                <Check className="w-3 h-3" /> {selectedItems.size} selecionados
+              </span>
+              <button 
+                onClick={handleDownloadZPL}
+                disabled={isGeneratingZPL}
+                className="flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm disabled:opacity-70 active:scale-95"
+                title="Baixar arquivo ZPL"
+              >
+                {isGeneratingZPL ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Tag className="w-3.5 h-3.5 mr-2" />}
+                ZPL (50x50mm)
+              </button>
+              <button 
+                onClick={() => setShowPrintPreview(true)}
+                className="flex items-center px-4 py-2 bg-primary hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95"
+              >
+                <Printer className="w-3.5 h-3.5 mr-2" />
+                Imprimir ({selectedItems.size})
+              </button>
+              <button 
+                onClick={() => setSelectedItems(new Set())}
+                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                title="Limpar seleção"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* BARRA DE FILTRAGEM GLOBAL */}
+        <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center">
           <div className="flex flex-1 gap-4 w-full md:w-auto flex-wrap items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input 
                 type="text"
                 placeholder="Buscar código, nome, local..."
-                className="w-full pl-10 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white transition-shadow"
+                className="w-full pl-10 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white transition-shadow"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -223,7 +256,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
             </div>
             
             <select 
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white"
+              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm font-black dark:text-white appearance-none cursor-pointer"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
@@ -231,7 +264,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
             </select>
 
             <select 
-              className="hidden md:block px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white"
+              className="hidden md:block px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm font-black dark:text-white appearance-none cursor-pointer"
               value={equipmentFilter}
               onChange={(e) => setEquipmentFilter(e.target.value)}
             >
@@ -240,133 +273,113 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
           </div>
 
           <div className="flex gap-2">
-            {selectedItems.size > 0 && (
-              <>
-                <button 
-                  onClick={handleDownloadZPL}
-                  disabled={isGeneratingZPL}
-                  className="flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-70"
-                  title="Baixar arquivo ZPL"
-                >
-                  {isGeneratingZPL ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Tag className="w-4 h-4 mr-2" />}
-                  ZPL (50x50mm)
-                </button>
-                <button 
-                  onClick={() => setShowPrintPreview(true)}
-                  className="flex items-center px-4 py-2 bg-primary hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Imprimir ({selectedItems.size})
-                </button>
-              </>
-            )}
             <button 
               onClick={handleExportCSV}
               disabled={isExportingCSV}
-              className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-70"
+              className="flex items-center px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm disabled:opacity-70 active:scale-95"
             >
-              {isExportingCSV ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {isExportingCSV ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-2" />}
               CSV
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-          {filteredData.length > 0 ? (
-          <div className="overflow-x-auto max-h-[70vh]">
-            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 relative">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300 sticky top-0 z-10 shadow-sm">
-                <tr>
-                  <th className="px-4 py-3 w-4">
+      <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+        {filteredData.length > 0 ? (
+        <div className="overflow-x-auto max-h-[70vh]">
+          <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 relative">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300 sticky top-0 z-10 shadow-sm">
+              <tr>
+                <th className="px-4 py-3 w-4">
+                  <input 
+                    type="checkbox" 
+                    checked={isAllFilteredSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded cursor-pointer"
+                  />
+                </th>
+                <th className="px-6 py-3">Código</th>
+                <th className="px-6 py-3">Descrição</th>
+                <th className="px-6 py-3">Equipamento</th>
+                <th className="px-6 py-3">Localização</th>
+                <th className="px-6 py-3 text-right">Qtd Estoque</th>
+                <th className="px-6 py-3 text-center">Medida</th>
+                <th className="px-6 py-3 text-right">Valor Unit.</th>
+                <th className="px-6 py-3 text-center">Categoria</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.map((item) => (
+                <tr key={item.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-dark-card'}`}>
+                  <td className="px-4 py-4">
                     <input 
                       type="checkbox" 
-                      checked={isAllFilteredSelected}
-                      onChange={toggleSelectAll}
+                      checked={selectedItems.has(item.id)}
+                      onChange={() => toggleSelection(item.id)}
                       className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded cursor-pointer"
                     />
-                  </th>
-                  <th className="px-6 py-3">Código</th>
-                  <th className="px-6 py-3">Descrição</th>
-                  <th className="px-6 py-3">Equipamento</th>
-                  <th className="px-6 py-3">Localização</th>
-                  <th className="px-6 py-3 text-right">Qtd Estoque</th>
-                  <th className="px-6 py-3 text-center">Medida</th>
-                  <th className="px-6 py-3 text-right">Valor Unit.</th>
-                  <th className="px-6 py-3 text-center">Categoria</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.map((item) => (
-                  <tr key={item.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-dark-card'}`}>
-                    <td className="px-4 py-4">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedItems.has(item.id)}
-                        onChange={() => toggleSelection(item.id)}
-                        className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap font-mono">{item.codigo}</td>
-                    <td className="px-6 py-4 max-w-xs truncate">{item.descricao}</td>
-                    <td className="px-6 py-4">
-                      {item.equipamento ? (
-                        <span className="bg-blue-100 text-blue-800 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          {item.equipamento}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 italic text-xs">N/D</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-slate-600 dark:text-slate-300 text-xs">
-                      {item.localizacao || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-800 dark:text-white">{item.quantidadeAtual}</td>
-                    <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 text-xs uppercase">
-                        {item.unidade || 'un.'}
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono text-xs">R$ {item.valorUnitario.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                        {item.categoria}
+                  </td>
+                  <td className="px-6 py-4 font-black text-gray-900 dark:text-white whitespace-nowrap font-mono">{item.codigo}</td>
+                  <td className="px-6 py-4 max-w-xs truncate">{item.descricao}</td>
+                  <td className="px-6 py-4">
+                    {item.equipamento ? (
+                      <span className="bg-blue-100 text-blue-800 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        {item.equipamento}
                       </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-                <PackageX className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
-                <h3 className="text-lg font-medium mb-1">Nenhum item encontrado</h3>
-                <p className="text-sm">Tente ajustar os filtros ou a busca.</p>
-            </div>
-          )}
-
-          {filteredData.length > 0 && (
-          <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
-            <span className="text-sm text-gray-700 dark:text-gray-400">
-              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
-            </span>
-            <div className="inline-flex gap-2">
-              <button 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          )}
+                    ) : (
+                      <span className="text-gray-400 italic text-xs">N/D</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 font-mono text-slate-600 dark:text-slate-300 text-xs">
+                    {item.localizacao || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right font-black text-slate-800 dark:text-white">{item.quantidadeAtual}</td>
+                  <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 text-xs uppercase font-bold">
+                      {item.unidade || 'un.'}
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono text-xs">R$ {item.valorUnitario.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                      {item.categoria}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
+              <PackageX className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
+              <h3 className="text-lg font-medium mb-1">Nenhum item encontrado</h3>
+              <p className="text-sm">Tente ajustar os filtros ou a busca.</p>
+          </div>
+        )}
+
+        {filteredData.length > 0 && (
+        <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
+          <span className="text-sm text-gray-700 dark:text-gray-400">
+            Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
+          </span>
+          <div className="inline-flex gap-2">
+            <button 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        )}
       </div>
 
       {/* --- PREVIEW OVERLAY --- */}
@@ -393,7 +406,6 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
              </div>
           </div>
 
-          {/* ÁREA IMPRESSA - ETIQUETAS EM ROLO (PÁGINA NOMEADA 'THERMAL') */}
           <div className="thermal-label-container printable-area flex flex-row flex-wrap justify-start content-start bg-white w-full h-auto overflow-visible p-0 m-0">
                {selectedItemsList.map((item) => (
                   <div 
@@ -401,19 +413,14 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
                     className="thermal-label"
                     style={{ width: '50mm', height: '50mm' }}
                   >
-                     {/* TOPO: CÓDIGO GIGANTE */}
                      <div className="w-full text-center mt-0">
                         <span className="text-5xl font-black text-black tracking-tighter leading-none block">
                           {item.codigo}
                         </span>
                      </div>
-                     
-                     {/* MEIO: QR CODE (TAMANHO ÓTIMO PARA SCANNER) */}
                      <div className="flex-1 flex items-center justify-center py-1">
                        <QRCodeSVG value={item.codigo} size={70} level="H" />
                      </div>
-                     
-                     {/* BASE: DESCRIÇÃO */}
                      <div className="w-full text-center pb-1">
                         <p className="text-[9px] font-bold text-black uppercase leading-tight line-clamp-2 px-1">
                           {item.descricao}

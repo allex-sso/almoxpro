@@ -26,10 +26,21 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
          res = res.filter(item => item.categoria === categoryFilter);
      }
      if (equipmentFilter !== 'Todos') {
-         res = res.filter(item => item.equipamento === equipmentFilter);
+         res = res.filter(item => item.equipment === equipmentFilter);
      }
      return res;
   }, [data, categoryFilter, equipmentFilter]);
+
+  // Função auxiliar para abreviar unidades
+  const formatUnitShort = (unit: string) => {
+    const u = (unit || '').toLowerCase().trim();
+    if (u.includes('unidade')) return 'uni';
+    if (u.includes('metro')) return 'mt';
+    if (u.includes('peca')) return 'pc';
+    if (u.includes('quilo') || u === 'kg') return 'kg';
+    if (u.includes('litro')) return 'lt';
+    return u || 'uni';
+  };
 
   // Gráfico: Itens Mais Consumidos (Saídas físicas)
   const topConsumedItems = useMemo(() => {
@@ -81,8 +92,10 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
 
     inMovements.forEach(m => {
       let forn = m.fornecedor?.trim() || 'Não Identificado';
-      if (forn.toLowerCase() === 'n/d' || forn === '-' || forn === '') forn = 'Outros';
-      const key = forn.toUpperCase();
+      if (forn.toLowerCase() === 'n/d' || forn === '-' || forn === '' || forn.toLowerCase() === '0') {
+        forn = 'Outros';
+      }
+      const key = forn.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
       const value = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
       if (value > 0) {
         if (!map[key]) map[key] = 0;
@@ -91,10 +104,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
     });
 
     return Object.entries(map)
-      .map(([name, value]) => ({ 
-        name: name.charAt(0) + name.slice(1).toLowerCase(), 
-        value 
-      }))
+      .map(([name, value]) => ({ name, value }))
       .filter(item => item.value > 0)
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
@@ -120,8 +130,12 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
         .map(([name, stats]) => {
             let topCode = ''; let max = 0;
             Object.entries(stats.items).forEach(([c, q]) => { if (q > max) { max = q; topCode = c; } });
-            const desc = data.find(d => d.codigo === topCode)?.descricao || `Item ${topCode}`;
-            return { name, totalQty: stats.totalQty, requestCount: stats.count, topItem: desc, topItemQty: max };
+            
+            const itemObj = data.find(d => d.codigo === topCode);
+            const desc = itemObj?.descricao || `Item ${topCode}`;
+            const unit = itemObj?.unidade || 'un';
+
+            return { name, totalQty: stats.totalQty, requestCount: stats.count, topItem: desc, topItemQty: max, unit };
         })
         .sort((a, b) => b.totalQty - a.totalQty);
   }, [movements, data]);
@@ -303,7 +317,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300">
                     <tr>
                         <th className="px-6 py-4">Funcionário</th>
-                        <th className="px-6 py-4 text-center">Barras Retiradas</th>
+                        <th className="px-6 py-4 text-center">Quantidade Retirada</th>
                         <th className="px-6 py-4 text-center">Nº Requisições</th>
                         <th className="px-6 py-4">Item mais solicitado</th>
                     </tr>
@@ -315,7 +329,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
                             <td className="px-6 py-4 text-center font-black text-blue-600">{item.totalQty}</td>
                             <td className="px-6 py-4 text-center text-slate-500">{item.requestCount}</td>
                             <td className="px-6 py-4 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                {item.topItem} <span className="opacity-50">({item.topItemQty} un)</span>
+                                {item.topItem} <span className="opacity-50">({item.topItemQty} {formatUnitShort(item.unit)})</span>
                             </td>
                         </tr>
                     ))}

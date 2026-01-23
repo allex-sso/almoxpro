@@ -23,19 +23,15 @@ const months = [
 ];
 
 const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) => {
-  const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#475569'];
-  
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedSectorForModal, setSelectedSectorForModal] = useState<string | null>(null);
-  const [selectedRequesterForModal, setSelectedRequesterForModal] = useState<string | null>(null);
+  const [selectedRequesterForReasons, setSelectedRequesterForReasons] = useState<string | null>(null);
 
-  // Estados para Paginação do Ranking
   const [requesterPage, setRequesterPage] = useState(1);
   const requesterItemsPerPage = 10;
 
-  // Resetar página quando mudar o filtro
   useEffect(() => {
     setRequesterPage(1);
   }, [selectedYear, selectedMonth]);
@@ -64,7 +60,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
     let totalItems = 0;
     
     let turno1Qty = 0;
-    let turno2Qty = 0;
+    let turno23Qty = 0;
 
     const movementCount = filteredData.length;
 
@@ -78,14 +74,14 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       byRequester[req].total += m.quantidade;
       byRequester[req].count += 1;
       
-      const reason = m.motivo || 'Geral/Não especificado';
+      const reason = m.motivo || 'Geral';
       byReason[reason] = (byReason[reason] || 0) + m.quantidade;
 
       const t = String(m.turno || '').toLowerCase();
       if (t.includes('1')) {
         turno1Qty += m.quantidade;
       } else if (t.includes('2') || t.includes('3')) {
-        turno2Qty += m.quantidade;
+        turno23Qty += m.quantidade;
       }
     });
 
@@ -100,90 +96,100 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             <div className="h-8 w-px bg-white/20 mx-4"></div>
             <div className="flex flex-col">
                 <span className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">2º + 3º Turno</span>
-                <span className="text-xl font-black font-mono tracking-tighter">{turno2Qty.toLocaleString('pt-BR')}</span>
+                <span className="text-xl font-black font-mono tracking-tighter">{turno23Qty.toLocaleString('pt-BR')}</span>
             </div>
         </div>
     );
 
-    const rawReasons = Object.entries(byReason)
-      .map(([name, value]) => ({ name, value }))
+    const reasonData = Object.entries(byReason)
+      .map(([name, value]) => ({ 
+        name: name.toUpperCase(), 
+        value,
+        percent: totalItems > 0 ? Number(((value / totalItems) * 100).toFixed(1)) : 0
+      }))
       .sort((a,b) => b.value - a.value)
-      .slice(0, 6); 
+      .slice(0, 10);
 
-    const reasonDataWithMetrics = rawReasons.map(r => {
-      const percent = totalItems > 0 ? Number(((r.value / totalItems) * 100).toFixed(1)) : 0;
-      return {
-        ...r,
-        percent
-      };
-    });
+    const sectorData = Object.entries(bySector)
+      .map(([name, value]) => ({ name: name.toUpperCase(), value }))
+      .sort((a,b) => b.value - a.value)
+      .slice(0, 15);
 
     return {
       totalItems,
       movementCount,
       avgPerMovement,
       shiftInfo,
-      sectorData: Object.entries(bySector).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 10),
+      turno1Qty,
+      turno23Qty,
+      sectorData,
       requesterData: Object.entries(byRequester).map(([name, s]) => ({ 
         name, 
         total: s.total, 
         count: s.count,
         avg: (s.total / s.count).toFixed(2) 
       })).sort((a,b) => b.count - a.count),
-      reasonData: reasonDataWithMetrics
+      reasonData
     };
   }, [filteredData]);
 
-  // Paginação da Tabela de Solicitantes
+  const profileSummary = useMemo(() => {
+    const map = new Map<string, { perfil: string, cor: string, quantidade: number }>();
+    filteredData.forEach(m => {
+      const perfil = m.perfil || 'Não especificado';
+      const cor = m.cor || 'N/D';
+      const key = `${perfil}|${cor}`;
+      if (map.has(key)) {
+        const existing = map.get(key)!;
+        existing.quantidade += m.quantidade;
+      } else {
+        map.set(key, { perfil, cor, quantidade: m.quantidade });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.quantidade - a.quantidade);
+  }, [filteredData]);
+
   const totalRequesterPages = Math.ceil(metrics.requesterData.length / requesterItemsPerPage);
   const paginatedRequesterData = useMemo(() => {
     const start = (requesterPage - 1) * requesterItemsPerPage;
     return metrics.requesterData.slice(start, start + requesterItemsPerPage);
   }, [metrics.requesterData, requesterPage]);
 
-  const sectorReasonsData = useMemo(() => {
-    if (!selectedSectorForModal) return [];
+  const sectorDetails = useMemo(() => {
+    if (!selectedSectorForModal) return null;
+    const sectorMovements = filteredData.filter(m => (m.setor || 'Outros').toUpperCase() === selectedSectorForModal);
+    const totalBarsInSector = sectorMovements.reduce((acc, m) => acc + m.quantidade, 0);
     const map: Record<string, { reason: string, qty: number, count: number }> = {};
-    
-    filteredData
-      .filter(m => m.setor === selectedSectorForModal)
-      .forEach(m => {
-        const reason = m.motivo || 'Geral / Não especificado';
-        if (!map[reason]) {
-          map[reason] = { reason, qty: 0, count: 0 };
-        }
-        map[reason].qty += m.quantidade;
-        map[reason].count += 1;
-      });
-      
-    return Object.values(map).sort((a, b) => b.qty - a.qty);
+    sectorMovements.forEach(m => {
+      const reason = m.motivo || 'Geral';
+      if (!map[reason]) map[reason] = { reason, qty: 0, count: 0 };
+      map[reason].qty += m.quantidade;
+      map[reason].count += 1;
+    });
+    const reasons = Object.values(map).map(r => ({
+        ...r,
+        percent: totalBarsInSector > 0 ? ((r.qty / totalBarsInSector) * 100).toFixed(1) : "0"
+      })).sort((a, b) => b.qty - a.qty);
+    return { name: selectedSectorForModal, totalBars: totalBarsInSector, reasons };
   }, [selectedSectorForModal, filteredData]);
 
-  const requesterReasonsData = useMemo(() => {
-    if (!selectedRequesterForModal) return [];
+  const requesterDetails = useMemo(() => {
+    if (!selectedRequesterForReasons) return null;
+    const reqMovements = filteredData.filter(m => (m.responsavel || 'N/D') === selectedRequesterForReasons);
+    const totalBars = reqMovements.reduce((acc, m) => acc + m.quantidade, 0);
     const map: Record<string, { reason: string, qty: number, count: number }> = {};
-    
-    filteredData
-      .filter(m => m.responsavel === selectedRequesterForModal)
-      .forEach(m => {
-        const reason = m.motivo || 'Geral / Não especificado';
-        if (!map[reason]) {
-          map[reason] = { reason, qty: 0, count: 0 };
-        }
-        map[reason].qty += m.quantidade;
-        map[reason].count += 1;
-      });
-      
-    return Object.values(map).sort((a, b) => b.qty - a.qty);
-  }, [selectedRequesterForModal, filteredData]);
-
-  const totalQtyInSectorModal = useMemo(() => 
-    sectorReasonsData.reduce((acc, curr) => acc + curr.qty, 0)
-  , [sectorReasonsData]);
-
-  const totalQtyInRequesterModal = useMemo(() => 
-    requesterReasonsData.reduce((acc, curr) => acc + curr.qty, 0)
-  , [requesterReasonsData]);
+    reqMovements.forEach(m => {
+      const reason = m.motivo || 'Geral';
+      if (!map[reason]) map[reason] = { reason, qty: 0, count: 0 };
+      map[reason].qty += m.quantidade;
+      map[reason].count += 1;
+    });
+    const reasons = Object.values(map).map(r => ({
+        ...r,
+        percent: totalBars > 0 ? ((r.qty / totalBars) * 100).toFixed(1) : "0"
+      })).sort((a, b) => b.qty - a.qty);
+    return { name: selectedRequesterForReasons, totalBars, reasons };
+  }, [selectedRequesterForReasons, filteredData]);
 
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
@@ -208,166 +214,126 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2">
                 <div className="flex items-center gap-2 px-2 border-r border-gray-100 dark:border-gray-800 mr-1">
                     <Calendar className="w-4 h-4 text-emerald-500" />
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar Período:</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">FILTRAR PERÍODO:</span>
                 </div>
-
                 <div className="relative flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-2 py-1.5 border border-gray-200 dark:border-gray-700 min-w-[100px]">
-                   <span className="text-[9px] font-black text-slate-400 mr-2 uppercase">Ano</span>
-                   <select 
-                     value={selectedYear}
-                     onChange={(e) => setSelectedYear(e.target.value)}
-                     className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer appearance-none pr-4 z-10 w-full"
-                   >
-                     {yearOptions.map(y => (
-                       <option key={y} value={y} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{y}</option>
-                     ))}
+                   <span className="text-[9px] font-black text-slate-400 mr-2 uppercase">ANO</span>
+                   <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer appearance-none pr-4 z-10 w-full">
+                     {yearOptions.map(y => (<option key={y} value={y} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{y}</option>))}
                    </select>
                    <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
                 </div>
-
                 <div className="relative flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-2 py-1.5 border border-gray-200 dark:border-gray-700 min-w-[130px]">
-                   <span className="text-[9px] font-black text-slate-400 mr-2 uppercase">Mês</span>
-                   <select 
-                     value={selectedMonth}
-                     onChange={(e) => setSelectedMonth(e.target.value)}
-                     className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer appearance-none pr-4 z-10 w-full"
-                   >
+                   <span className="text-[9px] font-black text-slate-400 mr-2 uppercase">MÊS</span>
+                   <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer appearance-none pr-4 z-10 w-full">
                      <option value="Todos" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Todos</option>
-                     {months.map(m => (
-                       <option key={m} value={m} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{m}</option>
-                     ))}
+                     {months.map(m => (<option key={m} value={m} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{m}</option>))}
                    </select>
                    <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
                 </div>
             </div>
-
-            <button 
-                onClick={() => setShowPrintPreview(true)} 
-                className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"
-            >
-                <Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial
+            <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95">
+                <Printer className="w-4 h-4 text-rose-500" /> Relatório
             </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
-        <StatCard title="Saída Total de Barras" value={metrics.totalItems.toLocaleString('pt-BR')} icon={Package} color="blue" />
-        <StatCard title="Consumo por Turno" value={metrics.shiftInfo} icon={Clock} color="green" />
-        <StatCard title="Solicitantes Ativos" value={metrics.requesterData.length} icon={Users} color="purple" />
-        <StatCard title="Média de Itens p/ Saída" value={metrics.avgPerMovement} icon={Activity} color="blue" />
+        <StatCard title="SAÍDA TOTAL DE BARRAS" value={metrics.totalItems.toLocaleString('pt-BR')} icon={Package} color="blue" />
+        <StatCard title="CONSUMO POR TURNO" value={metrics.shiftInfo} icon={Clock} color="green" />
+        <StatCard title="SOLICITANTES ATIVOS" value={metrics.requesterData.length} icon={Users} color="purple" />
+        <StatCard title="MÉDIA DE ITENS P/ SAÍDA" value={metrics.avgPerMovement} icon={Activity} color="blue" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
-        {/* Gráfico: Quantidade por Setor */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <Building className="w-5 h-5 text-blue-500" /> Quantidade por Setor
-          </h3>
-          <div className="h-72">
+          <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2 uppercase tracking-tight text-sm"><Building className="w-5 h-5 text-blue-500" /> Quantidade por Setor</h3>
+          <div className="h-80">
             {metrics.sectorData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.sectorData} layout="vertical" margin={{ right: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <BarChart data={metrics.sectorData} layout="vertical" margin={{ right: 80, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.3} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10}} />
-                  <Bar 
-                    dataKey="value" 
-                    fill="#2563eb" 
-                    radius={[0, 4, 4, 0]} 
-                    barSize={24}
-                    className="cursor-pointer"
-                    onClick={(data) => {
-                      if (data && data.name) {
-                        setSelectedSectorForModal(data.name);
-                      }
-                    }}
-                  >
-                    <LabelList 
-                      dataKey="value" 
-                      position="insideRight" 
-                      offset={10}
-                      formatter={(value: number) => {
+                  <YAxis dataKey="name" type="category" width={140} tick={{fontSize: 9, fontBold: 'bold', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={24} className="cursor-pointer" onClick={(data) => data && data.name && setSelectedSectorForModal(data.name)}>
+                    <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => {
                         const percent = metrics.totalItems > 0 ? ((value / metrics.totalItems) * 100).toFixed(1) : "0";
                         return `${percent}%`;
-                      }}
-                      style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
-                    />
-                    <LabelList 
-                      dataKey="value" 
-                      position="right" 
-                      style={{ fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }} 
-                      formatter={(val: number) => val.toLocaleString('pt-BR')}
-                    />
+                    }} style={{ fill: '#ffffff', fontSize: '10px', fontWeight: '900' }} />
+                    <LabelList dataKey="value" position="right" style={{ fill: '#64748b', fontSize: '11px', fontWeight: 'bold' }} formatter={(val: number) => val.toLocaleString('pt-BR')} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
-            )}
+            ) : (<div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>)}
           </div>
         </div>
 
-        {/* Gráfico: Volume por Motivo (Barras Duplas) */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <h3 className="font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-500" /> Consumo por Motivo (Volume e Percentual)
-          </h3>
-          <div className="h-72">
+          <h3 className="font-bold text-slate-800 dark:text-white mb-8 flex items-center gap-2 uppercase tracking-tight text-sm"><TrendingUp className="w-5 h-5 text-emerald-500" /> Consumo por Motivo (Volume e Percentual)</h3>
+          <div className="h-80">
             {metrics.reasonData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart 
-                  data={metrics.reasonData} 
-                  margin={{ top: 30, right: 30, left: 10, bottom: 20 }}
-                  barGap={8}
+                    data={metrics.reasonData} 
+                    margin={{ top: 30, right: 10, left: 10, bottom: 40 }} 
+                    barGap={6}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.4} />
                   <XAxis 
                     dataKey="name" 
-                    tick={{fontSize: 9, fontWeight: 'bold'}} 
+                    tick={{fontSize: 9, fontWeight: '900', fill: '#64748b'}} 
                     interval={0} 
-                    angle={-15} 
+                    angle={-25} 
                     textAnchor="end" 
+                    axisLine={false}
+                    tickLine={false}
                   />
-                  <YAxis yAxisId="left" type="number" hide />
-                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} hide />
+                  <YAxis yAxisId="left" hide />
+                  <YAxis yAxisId="right" orientation="right" hide />
+                  
                   <Bar 
-                    yAxisId="left"
+                    yAxisId="left" 
                     dataKey="value" 
-                    name="Barras"
-                    fill="#3b82f6"
+                    name="Barras" 
+                    fill="#3b82f6" 
                     radius={[4, 4, 0, 0]} 
-                    barSize={20}
+                    barSize={24}
                   >
                     <LabelList 
                       dataKey="value" 
                       position="top" 
-                      offset={10}
-                      style={{ fill: '#3b82f6', fontSize: '10px', fontWeight: '900' }} 
-                      formatter={(val: number) => val.toLocaleString('pt-BR')}
+                      offset={12} 
+                      style={{ fill: '#3b82f6', fontSize: '11px', fontWeight: '900' }} 
+                      formatter={(val: number) => val.toLocaleString('pt-BR')} 
                     />
                   </Bar>
+
                   <Bar 
-                    yAxisId="right"
+                    yAxisId="right" 
                     dataKey="percent" 
-                    name="Percentual (%)"
-                    fill="#10b981"
+                    name="Percentual (%)" 
+                    fill="#10b981" 
                     radius={[4, 4, 0, 0]} 
-                    barSize={20}
+                    barSize={24}
                   >
                     <LabelList 
                       dataKey="percent" 
                       position="top" 
-                      offset={10}
-                      formatter={(val: number) => `${val}%`}
-                      style={{ fill: '#10b981', fontSize: '10px', fontWeight: '900' }}
+                      offset={12} 
+                      formatter={(val: number) => `${val}%`} 
+                      style={{ fill: '#10b981', fontSize: '11px', fontWeight: '900' }} 
                     />
                   </Bar>
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={40} 
+                    iconType="circle" 
+                    wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '30px' }} 
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
-            )}
+            ) : (<div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>)}
           </div>
         </div>
       </div>
@@ -390,16 +356,16 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {paginatedRequesterData.map((req, i) => (
                   <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors group">
-                    <td className="px-6 py-4 font-bold dark:text-white">{req.name}</td>
-                    <td 
-                      className="px-6 py-4 text-right cursor-pointer"
-                      onClick={() => setSelectedRequesterForModal(req.name)}
-                    >
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="px-4 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-xl font-black text-sm transition-all group-hover:bg-blue-500/20">
+                    <td className="px-6 py-4 font-bold dark:text-white uppercase">{req.name}</td>
+                    <td className="px-6 py-4 text-right">
+                      <div 
+                        className="flex items-center justify-end gap-2 group/btn cursor-pointer"
+                        onClick={() => setSelectedRequesterForReasons(req.name)}
+                      >
+                        <span className="px-4 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-xl font-black text-sm transition-all group-hover/btn:bg-blue-500/20">
                             {req.total.toLocaleString('pt-BR')}
                         </span>
-                        <MessageCircle className="w-3.5 h-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <MessageCircle className="w-4 h-4 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -410,11 +376,6 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                     <td className="px-6 py-4 text-center text-slate-500 font-mono font-bold">{req.avg}</td>
                   </tr>
                 ))}
-                {metrics.requesterData.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-slate-400 italic">Nenhum registro encontrado nas fontes ou período selecionado</td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -444,335 +405,268 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
           )}
       </div>
 
-      {/* OVERLAY DE PRÉ-VISUALIZAÇÃO */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:static print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
-            {/* Header de Controle */}
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
                     <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial de Perfil</span>
                 </div>
                 <div className="flex gap-3">
-                    <button 
-                        onClick={() => setShowPrintPreview(false)}
-                        className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"
-                    >
-                        <X className="w-4 h-4 mr-2" /> Voltar
-                    </button>
-                    <button 
-                        onClick={handleConfirmPrint}
-                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"
-                    >
-                        <Check className="w-4 h-4 mr-2" /> Confirmar Impressão
-                    </button>
+                    <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
+                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
                 </div>
             </div>
 
-            {/* Conteúdo do Relatório */}
-            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto print:static">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:static">
+            <div className="print-container flex-1 p-4 md:p-12">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:max-w-none">
                     <div className="w-full">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
-                            <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
-                            <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
+                            <h1 className="text-5xl font-black mb-1 text-black">ALUMASA</h1>
+                            <p className="text-xl font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
                             <div className="py-2">
                                 <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO DE PERFIL</h2>
-                                <p className="text-xs font-bold text-black">Consolidado de Consumo de Perfis</p>
+                                <p className="text-xs font-bold text-black uppercase">Consolidado de Consumo de Perfis - Período: {selectedMonth}/{selectedYear}</p>
                             </div>
                         </header>
 
-                        <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                        <section className="mb-10 no-break-inside">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO (INDICADORES GERAIS)</h3>
+                            <table className="w-full text-sm border-collapse border border-black">
                                 <tbody>
                                     <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td>
-                                        <td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td>
+                                      <td className="border-r border-black p-3 font-black w-1/3 bg-gray-50 text-black">Total de Barras Saída</td>
+                                      <td className="p-3 font-black text-black text-lg">{metrics.totalItems.toLocaleString('pt-BR')} unidades</td>
                                     </tr>
                                     <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Período de Referência</td>
-                                        <td className="p-2 font-black text-black">{selectedMonth} / {selectedYear}</td>
+                                      <td className="border-r border-black p-3 font-black bg-gray-50 text-black">Consumo Médio por Requisição</td>
+                                      <td className="p-3 font-black text-black text-lg">{metrics.avgPerMovement} barras/saída</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                      <td className="border-r border-black p-3 font-black bg-gray-50 text-black">Total de Solicitantes Ativos</td>
+                                      <td className="p-3 font-black text-black text-lg">{metrics.requesterData.length} colaboradores</td>
                                     </tr>
                                     <tr>
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td>
-                                        <td className="p-2 font-black text-black">Gerencial / Auditoria Consolidada</td>
+                                      <td className="border-r border-black p-3 font-black bg-gray-50 text-black">Total de Lançamentos</td>
+                                      <td className="p-3 font-black text-black text-lg">{metrics.movementCount} registros</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </section>
 
-                        <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE CONSUMO</h3>
+                        <section className="mb-10 no-break-inside">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO DE CONSUMO POR TURNO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black">
-                                <tbody>
-                                    <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de Barras Despachadas</td>
-                                        <td className="p-2 font-black text-black">{metrics.totalItems.toLocaleString('pt-BR')}</td>
-                                    </tr>
-                                    <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Média de Itens por Requisição</td>
-                                        <td className="p-2 font-black text-black">{metrics.avgPerMovement}</td>
-                                    </tr>
-                                    <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Registros (Saídas)</td>
-                                        <td className="p-2 font-black text-black">{metrics.movementCount}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Nº de Solicitantes Atendidos</td>
-                                        <td className="p-2 font-black text-black">{metrics.requesterData.length}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <div className="space-y-8 mb-8">
-                            <section className="no-break-inside">
-                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO POR SETOR</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black">
-                                    <thead>
-                                        <tr className="bg-gray-200">
-                                            <th className="border border-black p-2 text-left font-black text-black">Setor</th>
-                                            <th className="border border-black p-2 text-center font-black text-black">Barras</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {metrics.sectorData.map((s, i) => (
-                                            <tr key={i} className="border-b border-black">
-                                                <td className="border-r border-black p-1.5 font-bold text-black">{s.name}</td>
-                                                <td className="p-1.5 text-center font-black text-black">{s.value.toLocaleString('pt-BR')}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </section>
-                            
-                            <section className="no-break-inside">
-                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">CONSUMO POR MOTIVO</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black">
-                                    <thead>
-                                        <tr className="bg-gray-200">
-                                            <th className="border border-black p-2 text-left font-black text-black">Motivo</th>
-                                            <th className="border border-black p-2 text-center font-black text-black">Barras</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {metrics.reasonData.map((r, i) => (
-                                            <tr key={i} className="border-b border-black">
-                                                <td className="border-r border-black p-1.5 font-bold text-black">{r.name}</td>
-                                                <td className="p-1.5 text-center font-black text-black">{r.value.toLocaleString('pt-BR')}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </section>
-                        </div>
-
-                        <div className="mb-12">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING COMPLETO DE SOLICITANTES</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
-                                <thead style={{ display: 'table-header-group' }}>
-                                    <tr className="bg-gray-200">
-                                        <th className="border border-black p-2 text-left font-black text-black">Profissional</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Barras Totais</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Nº Saídas</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Média</th>
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Turno Operacional</th>
+                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Qtd. Barras</th>
+                                      <th className="border border-black p-2 text-center font-black uppercase text-black">Percentual (%)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {metrics.requesterData.map((req, i) => (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-2 font-black text-black">{req.name}</td>
-                                            <td className="border-r border-black p-2 text-center font-black text-black">{req.total.toLocaleString('pt-BR')}</td>
+                                    <tr className="border-b border-black">
+                                        <td className="border-r border-black p-2 font-bold text-black uppercase">1º Turno (Manhã)</td>
+                                        <td className="border-r border-black p-2 text-right font-black text-black">{metrics.turno1Qty.toLocaleString('pt-BR')}</td>
+                                        <td className="p-2 text-center font-black text-black">{((metrics.turno1Qty / metrics.totalItems) * 100 || 0).toFixed(1)}%</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border-r border-black p-2 font-bold text-black uppercase">2º e 3º Turno (Tarde/Noite)</td>
+                                        <td className="border-r border-black p-2 text-right font-black text-black">{metrics.turno23Qty.toLocaleString('pt-BR')}</td>
+                                        <td className="p-2 text-center font-black text-black">{((metrics.turno23Qty / metrics.totalItems) * 100 || 0).toFixed(1)}%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-10">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DEMANDA POR SETOR (TOP 15)</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-100">
+                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Setor Solicitante</th>
+                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Qtd. Total Barras</th>
+                                      <th className="border border-black p-2 text-center font-black uppercase text-black">Participação (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.sectorData.map((item, idx) => (
+                                        <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-2 font-bold text-black uppercase">{item.name}</td>
+                                            <td className="border-r border-black p-2 text-right font-black text-black">{item.value.toLocaleString('pt-BR')}</td>
+                                            <td className="p-2 text-center font-black text-black">{((item.value / metrics.totalItems) * 100 || 0).toFixed(1)}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-10 no-break-inside">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">ANÁLISE DE CONSUMO POR MOTIVO</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black">
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Motivo da Retirada</th>
+                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Volume (Barras)</th>
+                                      <th className="border border-black p-2 text-center font-black uppercase text-black">Percentual (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.reasonData.map((item, idx) => (
+                                        <tr key={idx} className="border-b border-black">
+                                            <td className="border-r border-black p-2 font-bold text-black uppercase">{item.name}</td>
+                                            <td className="border-r border-black p-2 text-right font-black text-black">{item.value.toLocaleString('pt-BR')}</td>
+                                            <td className="p-2 text-center font-black text-black">{item.percent}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-10 overflow-visible">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">ESTOQUE CONSOLIDADO DE PERFIS (POR MODELO/COR)</h3>
+                            <table className="w-full text-[8px] border-collapse border border-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-100">
+                                      <th className="border border-black p-1.5 text-left font-black uppercase text-black">Modelo do Perfil</th>
+                                      <th className="border border-black p-1.5 text-left font-black uppercase text-black">Cor / Especificação</th>
+                                      <th className="border border-black p-1.5 text-right font-black uppercase text-black">Qtd. Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {profileSummary.map((item, idx) => (
+                                        <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-1.5 font-bold text-black uppercase">{item.perfil}</td>
+                                            <td className="border-r border-black p-1.5 text-black uppercase">{item.cor}</td>
+                                            <td className="p-1.5 text-right font-black text-black">{item.quantidade.toLocaleString('pt-BR')}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-10 overflow-visible">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE CONSUMO POR SOLICITANTE</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-100">
+                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Nome do Solicitante</th>
+                                      <th className="border border-black p-2 text-center font-black uppercase text-black">Requisições</th>
+                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Barras Totais</th>
+                                      <th className="border border-black p-2 text-center font-black uppercase text-black">Média Saída</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.requesterData.map((req, idx) => (
+                                        <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-2 font-bold text-black uppercase">{req.name}</td>
                                             <td className="border-r border-black p-2 text-center font-black text-black">{req.count}</td>
+                                            <td className="border-r border-black p-2 text-right font-black text-black">{req.total.toLocaleString('pt-BR')}</td>
                                             <td className="p-2 text-center font-black text-black">{req.avg}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                        </section>
 
-                        <div className="mb-12" style={{ display: 'block', height: 'auto', overflow: 'visible' }}>
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE MOVIMENTAÇÕES (PERFIL)</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black" style={{ tableLayout: 'auto' }}>
-                                <thead style={{ display: 'table-header-group' }}>
-                                    <tr className="bg-gray-200">
-                                        <th className="border border-black p-2 font-black text-black">Data</th>
-                                        <th className="border border-black p-2 font-black text-left text-black">Perfil / Descrição</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Cor</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Qtd</th>
-                                        <th className="border border-black p-2 font-black text-left text-black">Solicitante</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Motivo</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredData.map((m, i) => (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-1.5 font-bold text-black">{m.data?.toLocaleDateString('pt-BR')}</td>
-                                            <td className="border-r border-black p-1.5 text-black">{m.perfil || m.codigo}</td>
-                                            <td className="border-r border-black p-1.5 text-center text-black">{m.cor}</td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{m.quantidade}</td>
-                                            <td className="border-r border-black p-1.5 font-bold text-black">{m.responsavel}</td>
-                                            <td className="p-1.5 text-center text-black italic">{m.motivo || '-'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside">
-                            <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador de Perfil</div>
-                            </div>
-                            <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div>
-                            </div>
+                        <footer className="mt-20 flex justify-between items-end border-t-2 border-black pt-4 no-break-inside">
+                            <div className="text-[9px] font-black uppercase text-black tracking-widest">Documento Auditável Alumasa Industrial</div>
+                            <div className="text-[9px] font-black uppercase text-black tracking-widest">Emitido em: {new Date().toLocaleString('pt-BR')}</div>
                         </footer>
-
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside">
-                            <div>Documento Auditável Alumasa Industrial - Almoxarifado de Perfil</div>
-                            <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
       )}
 
-      {selectedSectorForModal && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+      {/* --- MODAL DE MOTIVOS POR SETOR --- */}
+      {selectedSectorForModal && sectorDetails && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
           <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-8 border-b border-slate-700 flex justify-between items-start">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
                   <MessageCircle className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Motivos de Saída</h2>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedSectorForModal}</p>
-                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Total de Barras: {totalQtyInSectorModal.toLocaleString('pt-BR')}</p>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">MOTIVOS DE SAÍDA</h2>
+                  <p className="text-sm font-black text-blue-400 uppercase tracking-widest">{sectorDetails.name}</p>
+                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">TOTAL DE BARRAS: {sectorDetails.totalBars.toLocaleString('pt-BR')}</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setSelectedSectorForModal(null)} 
-                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <button onClick={() => setSelectedSectorForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </div>
-            
-            <div className="p-8 flex-1 overflow-y-auto space-y-6">
-              {sectorReasonsData.length > 0 ? (
-                sectorReasonsData.map((item, idx) => (
-                  <div key={idx} className="flex gap-4 group items-center">
-                    <div className="relative">
-                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                    </div>
-                    <div className="flex-1 flex justify-between items-center bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+            <div className="p-8 flex-1 overflow-y-auto space-y-4">
+              {sectorDetails.reasons.length > 0 ? (
+                sectorDetails.reasons.map((item, idx) => (
+                  <div key={idx} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex items-center justify-between group hover:border-blue-500/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.3)]"></div>
                       <div>
-                        <p className="text-white text-sm font-bold uppercase tracking-tight">
-                          {item.reason}
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">
-                          {item.count} Lançamentos registrados
-                        </p>
+                        <h4 className="text-base font-black text-white uppercase tracking-tight">{item.reason}</h4>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{item.count} Lançamentos registrados</p>
                       </div>
-                      <div className="text-right">
-                        <span className="px-4 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-black text-sm whitespace-nowrap">
-                          {item.qty.toLocaleString('pt-BR')} Barras
-                        </span>
-                        <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mt-1">
-                          {((item.qty / totalQtyInSectorModal) * 100).toFixed(1)}% do setor
-                        </p>
-                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl"><span className="text-sm font-black text-blue-400">{item.qty.toLocaleString('pt-BR')} Barras</span></div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1.5">{item.percent}% do setor</p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12">
+                <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-4">
                   <AlertCircle className="w-12 h-12 opacity-20" />
                   <p className="font-bold uppercase tracking-widest text-xs">Nenhum motivo detalhado encontrado</p>
                 </div>
               )}
             </div>
-
-            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
-              <button 
-                onClick={() => setSelectedSectorForModal(null)} 
-                className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700"
-              >
-                Fechar Detalhes
-              </button>
-            </div>
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-center"><button onClick={() => setSelectedSectorForModal(null)} className="px-12 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700">FECHAR DETALHES</button></div>
           </div>
         </div>
       )}
 
-      {selectedRequesterForModal && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+      {/* --- MODAL DE MOTIVOS POR SOLICITANTE --- */}
+      {selectedRequesterForReasons && requesterDetails && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
           <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-8 border-b border-slate-700 flex justify-between items-start">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
                   <User className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Motivos do Solicitante</h2>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedRequesterForModal}</p>
-                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Total de Barras: {totalQtyInRequesterModal.toLocaleString('pt-BR')}</p>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">MOTIVOS DO SOLICITANTE</h2>
+                  <p className="text-sm font-black text-blue-400 uppercase tracking-widest">{requesterDetails.name}</p>
+                  <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">TOTAL DE BARRAS: {requesterDetails.totalBars.toLocaleString('pt-BR')}</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setSelectedRequesterForModal(null)} 
-                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <button onClick={() => setSelectedRequesterForReasons(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </div>
-            
-            <div className="p-8 flex-1 overflow-y-auto space-y-6">
-              {requesterReasonsData.length > 0 ? (
-                requesterReasonsData.map((item, idx) => (
-                  <div key={idx} className="flex gap-4 group items-center">
-                    <div className="relative">
-                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                    </div>
-                    <div className="flex-1 flex justify-between items-center bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+            <div className="p-8 flex-1 overflow-y-auto space-y-4">
+              {requesterDetails.reasons.length > 0 ? (
+                requesterDetails.reasons.map((item, idx) => (
+                  <div key={idx} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex items-center justify-between group hover:border-blue-500/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.3)]"></div>
                       <div>
-                        <p className="text-white text-sm font-bold uppercase tracking-tight">
-                          {item.reason}
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">
-                          {item.count} Lançamentos registrados
-                        </p>
+                        <h4 className="text-base font-black text-white uppercase tracking-tight">{item.reason}</h4>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{item.count} Lançamentos registrados</p>
                       </div>
-                      <div className="text-right">
-                        <span className="px-4 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-black text-sm whitespace-nowrap">
-                          {item.qty.toLocaleString('pt-BR')} Barras
-                        </span>
-                        <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mt-1">
-                          {((item.qty / totalQtyInRequesterModal) * 100).toFixed(1)}% do total
-                        </p>
-                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl"><span className="text-sm font-black text-blue-400">{item.qty.toLocaleString('pt-BR')} Barras</span></div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1.5">{item.percent}% do total</p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12">
+                <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-4">
                   <AlertCircle className="w-12 h-12 opacity-20" />
                   <p className="font-bold uppercase tracking-widest text-xs">Nenhum motivo detalhado encontrado</p>
                 </div>
               )}
             </div>
-
-            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
-              <button 
-                onClick={() => setSelectedRequesterForModal(null)} 
-                className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700"
-              >
-                Fechar Detalhes
-              </button>
-            </div>
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-center"><button onClick={() => setSelectedRequesterForReasons(null)} className="px-12 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700">FECHAR DETALHES</button></div>
           </div>
         </div>
       )}

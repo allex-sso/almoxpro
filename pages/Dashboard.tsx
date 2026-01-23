@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { 
   DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, 
-  Filter, X, Info, Package, Printer, Check, ClipboardList, ShieldCheck 
+  Filter, X, Info, Package, Printer, Check, ShieldCheck 
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { DashboardStats, InventoryItem, Movement } from '../types';
@@ -68,14 +68,19 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
   }, [data]);
 
   const stockTotalFinancial = useMemo(() => {
-    let totalIn = 0;
-    let totalOut = 0;
+    let totalEntradasFinanceiro = 0;
+    let totalSaidasFinanceiro = 0;
+
     movements.forEach(m => {
-      const val = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (m.tipo === 'entrada') totalIn += val;
-      else if (m.tipo === 'saida') totalOut += val;
+      const valorMovimentacao = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
+      if (m.tipo === 'entrada') {
+        totalEntradasFinanceiro += valorMovimentacao;
+      } else if (m.tipo === 'saida') {
+        totalSaidasFinanceiro += valorMovimentacao;
+      }
     });
-    return Math.max(0, totalIn - totalOut);
+
+    return totalEntradasFinanceiro - totalSaidasFinanceiro;
   }, [movements]);
 
   const { flowData, totals } = useMemo(() => {
@@ -105,23 +110,11 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
       if (m.tipo === 'saida') recordsOutTotal++;
       
       const d = m.data || new Date();
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      
-      // Data ISO para ordenação correta na linha do tempo
-      const dateIso = `${year}-${month}-${day}`;
-      // displayDate para rótulo do gráfico
+      const dateIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const displayDate = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       
-      // Chave de agrupamento baseada no rótulo exibido para consolidar registros do mesmo dia calendárico
       if (!grouped[displayDate]) {
         grouped[displayDate] = { dateIso, displayDate, entradaFinanceiro: 0, saidaFinanceiro: 0, entradaQtd: 0, saidaQtd: 0 };
-      }
-      
-      // Mantém a dateIso mais recente para garantir a ordem cronológica correta dos meses/dias
-      if (dateIso > grouped[displayDate].dateIso) {
-        grouped[displayDate].dateIso = dateIso;
       }
       
       const valTotal = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
@@ -147,14 +140,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
     };
   }, [movements, startDate, endDate, healthData]);
 
-  const formatValue = (val: number, isFinancial: boolean) => 
-    isFinancial 
-      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(val)
-      : val.toLocaleString('pt-BR');
+  const formatCurrency = (val: number) => 
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(val);
 
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
-    document.title = "relatorio_almoxarifado_pecas_alumasa";
+    document.title = "relatorio_almoxarifado_alumasa";
     setTimeout(() => {
         window.print();
         document.title = originalTitle;
@@ -163,273 +154,285 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
 
   if (isLoading) {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="h-20 w-full bg-gray-200 dark:bg-gray-800 rounded-2xl animate-pulse"></div>
-        <div className="grid grid-cols-4 gap-6">
-           {[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-200 dark:bg-gray-800 rounded-2xl animate-pulse"></div>)}
-        </div>
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <Activity className="w-12 h-12 text-primary animate-spin" />
+        <p className="font-black text-slate-500 uppercase tracking-widest">Sincronizando Dados...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 no-print">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Monitoramento de fluxos e saúde do estoque.</p>
+          <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Visão Geral</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Monitoramento de fluxos e saúde do estoque.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center gap-3">
-            <div className="flex items-center gap-2 px-2 border-r border-gray-100 dark:border-gray-800 mr-1">
-                <Calendar className="w-4 h-4 text-slate-400" />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar Histórico:</span>
+          <div className="bg-slate-800/40 dark:bg-slate-800/60 backdrop-blur-md border border-slate-700/50 rounded-2xl p-2.5 flex items-center gap-4 shadow-xl">
+            <div className="flex items-center gap-3 pl-2">
+                <Calendar className="w-5 h-5 text-slate-400" />
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">Filtrar Histórico:</span>
             </div>
-            <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
-              <input type="date" className="bg-transparent text-xs font-bold text-slate-700 dark:text-white focus:outline-none" value={tempStart} onChange={e => setTempStart(e.target.value)} onKeyDown={handleKeyDown}/>
-              <span className="text-slate-300">-</span>
-              <input type="date" className="bg-transparent text-xs font-bold text-slate-700 dark:text-white focus:outline-none" value={tempEnd} onChange={e => setTempEnd(e.target.value)} onKeyDown={handleKeyDown}/>
+            
+            <div className="flex items-center gap-2 bg-slate-900/50 rounded-xl px-4 py-2 border border-slate-700/80">
+              <input 
+                type="date" 
+                className="bg-transparent text-xs font-black text-white outline-none focus:text-primary transition-colors cursor-pointer" 
+                value={tempStart} 
+                onChange={e => setTempStart(e.target.value)} 
+                onKeyDown={handleKeyDown}
+              />
+              <span className="text-slate-600 font-bold">-</span>
+              <input 
+                type="date" 
+                className="bg-transparent text-xs font-black text-white outline-none focus:text-primary transition-colors cursor-pointer" 
+                value={tempEnd} 
+                onChange={e => setTempEnd(e.target.value)} 
+                onKeyDown={handleKeyDown}
+              />
             </div>
-            <div className="flex gap-2">
-              <button onClick={applyFilters} className="flex items-center px-3 py-1.5 bg-primary hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95">
-                <Filter className="w-3 h-3 mr-1" /> Aplicar
+
+            <button 
+                onClick={applyFilters} 
+                className="flex items-center px-6 py-2.5 bg-primary hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 group"
+            >
+                <Filter className="w-3.5 h-3.5 mr-2 group-hover:rotate-12 transition-transform" /> APLICAR
+            </button>
+            
+            {(startDate || endDate) && (
+              <button onClick={clearFilters} className="pr-2 text-slate-500 hover:text-rose-500 transition-colors">
+                <X className="w-5 h-5" />
               </button>
-              {(startDate || endDate) && (
-                <button onClick={clearFilters} className="flex items-center px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all">
-                  <X className="w-3 h-3 mr-1" /> Limpar
-                </button>
-              )}
-            </div>
+            )}
           </div>
 
           <button 
             onClick={() => setShowPrintPreview(true)} 
-            className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"
+            className="bg-slate-800/40 dark:bg-slate-800/60 border border-slate-700/50 px-6 py-3 rounded-2xl flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all hover:bg-slate-700/60 active:scale-95 shadow-md group"
           >
-            <Printer className="w-4 h-4 text-rose-500" /> Relatório Gerencial
+            <Printer className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" /> 
+            <span className="text-slate-300">Relatório</span>
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
-        <StatCard title="Valor em Estoque" value={formatValue(stockTotalFinancial, true)} icon={DollarSign} color="blue" />
-        <StatCard title="Entradas (Lançamentos)" value={formatValue(totals.in, false)} icon={TrendingUp} color="green" />
-        <StatCard title="Saídas (Lançamentos)" value={formatValue(totals.out, false)} icon={TrendingDown} color="purple" />
-        <StatCard title="Itens Críticos" value={totals.critical} icon={AlertTriangle} color="red" />
+        <StatCard title="VALOR EM ESTOQUE" value={formatCurrency(stockTotalFinancial)} icon={DollarSign} color="blue" />
+        <StatCard title="ENTRADAS (PERÍODO)" value={totals.in} icon={TrendingUp} color="green" />
+        <StatCard title="SAÍDAS (PERÍODO)" value={totals.out} icon={TrendingDown} color="purple" />
+        <StatCard title="ITENS CRÍTICOS" value={totals.critical} icon={AlertTriangle} color="red" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 no-print">
-        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center">
-                 <Activity className="w-5 h-5 mr-2 text-primary" />
-                 Fluxo de Movimentações
-              </h3>
-              
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                <button onClick={() => setViewType('quantity')} className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewType === 'quantity' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                  <Package className="w-3.5 h-3.5 mr-1.5" /> Registros
-                </button>
-                <button onClick={() => setViewType('financial')} className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewType === 'financial' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                  <DollarSign className="w-3.5 h-3.5 mr-1.5" /> Financeiro
-                </button>
-              </div>
-           </div>
-
-           <div className="h-80">
-             {flowData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={flowData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-gray-700" vertical={false} />
-                    <XAxis dataKey="displayDate" stroke="#94a3b8" fontSize={10} tick={{ dy: 10 }} />
-                    <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}k` : val} />
-                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: '8px', border: 'none' }} formatter={(value: number) => viewType === 'financial' ? formatValue(value, true) : `${value} Reg.`}/>
-                    <Legend verticalAlign="top" height={36}/>
-                    <Bar dataKey={viewType === 'financial' ? 'entradaFinanceiro' : 'entradaQtd'} name={viewType === 'financial' ? 'Entradas (R$)' : 'Entradas (Registros)'} fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                    <Bar dataKey={viewType === 'financial' ? 'saidaFinanceiro' : 'saidaQtd'} name={viewType === 'financial' ? 'Saídas (R$)' : 'Saídas (Registros)'} fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
-                    </BarChart>
-                </ResponsiveContainer>
-             ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                    <Info className="w-10 h-10 mb-2 opacity-20" />
-                    <p className="text-sm font-medium">Nenhuma movimentação histórica encontrada.</p>
+        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-3xl p-8 shadow-lg border border-gray-100 dark:border-gray-800">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+             <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                  <Activity className="w-6 h-6 text-primary" />
                 </div>
-             )}
-           </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Fluxo de Movimentações</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Entradas vs. Saídas no período</p>
+                </div>
+             </div>
+             
+             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <button onClick={() => setViewType('quantity')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'quantity' ? 'bg-white dark:bg-slate-700 text-primary shadow-md' : 'text-slate-500'}`}>Registros</button>
+                <button onClick={() => setViewType('financial')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'financial' ? 'bg-white dark:bg-slate-700 text-primary shadow-md' : 'text-slate-500'}`}>Financeiro</button>
+             </div>
+          </div>
+
+          <div className="h-80">
+            {flowData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={flowData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
+                  <XAxis dataKey="displayDate" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} tickFormatter={(val) => viewType === 'financial' ? `R$${val}` : val} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                    formatter={(value: number) => [viewType === 'financial' ? formatCurrency(value) : value, viewType === 'financial' ? 'Valor' : 'Lançamentos']}
+                  />
+                  <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase' }} />
+                  <Bar dataKey={viewType === 'financial' ? 'entradaFinanceiro' : 'entradaQtd'} name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar dataKey={viewType === 'financial' ? 'saidaFinanceiro' : 'saidaQtd'} name="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                <Info className="w-8 h-8 mb-2 opacity-20" />
+                <p className="text-xs font-black uppercase tracking-widest">Sem movimentações no período</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Saúde do Estoque</h3>
-          <p className="text-xs text-slate-500 mb-6">Itens em relação ao estoque mínimo</p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={healthData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {healthData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
+        <div className="bg-white dark:bg-dark-card rounded-3xl p-8 shadow-lg border border-gray-100 dark:border-gray-800">
+          <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-8 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-500" /> Saúde do Estoque Físico
+          </h3>
+          <div className="h-64 relative">
+            {healthData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={healthData}
+                    innerRadius={70}
+                    outerRadius={95}
+                    paddingAngle={8}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {healthData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-400 italic text-xs">Aguardando dados...</div>
+            )}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+               <span className="text-4xl font-black text-slate-800 dark:text-white leading-none">{data.length}</span>
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Itens Ativos</span>
+            </div>
           </div>
-          <div className="text-center mt-[-10px]">
-             <span className="text-3xl font-bold text-slate-800 dark:text-white">{data.length}</span>
-             <p className="text-xs text-slate-500">Total de Itens Ativos</p>
+          
+          <div className="grid grid-cols-3 gap-2 mt-8">
+             {healthData.map((d, i) => (
+               <div key={i} className="flex flex-col items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+                  <div className="w-3 h-3 rounded-full mb-2" style={{ backgroundColor: d.color }}></div>
+                  <span className="text-lg font-black dark:text-white">{d.value}</span>
+                  <span className="text-[8px] font-black text-slate-400 uppercase text-center">{d.name.split(' ')[0]}</span>
+               </div>
+             ))}
           </div>
         </div>
       </div>
 
-      {/* --- OVERLAY DE PRÉ-VISUALIZAÇÃO DO RELATÓRIO GERENCIAL --- */}
+      {/* --- OVERLAY DE PRÉ-VISUALIZAÇÃO DO RELATÓRIO --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper print:relative print:block print:h-auto print:overflow-visible animate-in fade-in duration-300">
-            {/* Header de Controle */}
-            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial de Peças</span>
+                    <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial Alumasa</span>
                 </div>
                 <div className="flex gap-3">
-                    <button 
-                        onClick={() => setShowPrintPreview(false)}
-                        className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"
-                    >
-                        <X className="w-4 h-4 mr-2" /> Voltar
-                    </button>
-                    <button 
-                        onClick={handleConfirmPrint}
-                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"
-                    >
-                        <Check className="w-4 h-4 mr-2" /> Confirmar Impressão
-                    </button>
+                    <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
+                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
                 </div>
             </div>
 
-            {/* Conteúdo do Relatório */}
-            <div className="flex-1 p-4 md:p-12 print-container print:p-0 print:block print:h-auto">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
-                    <div className="w-full">
+            <div className="print-container flex-1 p-4 md:p-12">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:max-w-none">
+                    <div className="w-full text-black">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
-                            <div className="py-2">
-                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO DE PEÇAS</h2>
-                                <p className="text-xs font-bold text-black">Consolidado de Movimentação e Auditoria Financeira</p>
-                            </div>
+                            <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO</h2>
                         </header>
 
                         <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DO PERÍODO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <tbody>
                                     <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td>
-                                        <td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td>
+                                      <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black uppercase">Data de Emissão</td>
+                                      <td className="p-2 text-black font-medium">{new Date().toLocaleString('pt-BR')}</td>
                                     </tr>
                                     <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Período Selecionado</td>
-                                        <td className="p-2 font-black text-black">
-                                          {startDate ? new Date(startDate).toLocaleDateString('pt-BR') : 'Início'} até {endDate ? new Date(endDate).toLocaleDateString('pt-BR') : 'Hoje'}
-                                        </td>
+                                      <td className="border-r border-black p-2 font-black bg-gray-100 text-black uppercase">Filtro de Período</td>
+                                      <td className="p-2 text-black font-medium">{startDate ? startDate : 'Início'} até {endDate ? endDate : 'Atual'}</td>
                                     </tr>
                                     <tr>
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td>
-                                        <td className="p-2 font-black text-black">Gerencial / Auditoria de Estoque</td>
+                                      <td className="border-r border-black p-2 font-black bg-gray-100 text-black uppercase">Valor em Estoque</td>
+                                      <td className="p-2 font-black text-black text-lg">{formatCurrency(stockTotalFinancial)}</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </section>
 
                         <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO FINANCEIRO E DE LANÇAMENTOS</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO DE OPERAÇÕES NO PERÍODO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <tbody>
                                     <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Valor Total em Estoque</td>
-                                        <td className="p-2 font-black text-black">{formatValue(stockTotalFinancial, true)}</td>
+                                      <td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black uppercase">Entradas Registradas</td>
+                                      <td className="p-2 text-black font-black text-emerald-600">{totals.in} Movimentações</td>
                                     </tr>
                                     <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Entradas (Lançamentos)</td>
-                                        <td className="p-2 font-black text-black">{totals.in} registros</td>
-                                    </tr>
-                                    <tr className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Saídas (Lançamentos)</td>
-                                        <td className="p-2 font-black text-black">{totals.out} registros</td>
+                                      <td className="border-r border-black p-2 font-black bg-gray-100 text-black uppercase">Saídas Registradas</td>
+                                      <td className="p-2 text-black font-black text-rose-600">{totals.out} Movimentações</td>
                                     </tr>
                                     <tr>
-                                        <td className="border-r border-black p-2 font-black bg-gray-100 text-black">Itens Críticos (Abaixo do Mínimo)</td>
-                                        <td className="p-2 font-black text-red-600">{totals.critical} itens</td>
+                                      <td className="border-r border-black p-2 font-black bg-gray-100 text-black uppercase">Itens com Estoque Crítico</td>
+                                      <td className="p-2 text-black font-black text-amber-600">{totals.critical} Itens Abaixo do Mínimo</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </section>
 
-                        {/* SEÇÃO DE SAÚDE DO ESTOQUE - Agora na mesma página que o resumo */}
                         <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">SAÚDE GERAL DO ESTOQUE</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
-                                <thead style={{ display: 'table-header-group' }}>
-                                    <tr className="bg-gray-200">
-                                        <th className="border border-black p-2 text-left font-black text-black">Status</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Quantidade de Itens</th>
-                                        <th className="border border-black p-2 text-center font-black text-black">Percentual</th>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">QUADRO DE SAÚDE DO ESTOQUE</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                        <th className="border border-black p-2 text-left font-black text-black uppercase">Status do Item</th>
+                                        <th className="border border-black p-2 text-center font-black text-black uppercase">Quantidade de Tipologias</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {healthData.map((d, i) => (
-                                        <tr key={i} className="border-b border-black">
-                                            <td className="border-r border-black p-2 font-bold text-black">{d.name}</td>
-                                            <td className="border-r border-black p-2 text-center font-black text-black">{d.value}</td>
-                                            <td className="p-2 text-center font-black text-black">{((d.value / (data.length || 1)) * 100).toFixed(1)}%</td>
+                                        <tr key={i} className="border-b border-black bg-white">
+                                            <td className="border-r border-black p-2 font-black text-black uppercase">{d.name}</td>
+                                            <td className="p-2 text-center font-black text-black">{d.value}</td>
                                         </tr>
                                     ))}
+                                    <tr className="bg-gray-50">
+                                        <td className="border-r border-black p-2 font-black text-black uppercase">Total de Itens Ativos</td>
+                                        <td className="p-2 text-center font-black text-black">{data.length}</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </section>
 
-                        <div className="mb-12">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DE ESTOQUE ATUAL (PEÇAS)</h3>
-                            <table className="w-full text-[8px] border-collapse border border-black">
+                        <section className="mb-12 overflow-visible">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">LISTAGEM ANALÍTICA DE ITENS EM ESTOQUE</h3>
+                            <table className="w-full text-[8px] border-collapse border border-black text-black">
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-200">
-                                        <th className="border border-black p-1 font-black text-black">Código</th>
-                                        <th className="border border-black p-1 font-black text-left text-black">Descrição</th>
-                                        <th className="border border-black p-1 font-black text-left text-black">Equipamento</th>
-                                        <th className="border border-black p-1 text-center font-black text-black">Estoque</th>
-                                        <th className="border border-black p-1 text-center font-black text-black">Mínimo</th>
-                                        <th className="border border-black p-1 text-center font-black text-black">Vlr. Unit</th>
-                                        <th className="border border-black p-1 text-right font-black text-black">Vlr. Total</th>
+                                        <th className="border border-black p-1 font-black text-black uppercase">Cód.</th>
+                                        <th className="border border-black p-1 font-black text-left text-black uppercase">Descrição do Material</th>
+                                        <th className="border border-black p-1 text-center font-black text-black uppercase">Estoque</th>
+                                        <th className="border border-black p-1 text-center font-black text-black uppercase">Mín.</th>
+                                        <th className="border border-black p-1 text-right font-black text-black uppercase">Vlr. Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {data.map((item, i) => (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-1 font-bold text-black font-mono">{item.codigo}</td>
-                                            <td className="border-r border-black p-1 text-black">{item.descricao}</td>
-                                            <td className="border-r border-black p-1 text-black">{item.equipamento || '-'}</td>
+                                        <tr key={i} className="border-b border-black bg-white" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-1 font-bold font-mono text-black">{item.codigo}</td>
+                                            <td className="border-r border-black p-1 text-black uppercase">{item.descricao}</td>
                                             <td className={`border-r border-black p-1 text-center font-black ${item.quantidadeAtual <= item.quantidadeMinima ? 'text-red-600' : 'text-black'}`}>{item.quantidadeAtual}</td>
-                                            <td className="border-r border-black p-1 text-center text-black">{item.quantidadeMinima}</td>
-                                            <td className="border-r border-black p-1 text-center text-black">R$ {item.valorUnitario.toFixed(2)}</td>
+                                            <td className="border-r border-black p-1 text-center text-black font-bold">{item.quantidadeMinima || '-'}</td>
                                             <td className="p-1 text-right font-black text-black">R$ {item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                        </section>
 
-                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside">
+                        <footer className="mt-8 pt-8 flex justify-between gap-12 border-t border-black text-black no-break-inside">
                             <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador de Peças</div>
+                                <div className="w-full border-t border-black pt-1 text-[8px] font-black uppercase text-black">Responsável Almoxarifado</div>
                             </div>
                             <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div>
+                                <div className="w-full border-t border-black pt-1 text-[8px] font-black uppercase text-black">Gerência Industrial</div>
                             </div>
                         </footer>
-
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside">
-                            <div>Documento Auditável Alumasa Industrial - Almoxarifado de Peças</div>
-                            <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
-                        </div>
                     </div>
                 </div>
             </div>

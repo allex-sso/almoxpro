@@ -23,7 +23,6 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
   const addProfile = () => {
     if (!isMasterAccount) return;
     
-    // Define a chave automática: (total de perfis + 1) * 10
     const nextKey = (localSettings.profiles.length + 1) * 10;
     
     const newProfile: SectorProfile = {
@@ -35,6 +34,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
       outUrl: '',
       osUrl: '',
       isCentral: false,
+      isProduction: false,
       sources: []
     };
     setLocalSettings(prev => ({ ...prev, profiles: [...prev.profiles, newProfile] }));
@@ -145,7 +145,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-full">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nome do Almoxarifado</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nome da Unidade / Setor</label>
                   <input 
                     type="text" 
                     value={currentProfile.name}
@@ -154,17 +154,32 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                   />
                 </div>
                 
-                <div className="col-span-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Perfil Almoxarifado de Perfil</h4>
-                        <p className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">Ativa indicadores de consumo e múltiplas fontes de dados</p>
+                <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div>
+                            <h4 className="text-xs font-bold text-slate-800 dark:text-white">Almoxarifado de Perfil</h4>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Indicadores específicos de perfil</p>
+                        </div>
+                        <button 
+                            onClick={() => updateProfileField(currentProfile.id, 'isCentral', !currentProfile.isCentral)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${currentProfile.isCentral ? 'bg-primary' : 'bg-slate-300'}`}
+                        >
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isCentral ? 'left-5.5' : 'left-0.5'}`} />
+                        </button>
                     </div>
-                    <button 
-                        onClick={() => updateProfileField(currentProfile.id, 'isCentral', !currentProfile.isCentral)}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${currentProfile.isCentral ? 'bg-primary' : 'bg-slate-300'}`}
-                    >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isCentral ? 'left-7' : 'left-1'}`} />
-                    </button>
+
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div>
+                            <h4 className="text-xs font-bold text-slate-800 dark:text-white">Unidade de Produção</h4>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Dashboard de Escada/Plástico</p>
+                        </div>
+                        <button 
+                            onClick={() => updateProfileField(currentProfile.id, 'isProduction', !currentProfile.isProduction)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${currentProfile.isProduction ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                        >
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isProduction ? 'left-5.5' : 'left-0.5'}`} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="col-span-full">
@@ -183,17 +198,18 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                 <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800">
                    <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4">Fontes de Dados (CSV / Google Sheets)</h4>
                    <div className="space-y-4">
-                      {currentProfile.isCentral ? (
-                          <div className="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-800/50 space-y-4">
+                      {/* Interface de Múltiplas Fontes habilitada tanto para Central (Perfil) quanto para Produção */}
+                      {(currentProfile.isCentral || currentProfile.isProduction) ? (
+                          <div className={`p-5 rounded-2xl border ${currentProfile.isCentral ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/50' : 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50'} space-y-4`}>
                               <div className="flex justify-between items-center">
-                                  <h5 className="text-[10px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2">
-                                      <LinkIcon className="w-3 h-3" /> Fontes de Dados de Perfil
+                                  <h5 className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${currentProfile.isCentral ? 'text-blue-600' : 'text-emerald-600'}`}>
+                                      <LinkIcon className="w-3 h-3" /> {currentProfile.isCentral ? 'Planilhas de Perfil' : 'Planilhas de Produção'}
                                   </h5>
                                   <button 
                                     onClick={() => addSource(currentProfile.id)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all"
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-white text-[10px] font-black uppercase rounded-lg transition-all ${currentProfile.isCentral ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                                   >
-                                      <Plus className="w-3 h-3" /> Adicionar Fonte
+                                      <Plus className="w-3 h-3" /> Adicionar Planilha
                                   </button>
                               </div>
                               
@@ -207,7 +223,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                                                     type="text" 
                                                     value={s.label} 
                                                     onChange={(e) => updateSource(currentProfile.id, idx, 'label', e.target.value)}
-                                                    placeholder="Ex: Dezembro/2024"
+                                                    placeholder="Ex: Escadas ou Plástico"
                                                     className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
                                                   />
                                               </div>
@@ -224,17 +240,12 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                                                 type="text" 
                                                 value={s.url} 
                                                 onChange={(e) => updateSource(currentProfile.id, idx, 'url', e.target.value)}
-                                                placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
+                                                placeholder="Link CSV da aba da planilha"
                                                 className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-mono"
                                               />
                                           </div>
                                       </div>
                                   ))}
-                                  {(!currentProfile.sources || currentProfile.sources.length === 0) && (
-                                      <div className="text-center py-6 border-2 border-dashed border-blue-200 dark:border-blue-800/50 rounded-xl">
-                                          <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Nenhuma fonte cadastrada</p>
-                                      </div>
-                                  )}
                               </div>
                           </div>
                       ) : (
@@ -268,7 +279,7 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
           ) : (
             <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-dark-card rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-12 text-slate-400">
                <Layout className="w-12 h-12 mb-4 opacity-20" />
-               <p className="font-bold text-sm uppercase tracking-widest text-center">Acesso restrito ao Administrador</p>
+               <p className="font-bold text-sm uppercase tracking-widest text-center">Selecione uma unidade para configurar</p>
             </div>
           )}
         </div>

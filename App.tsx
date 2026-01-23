@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, RefreshCw, LogOut } from 'lucide-react';
-import { AppSettings, InventoryItem, Movement, Page, ServiceOrder, SectorProfile } from './types';
-import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData } from './services/sheetService';
+import { AppSettings, InventoryItem, Movement, Page, SectorProfile, ProductionEntry, ServiceOrder } from './types';
+import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData, fetchProductionData } from './services/sheetService';
 import Sidebar from './components/Sidebar';
 
 // Pages
@@ -15,23 +15,18 @@ import ServiceOrdersPage from './pages/ServiceOrders';
 import LoginPage from './pages/Login';
 import CentralDashboard from './pages/CentralDashboard';
 import CentralProfiles from './pages/CentralProfiles';
+import ProductionDashboard from './pages/ProductionDashboard';
 
 const MASTER_PROFILE_ID = 'almox-pecas';
 const CENTRAL_PROFILE_ID = 'almox-central';
+const PRODUCTION_PROFILE_ID = 'prod-escadas';
 
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
   try {
     if (typeof process !== 'undefined' && process.env && process.env[key]) {
       return process.env[key] as string;
     }
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-      // @ts-ignore
-      return import.meta.env[key] as string;
-    }
-  } catch (e) {
-    console.warn(`Erro ao acessar variável de ambiente ${key}:`, e);
-  }
+  } catch (e) {}
   return defaultValue;
 };
 
@@ -58,8 +53,21 @@ const getDefaultProfiles = (): SectorProfile[] => {
       sources: [
           { 
             label: 'Base Perfil', 
-            url: getEnvVar('VITE_CENTRAL_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=1098843728&single=true&output=csv') 
+            url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZWxmLQjifckO4Ln4lNFHRmEqeaPX5BLf8LM5uzfSNkh3_UXtiD_XWyx9EU5e6paFozpK8A42NBGRP/pub?gid=1098843728&single=true&output=csv' 
           }
+      ]
+    },
+    {
+      id: PRODUCTION_PROFILE_ID,
+      name: 'Produção - Escadas e Plástico',
+      accessKey: '30',
+      inventoryUrl: '',
+      inUrl: '',
+      outUrl: '',
+      osUrl: '',
+      isProduction: true,
+      sources: [
+        { label: 'Controle de Produção', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv' }
       ]
     }
   ];
@@ -75,43 +83,13 @@ const App: React.FC = () => {
       const savedSettings = localStorage.getItem('alumasa_config_v1');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        
-        const profiles = Array.isArray(parsed.profiles) && parsed.profiles.length > 0 
-          ? parsed.profiles.map((p: SectorProfile) => {
-              if (p.id === MASTER_PROFILE_ID) {
-                return {
-                  ...p,
-                  inUrl: getEnvVar('VITE_IN_URL', p.inUrl),
-                  outUrl: getEnvVar('VITE_OUT_URL', p.outUrl),
-                  inventoryUrl: getEnvVar('VITE_INVENTORY_URL', p.inventoryUrl),
-                  osUrl: getEnvVar('VITE_OS_URL', p.osUrl)
-                };
-              }
-              if (p.id === CENTRAL_PROFILE_ID) {
-                const envCentralUrl = getEnvVar('VITE_CENTRAL_URL');
-                if (envCentralUrl) {
-                  const updatedSources = [...(p.sources || [])];
-                  if (updatedSources.length > 0) {
-                    updatedSources[0].url = envCentralUrl;
-                  } else {
-                    updatedSources.push({ label: 'Base Perfil', url: envCentralUrl });
-                  }
-                  return { ...p, sources: updatedSources, name: 'Almoxarifado de Perfil' };
-                }
-              }
-              return p;
-            })
-          : defaultProfiles;
-          
         return { 
-          profiles: profiles,
+          profiles: Array.isArray(parsed.profiles) ? parsed.profiles : defaultProfiles,
           activeProfileId: parsed.activeProfileId || null,
           refreshRate: parsed.refreshRate || 30
         };
       }
-    } catch (e) {
-      console.error("Erro ao carregar configurações:", e);
-    }
+    } catch (e) {}
     return { profiles: defaultProfiles, activeProfileId: null, refreshRate: 30 };
   });
 
@@ -123,15 +101,14 @@ const App: React.FC = () => {
 
   const [data, setData] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [productionData, setProductionData] = useState<ProductionEntry[]>([]);
   const [osData, setOsData] = useState<ServiceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false); 
 
   useEffect(() => {
     try {
       localStorage.setItem('alumasa_config_v1', JSON.stringify(settings));
-    } catch (e) {
-      console.error("Erro ao salvar configurações:", e);
-    }
+    } catch (e) {}
   }, [settings]);
 
   const loadData = useCallback(async () => {
@@ -144,19 +121,23 @@ const App: React.FC = () => {
         if (sources.length > 0) {
             const results = await Promise.allSettled(sources.map(s => fetchCentralData(s.url)));
             const consolidated: Movement[] = [];
-            results.forEach((res, idx) => {
-                if (res.status === 'fulfilled') {
-                    consolidated.push(...res.value.map(m => ({
-                        ...m, 
-                        perfil: (m.perfil && m.perfil !== 'N/D' && m.perfil !== '' && m.perfil !== 'Não especificado') 
-                          ? m.perfil 
-                          : sources[idx].label 
-                    })));
-                }
+            results.forEach((res) => {
+                if (res.status === 'fulfilled') consolidated.push(...res.value);
             });
             setMovements(consolidated);
-            setData([]); 
-            setOsData([]);
+        }
+      } else if (activeProfile.isProduction) {
+        const sources = (activeProfile.sources || []);
+        if (sources.length > 0) {
+            const results = await Promise.allSettled(sources.map(async s => {
+              const data = await fetchProductionData(s.url);
+              return data.map(entry => ({ ...entry, setor: s.label }));
+            }));
+            const consolidated: ProductionEntry[] = [];
+            results.forEach((res) => {
+                if (res.status === 'fulfilled') consolidated.push(...res.value);
+            });
+            setProductionData(consolidated);
         }
       } else {
         const results = await Promise.allSettled([
@@ -166,48 +147,73 @@ const App: React.FC = () => {
           activeProfile.osUrl ? fetchServiceOrders(activeProfile.osUrl) : Promise.resolve([])
         ]);
         
-        const inventoryItems = results[0].status === 'fulfilled' ? (results[0].value as InventoryItem[]) : [];
-        const inMoves = results[1].status === 'fulfilled' ? (results[1].value as Movement[]) : [];
-        const outMoves = results[2].status === 'fulfilled' ? (results[2].value as Movement[]) : [];
-        const osList = results[3].status === 'fulfilled' ? (results[3].value as ServiceOrder[]) : [];
+        let inventoryItems = results[0].status === 'fulfilled' ? results[0].value : [];
+        let inMoves = results[1].status === 'fulfilled' ? results[1].value : [];
+        let outMoves = results[2].status === 'fulfilled' ? results[2].value : [];
+        const osList = results[3].status === 'fulfilled' ? results[3].value : [];
+
+        if (activeProfile.id === MASTER_PROFILE_ID) {
+          const priceMap = new Map<string, number>();
+          [...inMoves].sort((a,b) => a.data.getTime() - b.data.getTime()).forEach(m => {
+            if (m.codigo && m.valorUnitario && m.valorUnitario > 0) {
+              const codeClean = String(m.codigo).trim().toLowerCase();
+              priceMap.set(codeClean, m.valorUnitario);
+            }
+          });
+
+          outMoves = outMoves.map(m => {
+            const codeClean = String(m.codigo).trim().toLowerCase();
+            const lastKnownPrice = priceMap.get(codeClean);
+            if (lastKnownPrice && (m.valorUnitario === 0 || !m.valorUnitario)) {
+              return {
+                ...m,
+                valorUnitario: lastKnownPrice,
+                valorTotal: m.quantidade * lastKnownPrice
+              };
+            }
+            return m;
+          });
+
+          inventoryItems = inventoryItems.map(item => {
+            const codeClean = String(item.codigo).trim().toLowerCase();
+            const precoEncontrado = priceMap.get(codeClean);
+            if (precoEncontrado !== undefined) {
+               return {
+                 ...item,
+                 valorUnitario: precoEncontrado,
+                 valorTotal: item.quantidadeAtual * precoEncontrado
+               };
+            }
+            return {
+              ...item,
+              valorTotal: item.quantidadeAtual * (item.valorUnitario || 0)
+            };
+          });
+
+          const outgoingByCode = new Map<string, number>();
+          outMoves.forEach(m => {
+             const code = String(m.codigo).trim().toLowerCase();
+             outgoingByCode.set(code, (outgoingByCode.get(code) || 0) + m.quantidade);
+          });
+          
+          const incomingByCode = new Map<string, number>();
+          inMoves.forEach(m => {
+             const code = String(m.codigo).trim().toLowerCase();
+             incomingByCode.set(code, (incomingByCode.get(code) || 0) + m.quantidade);
+          });
+
+          inventoryItems = inventoryItems.map(item => {
+             const codeClean = String(item.codigo).trim().toLowerCase();
+             return {
+              ...item,
+              entradas: incomingByCode.get(codeClean) || 0,
+              saidas: outgoingByCode.get(codeClean) || 0
+             };
+          });
+        }
         
-        const priceMap = new Map<string, number>();
-        inventoryItems.forEach(item => {
-          if (item.valorUnitario > 0) priceMap.set(item.codigo, item.valorUnitario);
-        });
-        inMoves.forEach(m => {
-          if (m.valorUnitario && m.valorUnitario > 0) priceMap.set(m.codigo, m.valorUnitario);
-        });
-
-        const valuedOutMoves = outMoves.map(m => ({
-          ...m,
-          valorUnitario: m.valorUnitario || priceMap.get(m.codigo) || 0,
-          valorTotal: m.valorTotal || (m.quantidade * (priceMap.get(m.codigo) || 0))
-        }));
-
-        const allMoves = [...inMoves, ...valuedOutMoves];
-
-        const enrichedData = inventoryItems.map(item => {
-          const itemMoves = allMoves.filter(m => m.codigo === item.codigo);
-          const totalIn = itemMoves.filter(m => m.tipo === 'entrada').reduce((acc, curr) => acc + curr.quantidade, 0);
-          const totalOut = itemMoves.filter(m => m.tipo === 'saida').reduce((acc, curr) => acc + curr.quantidade, 0);
-          
-          // O usuário solicitou que a Quantidade Estoque venha diretamente da coluna da planilha "Estoque Atual".
-          // Portanto, removemos o cálculo dinâmico baseado em entradas/saídas para este campo específico na listagem.
-          const unitPrice = priceMap.get(item.codigo) || item.valorUnitario || 0;
-          
-          return {
-            ...item,
-            quantidadeAtual: item.quantidadeAtual, // Valor direto da planilha
-            entradas: totalIn,
-            saidas: totalOut,
-            valorUnitario: unitPrice,
-            valorTotal: item.quantidadeAtual * unitPrice
-          };
-        });
-
-        setData(enrichedData);
-        setMovements(allMoves);
+        setData(inventoryItems);
+        setMovements([...inMoves, ...outMoves]);
         setOsData(osList);
       }
     } catch (err) {
@@ -218,69 +224,65 @@ const App: React.FC = () => {
   }, [activeProfile]);
 
   useEffect(() => {
-    if (activeProfile) loadData();
+    if (activeProfile) {
+        loadData();
+        if (activeProfile.isProduction) setCurrentPage(Page.PRODUCTION_DASHBOARD);
+        else if (activeProfile.isCentral) setCurrentPage(Page.CENTRAL_DASHBOARD);
+        else setCurrentPage(Page.DASHBOARD);
+    }
   }, [activeProfile, loadData]);
 
   const dashboardStats = useMemo(() => {
     const totalItems = data.length;
-    let totalInValue = 0;
-    let totalOutValue = 0;
+    const totalValue = data.reduce((sum, item) => sum + (item.valorTotal || 0), 0);
     
-    movements.forEach(m => {
-      const val = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (m.tipo === 'entrada') {
-        totalInValue += val;
-      } else if (m.tipo === 'saida') {
-        totalOutValue += val;
-      }
-    });
-    
-    const totalValue = Math.max(0, totalInValue - totalOutValue);
-    
-    const totalInCount = movements.filter(m => m.tipo === 'entrada').length;
-    const totalOutCount = movements.filter(m => m.tipo === 'saida').length;
+    let totalIn = 0;
+    let totalOut = 0;
+
+    if (movements.length > 0) {
+      totalIn = movements.filter(m => m.tipo === 'entrada').length;
+      totalOut = movements.filter(m => m.tipo === 'saida').length;
+    } else {
+      totalIn = data.reduce((sum, item) => sum + (item.entradas || 0), 0);
+      totalOut = data.reduce((sum, item) => sum + (item.saidas || 0), 0);
+    }
 
     return {
       totalItems,
       totalValue,
-      totalIn: totalInCount,
-      totalOut: totalOutCount
+      totalIn,
+      totalOut
     };
   }, [data, movements]);
 
   if (!settings.activeProfileId) {
-    return (
-      <LoginPage 
-        profiles={settings.profiles} 
-        onSelectProfile={(id) => setSettings(prev => ({ ...prev, activeProfileId: id }))} 
-      />
-    );
+    return <LoginPage profiles={settings.profiles} onSelectProfile={(id) => setSettings(prev => ({ ...prev, activeProfileId: id }))} />;
   }
 
   const renderPage = () => {
-    if (activeProfile?.isCentral && (currentPage === Page.DASHBOARD || currentPage === Page.CENTRAL_DASHBOARD)) {
-        return <CentralDashboard data={movements} isLoading={isLoading} />;
+    if (activeProfile?.isProduction) {
+        const isDetails = currentPage === Page.PRODUCTION_DETAILS;
+        return (
+          <ProductionDashboard 
+            data={productionData} 
+            isLoading={isLoading} 
+            initialTab={isDetails ? 'table' : 'stats'}
+          />
+        );
+    }
+    
+    if (activeProfile?.isCentral) {
+      if (currentPage === Page.CENTRAL_PERFIL) return <CentralProfiles movements={movements} isLoading={isLoading} />;
+      return <CentralDashboard data={movements} isLoading={isLoading} />;
     }
     
     switch (currentPage) {
-      case Page.DASHBOARD: 
-        return <Dashboard data={data} stats={dashboardStats} movements={movements} isLoading={isLoading} />;
-      case Page.CENTRAL_DASHBOARD: 
-        return <CentralDashboard data={movements} isLoading={isLoading} />;
-      case Page.CENTRAL_PERFIL: 
-        return <CentralProfiles movements={movements} isLoading={isLoading} />;
-      case Page.INVENTORY: 
-        return <Inventory data={data} isLoading={isLoading} />;
-      case Page.CONSUMPTION: 
-        return <Consumption data={data} movements={movements} />;
-      case Page.SERVICE_ORDERS: 
-        return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
-      case Page.ALERTS: 
-        return <AlertPage data={data} />;
-      case Page.SETTINGS: 
-        return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
-      default: 
-        return <Dashboard data={data} stats={dashboardStats} movements={movements} isLoading={isLoading} />;
+      case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
+      case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
+      case Page.SERVICE_ORDERS: return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
+      case Page.ALERTS: return <AlertPage data={data} />;
+      case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
+      default: return <Dashboard data={data} stats={dashboardStats} movements={movements} isLoading={isLoading} />;
     }
   };
 
@@ -292,39 +294,25 @@ const App: React.FC = () => {
         isOpen={isSidebarOpen} 
         toggleOpen={() => setIsSidebarOpen(!isSidebarOpen)} 
         isCentral={activeProfile?.isCentral}
+        isProduction={activeProfile?.isProduction}
         isMaster={isMasterAccount}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:h-auto print:overflow-visible">
         <header className="bg-dark-card border-b border-gray-700 h-16 flex items-center justify-between px-4 sm:px-6 no-print">
           <div className="flex items-center">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400">
-              <Menu className="h-6 w-6" />
-            </button>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400"><Menu className="h-6 w-6" /></button>
             <div className="ml-4 lg:ml-0 flex flex-col">
               <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">ALUMASA - GESTÃO INDUSTRIAL</h2>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{activeProfile?.name}</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <button 
-              onClick={loadData} 
-              className={`p-2 rounded-full transition-all ${isLoading ? 'animate-spin text-primary' : 'text-slate-400'}`}
-              title="Sincronizar dados"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-            <button 
-              onClick={() => setSettings(prev => ({...prev, activeProfileId: null}))} 
-              className="px-3 py-1.5 bg-slate-800 text-slate-400 hover:text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" /> Sair
-            </button>
+            <button onClick={loadData} className={`p-2 rounded-full transition-all ${isLoading ? 'animate-spin text-primary' : 'text-slate-400'}`}><RefreshCw className="h-4 w-4" /></button>
+            <button onClick={() => setSettings(prev => ({...prev, activeProfileId: null}))} className="px-3 py-1.5 bg-slate-800 text-slate-400 hover:text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors"><LogOut className="w-3.5 h-3.5" /></button>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-dark print:block print:h-auto print:overflow-visible print:bg-white">
-          <div className="max-w-7xl mx-auto print:max-w-none">
-            {renderPage()}
-          </div>
+          <div className="max-w-7xl mx-auto print:max-w-none">{renderPage()}</div>
         </main>
       </div>
     </div>
