@@ -67,7 +67,10 @@ const getDefaultProfiles = (): SectorProfile[] => {
       osUrl: '',
       isProduction: true,
       sources: [
-        { label: 'Controle de Produção', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv' }
+        { 
+          label: 'Controle de Produção', 
+          url: getEnvVar('VITE_PRODUCTION_ESCADA_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv') 
+        }
       ]
     }
   ];
