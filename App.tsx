@@ -21,8 +21,14 @@ const MASTER_PROFILE_ID = 'almox-pecas';
 const CENTRAL_PROFILE_ID = 'almox-central';
 const PRODUCTION_PROFILE_ID = 'prod-escadas';
 
+// Função robusta para pegar variáveis de ambiente no Vite/Vercel
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
   try {
+    // Padrão Vite (Vercel)
+    const viteEnv = (import.meta as any).env;
+    if (viteEnv && viteEnv[key]) return viteEnv[key];
+    
+    // Fallback process.env
     if (typeof process !== 'undefined' && process.env && process.env[key]) {
       return process.env[key] as string;
     }
@@ -86,8 +92,24 @@ const App: React.FC = () => {
       const savedSettings = localStorage.getItem('alumasa_config_v1');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
+        let savedProfiles = Array.isArray(parsed.profiles) ? parsed.profiles : defaultProfiles;
+        
+        // Lógica de Sincronização: Garantir que perfis "hardcoded" novos apareçam mesmo se houver cache
+        defaultProfiles.forEach(defProf => {
+          const exists = savedProfiles.find((p: SectorProfile) => p.id === defProf.id);
+          if (!exists) {
+            savedProfiles.push(defProf);
+          } else {
+            // Opcional: Atualiza URLs de variáveis de ambiente se elas mudarem no código
+            if (defProf.id === PRODUCTION_PROFILE_ID) {
+               const idx = savedProfiles.findIndex((p: SectorProfile) => p.id === defProf.id);
+               savedProfiles[idx] = { ...savedProfiles[idx], sources: defProf.sources };
+            }
+          }
+        });
+
         return { 
-          profiles: Array.isArray(parsed.profiles) ? parsed.profiles : defaultProfiles,
+          profiles: savedProfiles,
           activeProfileId: parsed.activeProfileId || null,
           refreshRate: parsed.refreshRate || 30
         };

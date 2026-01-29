@@ -344,7 +344,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             Ranking de Consumo por Solicitante
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left text-black">
               <thead className="text-[10px] uppercase bg-slate-50 dark:bg-slate-800 text-slate-400 font-bold">
                 <tr>
                   <th className="px-6 py-4">Nome</th>
@@ -353,10 +353,10 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                   <th className="px-6 py-4 text-center">Média por Saída</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-black">
                 {paginatedRequesterData.map((req, i) => (
                   <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors group">
-                    <td className="px-6 py-4 font-bold dark:text-white uppercase">{req.name}</td>
+                    <td className="px-6 py-4 font-bold dark:text-white uppercase text-black">{req.name}</td>
                     <td className="px-6 py-4 text-right">
                       <div 
                         className="flex items-center justify-end gap-2 group/btn cursor-pointer"
@@ -406,7 +406,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       </div>
 
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:relative print:block">
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
@@ -418,10 +418,10 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                 </div>
             </div>
 
-            <div className="print-container flex-1 p-4 md:p-12">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:max-w-none">
-                    <div className="w-full">
-                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
+            <div className="print-container flex-1 p-4 md:p-12 print:p-0">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
+                    <div className="w-full text-black">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside text-black">
                             <h1 className="text-5xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-xl font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
                             <div className="py-2">
@@ -430,9 +430,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </div>
                         </header>
 
-                        <section className="mb-10 no-break-inside">
+                        <section className="mb-10 no-break-inside text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO (INDICADORES GERAIS)</h3>
-                            <table className="w-full text-sm border-collapse border border-black">
+                            <table className="w-full text-sm border-collapse border border-black text-black">
                                 <tbody>
                                     <tr className="border-b border-black">
                                       <td className="border-r border-black p-3 font-black w-1/3 bg-gray-50 text-black">Total de Barras Saída</td>
@@ -454,9 +454,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <section className="mb-10 no-break-inside">
+                        <section className="mb-10 no-break-inside text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DISTRIBUIÇÃO DE CONSUMO POR TURNO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <thead>
                                     <tr className="bg-gray-100">
                                       <th className="border border-black p-2 text-left font-black uppercase text-black">Turno Operacional</th>
@@ -479,9 +479,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <section className="mb-10">
+                        <section className="mb-10 text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DEMANDA POR SETOR (TOP 15)</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black">
+                            <table className="w-full text-[9px] border-collapse border border-black text-black">
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-100">
                                       <th className="border border-black p-2 text-left font-black uppercase text-black">Setor Solicitante</th>
@@ -491,7 +491,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                 </thead>
                                 <tbody>
                                     {metrics.sectorData.map((item, idx) => (
-                                        <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                        <tr key={idx} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-2 font-bold text-black uppercase">{item.name}</td>
                                             <td className="border-r border-black p-2 text-right font-black text-black">{item.value.toLocaleString('pt-BR')}</td>
                                             <td className="p-2 text-center font-black text-black">{((item.value / metrics.totalItems) * 100 || 0).toFixed(1)}%</td>
@@ -501,9 +501,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <section className="mb-10 no-break-inside">
+                        <section className="mb-10 no-break-inside text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">ANÁLISE DE CONSUMO POR MOTIVO</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black">
+                            <table className="w-full text-[9px] border-collapse border border-black text-black">
                                 <thead>
                                     <tr className="bg-gray-100">
                                       <th className="border border-black p-2 text-left font-black uppercase text-black">Motivo da Retirada</th>
@@ -513,7 +513,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                 </thead>
                                 <tbody>
                                     {metrics.reasonData.map((item, idx) => (
-                                        <tr key={idx} className="border-b border-black">
+                                        <tr key={idx} className="border-b border-black text-black">
                                             <td className="border-r border-black p-2 font-bold text-black uppercase">{item.name}</td>
                                             <td className="border-r border-black p-2 text-right font-black text-black">{item.value.toLocaleString('pt-BR')}</td>
                                             <td className="p-2 text-center font-black text-black">{item.percent}%</td>
@@ -523,9 +523,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <section className="mb-10 overflow-visible">
+                        <section className="mb-10 overflow-visible text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">ESTOQUE CONSOLIDADO DE PERFIS (POR MODELO/COR)</h3>
-                            <table className="w-full text-[8px] border-collapse border border-black">
+                            <table className="w-full text-[8px] border-collapse border border-black text-black">
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-100">
                                       <th className="border border-black p-1.5 text-left font-black uppercase text-black">Modelo do Perfil</th>
@@ -535,7 +535,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                 </thead>
                                 <tbody>
                                     {profileSummary.map((item, idx) => (
-                                        <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                        <tr key={idx} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-1.5 font-bold text-black uppercase">{item.perfil}</td>
                                             <td className="border-r border-black p-1.5 text-black uppercase">{item.cor}</td>
                                             <td className="p-1.5 text-right font-black text-black">{item.quantidade.toLocaleString('pt-BR')}</td>
@@ -545,9 +545,9 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <section className="mb-10 overflow-visible">
+                        <section className="mb-10 overflow-visible text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RANKING DE CONSUMO POR SOLICITANTE</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black">
+                            <table className="w-full text-[9px] border-collapse border border-black text-black">
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-100">
                                       <th className="border border-black p-2 text-left font-black uppercase text-black">Nome do Solicitante</th>
@@ -558,7 +558,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                                 </thead>
                                 <tbody>
                                     {metrics.requesterData.map((req, idx) => (
-                                        <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                        <tr key={idx} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-2 font-bold text-black uppercase">{req.name}</td>
                                             <td className="border-r border-black p-2 text-center font-black text-black">{req.count}</td>
                                             <td className="border-r border-black p-2 text-right font-black text-black">{req.total.toLocaleString('pt-BR')}</td>
@@ -569,7 +569,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                             </table>
                         </section>
 
-                        <footer className="mt-20 flex justify-between items-end border-t-2 border-black pt-4 no-break-inside">
+                        <footer className="mt-20 flex justify-between items-end border-t-2 border-black pt-4 no-break-inside text-black">
                             <div className="text-[9px] font-black uppercase text-black tracking-widest">Documento Auditável Alumasa Industrial</div>
                             <div className="text-[9px] font-black uppercase text-black tracking-widest">Emitido em: {new Date().toLocaleString('pt-BR')}</div>
                         </footer>
@@ -596,10 +596,10 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
               </div>
               <button onClick={() => setSelectedSectorForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </div>
-            <div className="p-8 flex-1 overflow-y-auto space-y-4">
+            <div className="p-8 flex-1 overflow-y-auto space-y-4 text-white">
               {sectorDetails.reasons.length > 0 ? (
                 sectorDetails.reasons.map((item, idx) => (
-                  <div key={idx} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex items-center justify-between group hover:border-blue-500/30 transition-all">
+                  <div key={idx} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex items-center justify-between group hover:border-blue-500/30 transition-all text-white">
                     <div className="flex items-center gap-4">
                       <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.3)]"></div>
                       <div>
@@ -642,10 +642,10 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
               </div>
               <button onClick={() => setSelectedRequesterForReasons(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </div>
-            <div className="p-8 flex-1 overflow-y-auto space-y-4">
+            <div className="p-8 flex-1 overflow-y-auto space-y-4 text-white">
               {requesterDetails.reasons.length > 0 ? (
                 requesterDetails.reasons.map((item, idx) => (
-                  <div key={idx} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex items-center justify-between group hover:border-blue-500/30 transition-all">
+                  <div key={idx} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex items-center justify-between group hover:border-blue-500/30 transition-all text-white">
                     <div className="flex items-center gap-4">
                       <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.3)]"></div>
                       <div>

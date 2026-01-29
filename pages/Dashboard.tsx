@@ -314,8 +314,8 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
 
       {/* --- OVERLAY DE PRÉ-VISUALIZAÇÃO DO RELATÓRIO --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
-            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:relative print:block">
+            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
                     <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial Alumasa</span>
@@ -326,16 +326,16 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                 </div>
             </div>
 
-            <div className="print-container flex-1 p-4 md:p-12">
+            <div className="print-container flex-1 p-4 md:p-12 print:p-0">
                 <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:max-w-none">
                     <div className="w-full text-black">
-                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside text-black">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
                             <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO</h2>
                         </header>
 
-                        <section className="mb-8 no-break-inside">
+                        <section className="mb-8 no-break-inside text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DO PERÍODO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <tbody>
@@ -355,7 +355,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                             </table>
                         </section>
 
-                        <section className="mb-8 no-break-inside">
+                        <section className="mb-8 no-break-inside text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO DE OPERAÇÕES NO PERÍODO</h3>
                             <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <tbody>
@@ -375,7 +375,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                             </table>
                         </section>
 
-                        <section className="mb-8 no-break-inside">
+                        <section className="mb-8 no-break-inside text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">QUADRO DE SAÚDE DO ESTOQUE</h3>
                             <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <thead>
@@ -386,12 +386,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                                 </thead>
                                 <tbody>
                                     {healthData.map((d, i) => (
-                                        <tr key={i} className="border-b border-black bg-white">
+                                        <tr key={i} className="border-b border-black bg-white text-black">
                                             <td className="border-r border-black p-2 font-black text-black uppercase">{d.name}</td>
                                             <td className="p-2 text-center font-black text-black">{d.value}</td>
                                         </tr>
                                     ))}
-                                    <tr className="bg-gray-50">
+                                    <tr className="bg-gray-50 text-black">
                                         <td className="border-r border-black p-2 font-black text-black uppercase">Total de Itens Ativos</td>
                                         <td className="p-2 text-center font-black text-black">{data.length}</td>
                                     </tr>
@@ -399,7 +399,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                             </table>
                         </section>
 
-                        <section className="mb-12 overflow-visible">
+                        <section className="mb-12 overflow-visible text-black">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">LISTAGEM ANALÍTICA DE ITENS EM ESTOQUE</h3>
                             <table className="w-full text-[8px] border-collapse border border-black text-black">
                                 <thead style={{ display: 'table-header-group' }}>
@@ -413,7 +413,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                                 </thead>
                                 <tbody>
                                     {data.map((item, i) => (
-                                        <tr key={i} className="border-b border-black bg-white" style={{ pageBreakInside: 'avoid' }}>
+                                        <tr key={i} className="border-b border-black bg-white text-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-1 font-bold font-mono text-black">{item.codigo}</td>
                                             <td className="border-r border-black p-1 text-black uppercase">{item.descricao}</td>
                                             <td className={`border-r border-black p-1 text-center font-black ${item.quantidadeAtual <= item.quantidadeMinima ? 'text-red-600' : 'text-black'}`}>{item.quantidadeAtual}</td>

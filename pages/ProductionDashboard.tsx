@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { 
   Clock, Target, Zap, Package, Timer, Factory, ChevronLeft, ChevronRight, 
-  Search, TrendingUp, Award, Box, Users, ClipboardList, Calendar, Printer, X, Check, Filter, ChevronDown, Layers, ShoppingBag
+  Search, TrendingUp, Award, Box, Users, ClipboardList, Calendar, Printer, X, Check, Filter, ChevronDown, Layers, ShoppingBag, alertTriangle
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ProductionEntry } from '../types';
@@ -55,9 +55,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
 
   // Lógica de métricas para o Dashboard (Totalizadores por Processo e Turno)
   const metrics = useMemo(() => {
-    let totalMontagem = 0;   // Deve atingir 4.683 no consolidado
-    let totalEmbalagem = 0;  // Deve atingir 4.457 no consolidado
-    let banquetasTotal = 0;  // Antonia (Especialista em Banquetas)
+    let totalMontagem = 0;   
+    let totalEmbalagem = 0;  
+    let banquetasTotal = 0;  
     
     let t1Total = 0;
     let t2Total = 0;
@@ -76,12 +76,10 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
         totalMontagem += value;
         assemblerStats[name] = (assemblerStats[name] || 0) + value;
         
-        // Antonia é a responsável pelas banquetas
         if (name.includes('ANTONIA')) {
           banquetasTotal += value;
         }
 
-        // Turno por nome do montador
         if (montadores1T.some(m => name.includes(m))) {
           t1Total += value;
         } else {
@@ -91,7 +89,6 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
         totalEmbalagem += value;
         packagingStats[name] = (packagingStats[name] || 0) + value;
         
-        // Turno fixo por nome da equipe de embalagem (Adriana 1T, Danilo 2T)
         if (embalagem1T.some(e => name.includes(e))) {
           t1Total += value;
         } else {
@@ -101,12 +98,14 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
     });
 
     const totalGeral = totalMontagem + totalEmbalagem;
+    const faltaEmbalar = Math.max(0, totalMontagem - totalEmbalagem);
 
     return {
       totalMontagem,
       totalEmbalagem,
       banquetasTotal,
       totalGeral,
+      faltaEmbalar,
       t1Total,
       t2Total,
       chartAssemblers: Object.entries(assemblerStats).map(([name, value]) => ({ 
@@ -213,7 +212,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
             <StatCard title="TOTAL MONTAGEM" value={metrics.totalMontagem.toLocaleString('pt-BR')} icon={Target} color="green" />
             <StatCard title="TOTAL EMBALAGEM" value={metrics.totalEmbalagem.toLocaleString('pt-BR')} icon={Package} color="yellow" />
             <StatCard title="BANQUETAS PRODUZIDAS" value={metrics.banquetasTotal.toLocaleString('pt-BR')} icon={ShoppingBag} color="red" />
-            <StatCard title="PRODUÇÃO GERAL" value={metrics.totalGeral.toLocaleString('pt-BR')} icon={Layers} color="blue" />
+            <StatCard title="FALTA EMBALAR" value={metrics.faltaEmbalar.toLocaleString('pt-BR')} icon={Layers} color="blue" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
@@ -391,6 +390,10 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
                                 <tr className="border-b border-black">
                                     <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black uppercase tracking-tighter text-[10px]">Volume Banquetas Produzidas</td>
                                     <td className="p-3 font-black text-black">{metrics.banquetasTotal.toLocaleString('pt-BR')} un <span className="text-[10px] text-gray-500 ml-2">({((metrics.banquetasTotal / metrics.totalMontagem) * 100).toFixed(1)}% da Montagem)</span></td>
+                                </tr>
+                                <tr className="border-b border-black">
+                                    <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-red-600 uppercase tracking-tighter text-[10px]">Pendente de Embalagem (Falta Embalar)</td>
+                                    <td className="p-3 font-black text-red-600">{metrics.faltaEmbalar.toLocaleString('pt-BR')} un</td>
                                 </tr>
                             </tbody>
                         </table>

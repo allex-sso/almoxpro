@@ -19,22 +19,38 @@ interface ServiceOrdersProps {
 
 const formatDetailedTime = (decimalHours: number | string): string => {
   const hoursNum = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
-  if (isNaN(hoursNum) || hoursNum <= 0) return "0m";
-  const h = Math.floor(hoursNum);
-  const m = Math.round((hoursNum - h) * 60);
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h${m}m`;
+  const isNegative = hoursNum < 0;
+  const absHours = Math.abs(hoursNum);
+  
+  if (isNaN(absHours) || absHours === 0) return "0m";
+  
+  const h = Math.floor(absHours);
+  const m = Math.round((absHours - h) * 60);
+  
+  let result = "";
+  if (h === 0) result = `${m}m`;
+  else if (m === 0) result = `${h}h`;
+  else result = `${h}h${m}m`;
+  
+  return isNegative ? `-${result}` : result;
 };
 
 const formatDetailedTimeWithSpace = (decimalHours: number | string): string => {
   const hoursNum = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
-  if (isNaN(hoursNum) || hoursNum <= 0) return "0m";
-  const h = Math.floor(hoursNum);
-  const m = Math.round((hoursNum - h) * 60);
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
+  const isNegative = hoursNum < 0;
+  const absHours = Math.abs(hoursNum);
+
+  if (isNaN(absHours) || absHours === 0) return "0m";
+  
+  const h = Math.floor(absHours);
+  const m = Math.round((absHours - h) * 60);
+  
+  let result = "";
+  if (h === 0) result = `${m}m`;
+  else if (m === 0) result = `${h}h`;
+  else result = `${h}h ${m}m`;
+  
+  return isNegative ? `-${result}` : result;
 };
 
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
@@ -93,14 +109,13 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         
         if (os.dataAbertura && os.dataInicio) {
           const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / 3600000;
-          if (diff > 0 && diff < 1000) { 
+          if (Math.abs(diff) < 2000) { 
             profMap[n].respSum += diff; 
           }
         }
       });
     });
 
-    // LÓGICA SOLICITADA: Soma das Médias dos Profissionais / Total de OS
     const sumOfProfAverages = Object.values(profMap).reduce((acc, curr) => {
         const avg = curr.count > 0 ? curr.respSum / curr.count : 0;
         return acc + avg;
@@ -125,7 +140,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         
         if (os.dataAbertura && os.dataInicio) {
           const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / 3600000;
-          if (diff > 0 && diff < 1000) { 
+          if (Math.abs(diff) < 2000) { 
             map[n].respSum += diff; 
           }
         }
@@ -137,11 +152,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       count: s.count, 
       hours: s.hours, 
       avgResp: s.count > 0 ? s.respSum / s.count : 0
-    })).sort((a, b) => {
-      if (a.avgResp === 0) return 1;
-      if (b.avgResp === 0) return -1;
-      return a.avgResp - b.avgResp;
-    });
+    })).sort((a, b) => a.avgResp - b.avgResp);
   }, [filteredData]);
 
   const assetsDemand = useMemo(() => {
@@ -240,6 +251,13 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     }, 100);
   };
 
+  // Helper para determinar a cor do badge baseado na performance
+  const getBadgeColor = (avgResp: number) => {
+    if (avgResp <= 1) return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+    if (avgResp <= 3) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
+    return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
@@ -295,7 +313,8 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       </div>
 
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:relative print:block">
+            {/* Header Print Preview */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
@@ -317,7 +336,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 </div>
             </div>
 
-            <div className="print-container flex-1 p-4 md:p-12">
+            <div className="print-container flex-1 p-4 md:p-12 print:p-0">
                 <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
                     <div className="w-full">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
@@ -331,7 +350,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
                         <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <tbody>
                                     <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td><td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td></tr>
                                     <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Responsável</td><td className="p-2 font-black text-black">Administrador PCM</td></tr>
@@ -342,7 +361,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
                         <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <tbody>
                                     <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
                                     <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td></tr>
@@ -354,11 +373,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
                         <section className="mb-8 no-break-inside">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
                                 <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
                                 <tbody>
                                     {professionalStats.map((p, i) => (
-                                    <tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td></tr>
+                                    <tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td></tr>
                                     ))}
                                 </tbody>
                             </table>
@@ -367,34 +386,34 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         <div className="space-y-8 mb-8 overflow-visible">
                             <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black">
+                                <table className="w-full text-[9px] border-collapse border border-black text-black">
                                     <thead>
                                         <tr className="bg-gray-200">
                                             <th className="border border-black p-2 text-left font-black text-black">Ativo</th>
                                             <th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th>
                                         </tr>
                                     </thead>
-                                    <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
+                                    <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
                                 </table>
                             </section>
                             
                             <section className="no-break-inside">
                                 <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black">
+                                <table className="w-full text-[9px] border-collapse border border-black text-black">
                                     <thead>
                                         <tr className="bg-gray-200">
                                             <th className="border border-black p-2 text-left font-black text-black">Equipamento</th>
                                             <th className="border border-black p-2 text-right font-black text-black">Tempo Total</th>
                                         </tr>
                                     </thead>
-                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black"><td className="border-r border-black p-1.5 font-black bg-gray-100 text-black">{d.name}</td><td className="p-1.5 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
+                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-1.5 font-black bg-gray-100 text-black">{d.name}</td><td className="p-1.5 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
                                 </table>
                             </section>
                         </div>
 
                         <div className="mb-12 overflow-visible">
                             <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black">
+                            <table className="w-full text-[9px] border-collapse border border-black text-black">
                                 <thead style={{ display: 'table-header-group' }}>
                                     <tr className="bg-gray-200">
                                         <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
@@ -405,7 +424,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                     let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
                                     let execTime = os.horas || 0;
                                     return (
-                                        <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                        <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
                                             <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
                                             <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
                                             <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
@@ -419,7 +438,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </div>
 
-                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside">
+                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside text-black">
                             <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
                             <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
                         </footer>
@@ -553,7 +572,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
                     <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
                     <td className="px-6 py-4 text-right">
-                      <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${p.avgResp > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>
+                      <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${getBadgeColor(p.avgResp)}`}>
                         {formatDetailedTimeWithSpace(p.avgResp)}
                       </span>
                     </td>
