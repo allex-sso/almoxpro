@@ -26,7 +26,8 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
          res = res.filter(item => item.categoria === categoryFilter);
      }
      if (equipmentFilter !== 'Todos') {
-         res = res.filter(item => item.equipment === equipmentFilter);
+         // Fix: Changed item.equipment to item.equipamento to match the InventoryItem interface
+         res = res.filter(item => item.equipamento === equipmentFilter);
      }
      return res;
   }, [data, categoryFilter, equipmentFilter]);

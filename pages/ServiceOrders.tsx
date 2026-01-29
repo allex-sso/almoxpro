@@ -1,4 +1,3 @@
-
 // Import React explicitly to support React.FC and other React namespace types
 import React, { useState, useMemo } from 'react';
 import { 
@@ -11,10 +10,11 @@ import {
 import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
 
+// Interface definition for ServiceOrdersPage props
 interface ServiceOrdersProps {
   osData: ServiceOrder[];
   inventoryData: InventoryItem[];
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
 const formatDetailedTime = (decimalHours: number | string): string => {
@@ -251,12 +251,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     }, 100);
   };
 
-  // Helper para determinar a cor do badge baseado na performance
   const getBadgeColor = (avgResp: number) => {
     if (avgResp <= 1) return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
     if (avgResp <= 3) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
     return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
   };
+
+  if (isLoading) {
+    return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Carregando dados de ordens de serviço...</div>;
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -301,7 +304,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             </div>
           </div>
 
-          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95"><Printer className="w-4 h-4 text-rose-500" /> Relatório</button>
+          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 shadow-sm"><Printer className="w-4 h-4 text-rose-500" /> Relatório</button>
         </div>
       </div>
 
@@ -313,7 +316,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       </div>
 
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:relative print:block">
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible">
             {/* Header Print Preview */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
@@ -321,24 +324,14 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório Gerencial</span>
                 </div>
                 <div className="flex gap-3">
-                    <button 
-                        onClick={() => setShowPrintPreview(false)}
-                        className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"
-                    >
-                        <X className="w-4 h-4 mr-2" /> Voltar
-                    </button>
-                    <button 
-                        onClick={handleConfirmPrint}
-                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"
-                    >
-                        <Check className="w-4 h-4 mr-2" /> Confirmar Impressão
-                    </button>
+                    <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
+                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
                 </div>
             </div>
 
-            <div className="print-container flex-1 p-4 md:p-12 print:p-0">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0">
-                    <div className="w-full">
+            <div className="print-container flex-1 p-4 md:p-12 print:p-0 print:block print:h-auto print:static">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:static print:max-w-none">
+                    <div className="w-full print:static">
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
@@ -454,44 +447,13 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           <div className="flex items-center mb-6"><Wrench className="w-5 h-5 text-blue-600 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">Abertura por Equipamento (Top 5)</h3></div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} 
-                layout="vertical"
-                margin={{ right: 80 }}
-              >
+              <BarChart data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} layout="vertical" margin={{ right: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
-                <Bar 
-                  dataKey="value" 
-                  name="Quantidade" 
-                  fill="#3b82f6" 
-                  radius={[0, 4, 4, 0]} 
-                  barSize={25}
-                  className="cursor-pointer"
-                  onClick={(data) => {
-                    if (data && data.name) {
-                      setSelectedEquipmentForModal(data.name);
-                    }
-                  }}
-                >
-                  <LabelList 
-                    dataKey="value" 
-                    position="insideRight" 
-                    offset={10}
-                    formatter={(value: number) => {
-                      const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0";
-                      return `${percent}%`;
-                    }}
-                    style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
-                  />
-                  <LabelList 
-                    dataKey="value" 
-                    position="right" 
-                    offset={10}
-                    formatter={(value: number) => `${value}`}
-                    style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
-                  />
+                <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
+                  <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                  <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -503,141 +465,91 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           <div className="h-72">
             {sectorDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={sectorDistribution} 
-                  margin={{ top: 30, right: 30, left: 20, bottom: 20 }}
-                >
+                <BarChart data={sectorDistribution} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
                   <YAxis type="number" hide />
-                  <Bar 
-                    dataKey="value" 
-                    name="Quantidade" 
-                    fill="#10b981" 
-                    radius={[4, 4, 0, 0]} 
-                    barSize={40}
-                  >
-                    <LabelList 
-                      dataKey="value" 
-                      position="insideTop" 
-                      offset={10}
-                      formatter={(value: number) => {
-                        const percent = totalSectorOS > 0 ? ((value / totalSectorOS) * 100).toFixed(1) : "0";
-                        return `${percent}%`;
-                      }}
-                      style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
-                    />
-                    <LabelList 
-                      dataKey="value" 
-                      position="top" 
-                      offset={10}
-                      formatter={(value: number) => `${value}`}
-                      style={{ fill: '#10b981', fontSize: '12px', fontWeight: 'bold' }}
-                    />
+                  <Bar dataKey="value" name="Quantidade" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40}>
+                    <LabelList dataKey="value" position="insideTop" offset={10} formatter={(value: number) => { const percent = totalSectorOS > 0 ? ((value / totalSectorOS) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                    <LabelList dataKey="value" position="top" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#10b981', fontSize: '12px', fontWeight: 'bold' }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
-                Sem dados para exibir
-              </div>
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
             )}
           </div>
         </div>
       </div>
 
       <div className="space-y-8 no-print">
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-            <div className="flex items-center">
-              <Users className="w-5 h-5 text-blue-600 mr-2" />
-              <h3 className="font-bold text-slate-800 dark:text-white">Detalhamento por Profissional</h3>
-            </div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ordenado por Média de Resposta</span>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 flex justify-between items-center px-6 py-4">
+          <div className="flex items-center">
+            <Users className="w-5 h-5 text-blue-600 mr-2" />
+            <h3 className="font-bold text-slate-800 dark:text-white">Detalhamento por Profissional</h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0">
-                <tr>
-                  <th className="px-6 py-4">Profissional</th>
-                  <th className="px-6 py-4 text-center">OS</th>
-                  <th className="px-6 py-4 text-center">Total Tempo Serviço</th>
-                  <th className="px-6 py-4 text-right">Média Resposta</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {professionalStats.map((p, i) => (
-                  <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                    <td className="px-6 py-4 font-bold text-slate-800 dark:text-white">{p.name}</td>
-                    <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
-                    <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
-                    <td className="px-6 py-4 text-right">
-                      <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${getBadgeColor(p.avgResp)}`}>
-                        {formatDetailedTimeWithSpace(p.avgResp)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ordenado por Média de Resposta</span>
         </div>
+        <div className="overflow-x-auto bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0">
+              <tr>
+                <th className="px-6 py-4">Profissional</th>
+                <th className="px-6 py-4 text-center">OS</th>
+                <th className="px-6 py-4 text-center">Total Tempo Serviço</th>
+                <th className="px-6 py-4 text-right">Média Resposta</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {professionalStats.map((p, i) => (
+                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  <td className="px-6 py-4 font-bold text-slate-800 dark:text-white">{p.name}</td>
+                  <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
+                  <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
+                  <td className="px-6 py-4 text-right">
+                    <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${getBadgeColor(p.avgResp)}`}>
+                      {formatDetailedTimeWithSpace(p.avgResp)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center mb-6">
-            <TrendingDown className="w-5 h-5 text-rose-500 mr-2" />
-            <h3 className="font-bold text-slate-800 dark:text-white">Tempo Total Parado por Equipamento</h3>
-          </div>
-          <div className="h-80">
-            {downtimeByEquipment.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={downtimeByEquipment.slice(0, 10)} margin={{ top: 30, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="#94a3b8" 
-                    fontSize={10} 
-                    tick={{ dy: 5 }} 
-                    interval={0} 
-                    angle={-15} 
-                    textAnchor="end"
-                  />
-                  <YAxis 
-                    stroke="#94a3b8" 
-                    fontSize={10} 
-                    tickFormatter={(val) => `${val}h`} 
-                  />
-                  <Bar dataKey="value" name="Tempo Parado (h)" radius={[4, 4, 0, 0]} barSize={35}>
-                    {downtimeByEquipment.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
-                    ))}
-                    <LabelList 
-                      dataKey="value" 
-                      position="top" 
-                      offset={12}
-                      formatter={(val: any) => formatDetailedTime(val)}
-                      style={{ fill: '#ef4444', fontSize: '11px', fontWeight: '900' }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
-                Nenhum tempo de parada registrado
-              </div>
-            )}
-          </div>
+      <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 no-print">
+        <div className="flex items-center mb-6">
+          <TrendingDown className="w-5 h-5 text-rose-500 mr-2" />
+          <h3 className="font-bold text-slate-800 dark:text-white">Tempo Total Parado por Equipamento</h3>
+        </div>
+        <div className="h-80">
+          {downtimeByEquipment.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={downtimeByEquipment.slice(0, 10)} margin={{ top: 30, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tick={{ dy: 5 }} interval={0} angle={-15} textAnchor="end" />
+                <YAxis stroke="#94a3b8" fontSize={10} tickFormatter={(val) => `${val}h`} />
+                <Bar dataKey="value" name="Tempo Parado (h)" radius={[4, 4, 0, 0]} barSize={35}>
+                  {downtimeByEquipment.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
+                  ))}
+                  <LabelList dataKey="value" position="top" offset={12} formatter={(val: any) => formatDetailedTime(val)} style={{ fill: '#ef4444', fontSize: '11px', fontWeight: '900' }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado</div>
+          )}
         </div>
       </div>
 
       {selectedEquipmentForModal && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
           <div className="bg-[#1e293b] w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-8 border-b border-slate-700 flex justify-between items-start">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-500/10 rounded-2xl">
-                  <BarChart3 className="w-6 h-6 text-blue-400" />
-                </div>
+                <div className="p-3 bg-blue-500/10 rounded-2xl"><BarChart3 className="w-6 h-6 text-blue-400" /></div>
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight uppercase">Peças Citadas em OS</h2>
                   <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedEquipmentForModal}</p>
@@ -654,40 +566,14 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" />
                       <XAxis type="number" hide />
                       <YAxis dataKey="name" type="category" width={180} tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 'bold'}} />
-                      <Bar 
-                        dataKey="value" 
-                        name="Quantidade" 
-                        fill="#3b82f6" 
-                        radius={[0, 4, 4, 0]} 
-                        barSize={25} 
-                        className="cursor-pointer" 
-                        onClick={(data) => { if (data && data.name) setSelectedPartForReasons(data.name); }}
-                      >
-                        <LabelList 
-                          dataKey="value" 
-                          position="insideRight" 
-                          offset={10}
-                          formatter={(value: number) => {
-                            const percent = totalPieceOccurrences > 0 ? ((value / totalPieceOccurrences) * 100).toFixed(1) : "0";
-                            return `${percent}%`;
-                          }}
-                          style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }}
-                        />
-                        <LabelList 
-                          dataKey="value" 
-                          position="right" 
-                          offset={10}
-                          formatter={(value: number) => `${value}`}
-                          style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
-                        />
+                      <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) setSelectedPartForReasons(data.name); }}>
+                        <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = totalPieceOccurrences > 0 ? ((value / totalPieceOccurrences) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                        <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12">
-                    <AlertCircle className="w-12 h-12 opacity-20" />
-                    <p className="font-bold uppercase tracking-widest text-xs">Nenhuma peça registrada para este equipamento</p>
-                  </div>
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12"><AlertCircle className="w-12 h-12 opacity-20" /><p className="font-bold uppercase tracking-widest text-xs">Nenhuma peça registrada para este equipamento</p></div>
                 )}
               </div>
             </div>
@@ -697,29 +583,19 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       )}
 
       {selectedPartForReasons && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200 no-print">
           <div className="bg-[#1e293b] w-full max-w-md rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden">
             <div className="p-8 border-b border-slate-700 flex justify-between items-start">
               <div className="flex items-center gap-4"><div className="p-3 bg-blue-500/10 rounded-2xl"><MessageCircle className="w-6 h-6 text-blue-400" /></div><div><h2 className="text-xl font-black text-white tracking-tight uppercase">Motivos de Troca</h2><p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedPartForReasons}</p></div></div>
               <button onClick={() => setSelectedPartForReasons(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto">
+            <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto text-white">
               {partReasons.length > 0 ? (
                 partReasons.map((item, idx) => (
                   <div key={idx} className="flex gap-4 group">
-                    <div className="relative mt-1">
-                      <div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                      <div className="absolute top-0 left-[-4px] w-3.5 h-3.5 bg-blue-500 rounded-full blur-[2px] opacity-40"></div>
-                    </div>
+                    <div className="relative mt-1"><div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div><div className="absolute top-0 left-[-4px] w-3.5 h-3.5 bg-blue-500 rounded-full blur-[2px] opacity-40"></div></div>
                     <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <p className="text-white text-sm font-bold italic pr-4">
-                          {item.reason}
-                        </p>
-                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[10px] font-black whitespace-nowrap">
-                          {item.count}x
-                        </span>
-                      </div>
+                      <div className="flex justify-between items-start"><p className="text-white text-sm font-bold italic pr-4">{item.reason}</p><span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[10px] font-black whitespace-nowrap">{item.count}x</span></div>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Última ocorrência: {item.lastDate}</p>
                     </div>
                   </div>

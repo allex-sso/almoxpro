@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List, Settings2 } from 'lucide-react';
 import { Page } from '../types';
 
 interface SidebarProps {
@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
     menuItems.push({ id: Page.CENTRAL_PERFIL, label: 'Perfis', icon: Layers });
   } else if (isProduction) {
     menuItems.push({ id: Page.PRODUCTION_DASHBOARD, label: 'Painel de Produção', icon: Factory });
+    menuItems.push({ id: Page.PRODUCTION_TYPOLOGY, label: 'Análise de Tipologias', icon: Settings2 });
     menuItems.push({ id: Page.PRODUCTION_DETAILS, label: 'Detalhamento Diário', icon: List });
   } else {
     menuItems.push({ id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard });

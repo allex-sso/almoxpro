@@ -254,7 +254,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
                 <BarChart data={metrics.sectorData} layout="vertical" margin={{ right: 80, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.3} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={140} tick={{fontSize: 9, fontBold: 'bold', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                  {/* Fix: Changed 'fontBold' to 'fontWeight' to fix Recharts YAxis tick error */}
+                  <YAxis dataKey="name" type="category" width={140} tick={{fontSize: 9, fontWeight: 'bold', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
                   <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={24} className="cursor-pointer" onClick={(data) => data && data.name && setSelectedSectorForModal(data.name)}>
                     <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => {
                         const percent = metrics.totalItems > 0 ? ((value / metrics.totalItems) * 100).toFixed(1) : "0";

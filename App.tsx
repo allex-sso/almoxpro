@@ -16,19 +16,16 @@ import LoginPage from './pages/Login';
 import CentralDashboard from './pages/CentralDashboard';
 import CentralProfiles from './pages/CentralProfiles';
 import ProductionDashboard from './pages/ProductionDashboard';
+import ProductionTypology from './pages/ProductionTypology';
 
 const MASTER_PROFILE_ID = 'almox-pecas';
 const CENTRAL_PROFILE_ID = 'almox-central';
 const PRODUCTION_PROFILE_ID = 'prod-escadas';
 
-// Função robusta para pegar variáveis de ambiente no Vite/Vercel
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
   try {
-    // Padrão Vite (Vercel)
     const viteEnv = (import.meta as any).env;
     if (viteEnv && viteEnv[key]) return viteEnv[key];
-    
-    // Fallback process.env
     if (typeof process !== 'undefined' && process.env && process.env[key]) {
       return process.env[key] as string;
     }
@@ -74,8 +71,12 @@ const getDefaultProfiles = (): SectorProfile[] => {
       isProduction: true,
       sources: [
         { 
-          label: 'Controle de Produção', 
-          url: getEnvVar('VITE_PRODUCTION_ESCADA_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv') 
+          label: 'Ranking Equipes', 
+          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv' 
+        },
+        {
+          label: 'Engenharia de Processos',
+          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSucvGIz4K57zAeWyXCOTgsKDGtVCLk7LLruUXxyaa8Zdx3NeyjXCPpMR_5fqNme2LQLXLHG4-YWqvz/pub?gid=1991174007&single=true&output=csv'
         }
       ]
     }
@@ -94,13 +95,11 @@ const App: React.FC = () => {
         const parsed = JSON.parse(savedSettings);
         let savedProfiles = Array.isArray(parsed.profiles) ? parsed.profiles : defaultProfiles;
         
-        // Lógica de Sincronização: Garantir que perfis "hardcoded" novos apareçam mesmo se houver cache
         defaultProfiles.forEach(defProf => {
           const exists = savedProfiles.find((p: SectorProfile) => p.id === defProf.id);
           if (!exists) {
             savedProfiles.push(defProf);
           } else {
-            // Opcional: Atualiza URLs de variáveis de ambiente se elas mudarem no código
             if (defProf.id === PRODUCTION_PROFILE_ID) {
                const idx = savedProfiles.findIndex((p: SectorProfile) => p.id === defProf.id);
                savedProfiles[idx] = { ...savedProfiles[idx], sources: defProf.sources };
@@ -286,14 +285,11 @@ const App: React.FC = () => {
 
   const renderPage = () => {
     if (activeProfile?.isProduction) {
-        const isDetails = currentPage === Page.PRODUCTION_DETAILS;
-        return (
-          <ProductionDashboard 
-            data={productionData} 
-            isLoading={isLoading} 
-            initialTab={isDetails ? 'table' : 'stats'}
-          />
-        );
+        switch (currentPage) {
+          case Page.PRODUCTION_TYPOLOGY: return <ProductionTypology data={productionData} isLoading={isLoading} />;
+          case Page.PRODUCTION_DETAILS: return <ProductionDashboard data={productionData} isLoading={isLoading} initialTab="table" />;
+          default: return <ProductionDashboard data={productionData} isLoading={isLoading} initialTab="stats" />;
+        }
     }
     
     if (activeProfile?.isCentral) {

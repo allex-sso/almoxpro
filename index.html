@@ -56,21 +56,11 @@
         /* CONFIGURAÇÃO GLOBAL DE PÁGINA */
         @page {
           size: A4 portrait;
-          margin: 15mm !important;
-        }
-
-        /* PÁGINA ESPECÍFICA PARA ETIQUETAS TÉRMICAS */
-        @page thermal {
-          size: auto;
-          margin: 0 !important;
-        }
-
-        .thermal-label-container {
-          page: thermal;
+          margin: 10mm !important;
         }
 
         /* RESET TOTAL DE LAYOUT PARA MÚLTIPLAS PÁGINAS */
-        html, body, #root, #root > div, main, .flex-1, .print-mode-wrapper, .print-container {
+        html, body, #root, #root > div, main, .flex-1, .print-mode-wrapper, .print-container, .printable-area {
           background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
@@ -80,6 +70,8 @@
           position: static !important;
           display: block !important;
           width: 100% !important;
+          max-width: none !important;
+          box-shadow: none !important;
         }
 
         /* Esconder elementos de interface */
@@ -92,18 +84,14 @@
         .sticky,
         .fixed:not(.print-mode-wrapper) {
           display: none !important;
+          height: 0 !important;
+          width: 0 !important;
+          overflow: hidden !important;
         }
 
-        .printable-area {
-          display: block !important;
-          width: 100% !important;
-          height: auto !important;
-          padding: 0 !important;
-          margin: 0 !important;
-          overflow: visible !important;
-          border: none !important;
-          max-width: none !important;
-          color: black !important;
+        .print-mode-wrapper {
+          position: static !important;
+          z-index: auto !important;
         }
 
         table { 
@@ -111,6 +99,7 @@
           width: 100% !important; 
           border-collapse: collapse !important; 
           table-layout: auto !important;
+          color: black !important;
         }
         
         thead { 
@@ -124,11 +113,19 @@
 
         td, th {
           word-break: break-word !important;
+          color: black !important;
+          border: 1px solid black !important;
         }
         
         .no-break-inside { 
           page-break-inside: avoid !important; 
           break-inside: avoid !important; 
+        }
+
+        /* Força bordas de assinatura a serem pretas na impressão */
+        .border-t-2, .border-t {
+          border-top-color: #000000 !important;
+          border-top-style: solid !important;
         }
         
         /* Força a cor do texto para preto na impressão */
@@ -137,6 +134,7 @@
           print-color-adjust: exact !important;
           color-adjust: exact !important;
           text-shadow: none !important;
+          color: black !important;
         }
       }
     </style>

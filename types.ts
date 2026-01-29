@@ -112,5 +112,6 @@ export enum Page {
   CENTRAL_DASHBOARD = 'central_dashboard',
   CENTRAL_PERFIL = 'central_perfil',
   PRODUCTION_DASHBOARD = 'production_dashboard',
-  PRODUCTION_DETAILS = 'production_details'
+  PRODUCTION_DETAILS = 'production_details',
+  PRODUCTION_TYPOLOGY = 'production_typology'
 }

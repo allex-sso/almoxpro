@@ -161,10 +161,6 @@ const findBestCol = (headers: string[], terms: string[]) => {
   return -1;
 };
 
-/**
- * PARSER ESPECIALIZADO PARA O LAYOUT DE MATRIZ DA ALUMASA (ESCADA E PLÁSTICO)
- * Este parser busca por nomes de funcionários e semanas em blocos fixos na grade.
- */
 const parseAlumasaProductionSheet = (rows: string[][]): ProductionEntry[] => {
   const entries: ProductionEntry[] = [];
   const names = [
@@ -173,33 +169,26 @@ const parseAlumasaProductionSheet = (rows: string[][]): ProductionEntry[] => {
     'ADRIANA/RANNY', 'DANILO/ANGELICA'
   ];
 
-  // Datas virtuais para as semanas de Janeiro 2026 conforme cabeçalho
   const weekDates = [
-    new Date(2026, 0, 5),  // Semana 1 (Início 05/01)
-    new Date(2026, 0, 12), // Semana 2 (Início 12/01)
-    new Date(2026, 0, 19), // Semana 3 (Início 19/01)
-    new Date(2026, 0, 26)  // Semana 4 (Início 26/01)
+    new Date(2026, 0, 5),
+    new Date(2026, 0, 12),
+    new Date(2026, 0, 19),
+    new Date(2026, 0, 26)
   ];
-
-  // Estrutura da Planilha:
-  // Lado Esquerdo: Colunas 0 a 10 (S1 e S3)
-  // Lado Direito: Colunas 12 a 22 (S2 e S4)
-  // Topo: Linhas 1 a 20 (S1 e S2)
-  // Fundo: Linhas 21 a 40 (S3 e S4)
 
   const processBlock = (startRow: number, endRow: number, startCol: number, totalColOffset: number, weekIdx: number) => {
     for (let r = startRow; r < Math.min(endRow, rows.length); r++) {
       const row = rows[r];
       if (!row) continue;
       
-      const potentialName = normalizeStr(row[startCol + 1]); // Coluna B ou N
+      const potentialName = normalizeStr(row[startCol + 1]); 
       
       const matchedName = names.find(n => normalizeStr(n) === potentialName);
       if (matchedName) {
-        const produzido = parseNumber(row[startCol + totalColOffset]); // Coluna J ou T
+        const produzido = parseNumber(row[startCol + totalColOffset]);
         if (produzido > 0) {
           entries.push({
-            id: `prod-${weekIdx}-${r}-${Date.now()}`,
+            id: `prod-matrix-${weekIdx}-${r}-${Date.now()}`,
             data: weekDates[weekIdx],
             tipologia: matchedName,
             metaDia: 700,
@@ -216,13 +205,9 @@ const parseAlumasaProductionSheet = (rows: string[][]): ProductionEntry[] => {
     }
   };
 
-  // Semana 1: Colunas 0-10, Linhas 1-20
   processBlock(1, 20, 0, 9, 0);
-  // Semana 2: Colunas 12-22, Linhas 1-20
   processBlock(1, 20, 12, 9, 1);
-  // Semana 3: Colunas 0-10, Linhas 21-40
   processBlock(21, 40, 0, 9, 2);
-  // Semana 4: Colunas 12-22, Linhas 21-40
   processBlock(21, 40, 12, 9, 3);
 
   return entries;
@@ -232,59 +217,50 @@ export const fetchProductionData = async (url: string): Promise<ProductionEntry[
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
 
-  // Tentar primeiro o parser especializado para o layout da Alumasa (Matriz Semanal)
-  const alumasaData = parseAlumasaProductionSheet(rows);
-  if (alumasaData.length > 0) return alumasaData;
+  // Tenta identificar se é uma listagem flat de tipologias industriais
+  const { index: headerIdx, headers: rawHeaders } = findHeaderRow(rows, ['dia', 'tipologia', 'produzido', 'mesa']);
+  
+  if (headerIdx !== -1) {
+    const idxData = findBestCol(rawHeaders, ['dia', 'data']);
+    const idxTipologia = findBestCol(rawHeaders, ['tipologia', 'modelo']);
+    const idxPcsHr = findBestCol(rawHeaders, ['produção/ horas', 'producao/ horas', 'pecas/hora alvo']);
+    const idxMeta = findBestCol(rawHeaders, ['meta dia', 'meta']);
+    const idxMesa = findBestCol(rawHeaders, ['mesa', 'posto', 'maquina']);
+    const idxHoras = findBestCol(rawHeaders, ['horas trabalhadas', 'tempo trabalhado', 'horas']);
+    const idxProduzido = findBestCol(rawHeaders, ['produzido', 'total', 'quantidade']);
+    const idxPercent = findBestCol(rawHeaders, ['percentual', 'eficiencia', '%']);
+    const idxTurno = findBestCol(rawHeaders, ['turno', 'periodo']);
 
-  // Fallback para o parser de lista padrão
-  const { index: headerIdx, headers: rawHeaders } = findHeaderRow(rows, ['dia', 'data', 'tipologia', 'produzido']);
-  if (headerIdx === -1) return [];
-  
-  const idxData = findBestCol(rawHeaders, ['dia', 'data']);
-  const idxMaquina = findBestCol(rawHeaders, ['maquina', 'mesa', 'posto']);
-  const idxTipologia = findBestCol(rawHeaders, ['tipologia', 'tpologia', 'modelo']);
-  const idxMeta = findBestCol(rawHeaders, ['meta dia', 'meta']);
-  const idxPcsHoraAlvo = findBestCol(rawHeaders, ['producao/ horas', 'pecas/hora alvo', 'producao/ hora']);
-  const idxHoras = findBestCol(rawHeaders, ['horas trabalhadas', 'tempo trabalhado', 'horas']);
-  const idxTurnoA = findBestCol(rawHeaders, ['turno a']);
-  const idxTurnoB = findBestCol(rawHeaders, ['turno b']);
-  const idxTurnoC = findBestCol(rawHeaders, ['turno c']);
-  const idxTurnoGeral = findBestCol(rawHeaders, ['turno', 'periodo']);
-  const idxTotal = findBestCol(rawHeaders, ['total', 'produzido', 'producao']);
-  const idxPercentual = findBestCol(rawHeaders, ['percentual', 'eficiencia', '%']);
-  
-  return rows.slice(headerIdx + 1).map((row, i): ProductionEntry | null => {
-    const dateVal = row[idxData]?.trim();
-    const tipoVal = row[idxTipologia]?.trim();
-    if (!dateVal || !tipoVal || tipoVal === '-' || tipoVal === '0' || tipoVal === '') return null;
-    const dataParsed = parseDate(dateVal);
-    if (!dataParsed) return null;
-    const valA = parseNumber(row[idxTurnoA]);
-    const valB = parseNumber(row[idxTurnoB]);
-    const valC = parseNumber(row[idxTurnoC]);
-    let produzido = parseNumber(row[idxTotal]);
-    if (produzido === 0) produzido = valA + valB + valC;
-    if (produzido === 0) return null;
-    let turnoLabel = row[idxTurnoGeral]?.trim() || '';
-    const horasTrabalhadas = parseDurationToHours(row[idxHoras]);
-    
-    return {
-      id: `prod-${i}-${Date.now()}`,
-      data: dataParsed,
-      tipologia: tipoVal,
-      metaDia: parseNumber(row[idxMeta]),
-      pecasHoraAlvo: parseNumber(row[idxPcsHoraAlvo]),
-      mesa: row[idxMaquina]?.trim() || 'N/D',
-      horasTrabalhadas: horasTrabalhadas,
-      produzido: produzido,
-      percentual: parseNumber(row[idxPercentual]),
-      turno: turnoLabel,
-      semana: '',
-      valA,
-      valB,
-      valC
-    };
-  }).filter((p): p is ProductionEntry => p !== null);
+    return rows.slice(headerIdx + 1).map((row, i): ProductionEntry | null => {
+      const diaVal = row[idxData]?.trim();
+      const tipoVal = row[idxTipologia]?.trim();
+      if (!diaVal || !tipoVal || tipoVal === '-') return null;
+
+      const dataParsed = parseDate(diaVal);
+      if (!dataParsed) return null;
+
+      const produzido = parseNumber(row[idxProduzido]);
+      if (produzido === 0) return null;
+
+      return {
+        id: `prod-flat-${i}-${Date.now()}`,
+        data: dataParsed,
+        tipologia: tipoVal,
+        metaDia: parseNumber(row[idxMeta]),
+        pecasHoraAlvo: parseNumber(row[idxPcsHr]),
+        mesa: row[idxMesa]?.trim() || 'N/D',
+        horasTrabalhadas: parseDurationToHours(row[idxHoras]) || 8,
+        produzido: produzido,
+        percentual: parseNumber(row[idxPercent]),
+        turno: row[idxTurno]?.trim() || 'Geral',
+        semana: ''
+      };
+    }).filter((p): p is ProductionEntry => p !== null);
+  }
+
+  // Se não encontrou cabeçalho flat, tenta o parser de matriz semanal
+  const alumasaData = parseAlumasaProductionSheet(rows);
+  return alumasaData;
 };
 
 export const fetchMovements = async (url: string, type: 'entrada' | 'saida'): Promise<Movement[]> => {
@@ -338,7 +314,6 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   return rows.slice(headerIdx + 1).map((row) => {
     const codigo = formatCodigo(row[idxCodigo]);
     if (!codigo) return null;
-    // Fix: correct property names and add missing dataAtualizacao to match InventoryItem interface
     return {
         id: codigo, 
         codigo, 
