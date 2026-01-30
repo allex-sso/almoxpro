@@ -23,7 +23,6 @@ const formatHoursMinutes = (decimalHours: number): string => {
 };
 
 const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading }) => {
-  const [selectedWeek, setSelectedWeek] = useState<string>('Todos');
   const [selectedMesa, setSelectedMesa] = useState<string>('Todos');
   const [selectedMesaForModal, setSelectedMesaForModal] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -95,7 +94,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
     };
   }, [filteredData]);
 
-  // Lógica de detalhamento da mesa selecionada no gráfico (Turnos exclusivamente)
   const mesaDetailsData = useMemo(() => {
     if (!selectedMesaForModal) return { shifts: [], total: 0 };
     
@@ -141,7 +139,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 no-print">
         <div>
           <h1 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
@@ -170,7 +167,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
         </div>
       </div>
 
-      {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
         <StatCard title="TOTAL PRODUZIDO" value={metrics.totalProduced.toLocaleString('pt-BR')} icon={Package} color="blue" />
         <StatCard title="EFICIÊNCIA GLOBAL" value={`${metrics.efficiency.toFixed(1)}%`} icon={Target} color="green" />
@@ -178,7 +174,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
         <StatCard title="TEMPO EM OPERAÇÃO" value={formatHoursMinutes(metrics.totalHours)} icon={Clock} color="yellow" trend="7.5h/dia" />
       </div>
 
-      {/* CHARTS ROW 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-slate-100 dark:border-slate-800">
           <h3 className="font-black uppercase tracking-widest text-[10px] text-slate-400 mb-6 flex items-center gap-2">
@@ -220,15 +215,9 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                     padding: '12px'
                   }}
                   itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                  formatter={(value: any, name: string) => {
-                    // Mapeia os nomes da legenda para nomes amigáveis no Tooltip
-                    if (name === 'Goal') return [value, 'Meta Diária'];
-                    if (name === 'Produced') return [value, 'Produzido'];
-                    return [value, name];
-                  }}
                 />
-                <Area type="monotone" dataKey="goal" fill="#3b82f6" stroke="#3b82f6" fillOpacity={0.1} name="Goal" />
-                <Bar dataKey="produced" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} name="Produced" />
+                <Area type="monotone" dataKey="goal" fill="#3b82f6" stroke="#3b82f6" fillOpacity={0.1} name="Meta Diária" />
+                <Bar dataKey="produced" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} name="Produzido" />
                 <Line 
                   type="monotone" 
                   dataKey="produced" 
@@ -236,8 +225,8 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                   strokeWidth={3} 
                   dot={{ r: 4, fill: '#059669' }} 
                   isAnimationActive={false}
-                  tooltipType="none" // Evita que a linha crie uma entrada própria no tooltip
-                  legendType="none" // Evita que a linha crie uma entrada própria na legenda
+                  tooltipType="none" 
+                  legendType="none"
                 />
                 <Legend iconType="circle" verticalAlign="bottom" />
               </ComposedChart>
@@ -246,7 +235,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
         </div>
       </div>
 
-      {/* CHARTS ROW 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-slate-100 dark:border-slate-800">
           <h3 className="font-black uppercase tracking-widest text-[10px] text-slate-400 mb-6 flex items-center gap-2">
@@ -292,7 +280,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
         </div>
       </div>
 
-      {/* MODAL DE DETALHAMENTO DA MESA (APENAS POR TURNO) */}
       {selectedMesaForModal && (
         <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
             <div className="bg-[#1e293b] w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col transform animate-in zoom-in-95 duration-300">
@@ -316,7 +303,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                 </div>
 
                 <div className="p-8 space-y-8 max-h-[50vh] overflow-y-auto custom-scrollbar">
-                    {/* Detalhamento por Turno */}
                     <div className="space-y-4">
                         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
                            <Clock className="w-3 h-3" /> Produção por Turno
@@ -358,7 +344,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
         </div>
       )}
 
-      {/* PRINT PREVIEW */}
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:block print:static print:h-auto print:overflow-visible print:bg-white">
           <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
