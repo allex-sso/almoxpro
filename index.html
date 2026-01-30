@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR" class="dark">
   <head>
@@ -40,6 +39,8 @@
         color: #000000 !important;
         background-color: #ffffff !important;
         box-sizing: border-box !important;
+        width: 100% !important;
+        display: block !important;
       }
       
       .printable-area .bg-black {
@@ -49,23 +50,22 @@
         print-color-adjust: exact !important;
       }
 
-      .printable-area table { border-collapse: collapse !important; width: 100% !important; }
-      .printable-area th, .printable-area td { border: 1px solid #000000 !important; }
-
       @media print {
         /* CONFIGURAÇÃO GLOBAL DE PÁGINA */
         @page {
           size: A4 portrait;
-          margin: 10mm !important;
+          margin: 15mm 10mm !important;
         }
 
         /* RESET TOTAL DE LAYOUT PARA MÚLTIPLAS PÁGINAS */
+        /* Forçamos TODOS os containers a permitirem overflow e altura automática */
         html, body, #root, #root > div, main, .flex-1, .print-mode-wrapper, .print-container, .printable-area {
           background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
           height: auto !important;
           min-height: 0 !important;
+          max-height: none !important;
           overflow: visible !important;
           position: static !important;
           display: block !important;
@@ -74,36 +74,29 @@
           box-shadow: none !important;
         }
 
-        /* Esconder elementos de interface */
-        #root > div > aside,
-        #root > div > div > header,
+        /* Esconder elementos de interface de forma agressiva */
         .no-print,
         nav,
         button,
+        aside,
         .preview-header,
         .sticky,
         .fixed:not(.print-mode-wrapper) {
           display: none !important;
-          height: 0 !important;
-          width: 0 !important;
-          overflow: hidden !important;
         }
 
-        .print-mode-wrapper {
-          position: static !important;
-          z-index: auto !important;
-        }
-
+        /* Garantir que tabelas quebrem corretamente */
         table { 
           page-break-inside: auto !important; 
           width: 100% !important; 
           border-collapse: collapse !important; 
           table-layout: auto !important;
           color: black !important;
+          margin-bottom: 20px !important;
         }
         
         thead { 
-          display: table-header-group !important; 
+          display: table-header-group !important; /* Repete cabeçalho em cada página */
         }
         
         tr { 
@@ -114,7 +107,8 @@
         td, th {
           word-break: break-word !important;
           color: black !important;
-          border: 1px solid black !important;
+          border: 1px solid #000000 !important;
+          padding: 6px !important;
         }
         
         .no-break-inside { 
@@ -122,19 +116,17 @@
           break-inside: avoid !important; 
         }
 
-        /* Força bordas de assinatura a serem pretas na impressão */
-        .border-t-2, .border-t {
-          border-top-color: #000000 !important;
-          border-top-style: solid !important;
-        }
-        
-        /* Força a cor do texto para preto na impressão */
+        /* Garantir texto preto puro para economia e nitidez */
         * {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
           color-adjust: exact !important;
           text-shadow: none !important;
           color: black !important;
+        }
+        
+        h1, h2, h3, h4, p, span, td, th {
+            color: black !important;
         }
       }
     </style>

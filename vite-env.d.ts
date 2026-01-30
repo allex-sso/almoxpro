@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_OUT_URL: string;
   readonly VITE_OS_URL: string;
   readonly VITE_CENTRAL_URL: string;
+  readonly VITE_PROD_RANKING_URL: string;
+  readonly VITE_PROD_ENGENHARIA_URL: string;
 }
 
 interface ImportMeta {

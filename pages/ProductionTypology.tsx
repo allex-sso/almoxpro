@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Legend, LabelList, LineChart, Line, ComposedChart, Area
 } from 'recharts';
 import { 
-  Factory, Package, Zap, Activity, Clock, Target, Calendar, ChevronDown, Printer, X, Check, Filter, Layers, Layout, TrendingUp, Gauge
+  Factory, Package, Zap, Activity, Clock, Target, Calendar, ChevronDown, Printer, X, Check, Filter, Layers, Layout, TrendingUp, Gauge, MessageCircle, User, Users, AlertCircle, Info
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ProductionEntry } from '../types';
@@ -25,6 +25,7 @@ const formatHoursMinutes = (decimalHours: number): string => {
 const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading }) => {
   const [selectedWeek, setSelectedWeek] = useState<string>('Todos');
   const [selectedMesa, setSelectedMesa] = useState<string>('Todos');
+  const [selectedMesaForModal, setSelectedMesaForModal] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // Filtrar dados apenas da fonte de Tipologias/Engenharia
@@ -53,7 +54,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
     const tableMap: Record<string, number> = {};
     const dayMap: Record<string, { date: string, produced: number, goal: number }> = {};
     
-    // Novo mapeamento para eficiência
     const efficiencyMap: Record<string, { sum: number, count: number }> = {};
 
     filteredData.forEach(d => {
@@ -64,7 +64,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
       const model = d.tipologia.toUpperCase();
       modelMap[model] = (modelMap[model] || 0) + d.produzido;
 
-      // Cálculo de média de percentual por tipologia
       if (!efficiencyMap[model]) efficiencyMap[model] = { sum: 0, count: 0 };
       efficiencyMap[model].sum += d.percentual;
       efficiencyMap[model].count += 1;
@@ -95,6 +94,37 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
       chartDays: Object.values(dayMap).sort((a, b) => a.date.localeCompare(b.date))
     };
   }, [filteredData]);
+
+  // Lógica de detalhamento da mesa selecionada no gráfico (Turnos exclusivamente)
+  const mesaDetailsData = useMemo(() => {
+    if (!selectedMesaForModal) return { shifts: [], total: 0 };
+    
+    const mesaEntries = typoData.filter(d => d.mesa.toUpperCase() === selectedMesaForModal.toUpperCase());
+    const shiftMap: Record<string, number> = { '1º Turno': 0, '2º Turno': 0 };
+    let total = 0;
+
+    mesaEntries.forEach(d => {
+        const shiftRaw = String(d.turno || '').toUpperCase();
+        let shiftKey = '1º Turno';
+        
+        if (shiftRaw.includes('2') || shiftRaw.includes('SEGUNDO')) {
+            shiftKey = '2º Turno';
+        } else {
+            shiftKey = '1º Turno';
+        }
+        
+        shiftMap[shiftKey] += d.produzido;
+        total += d.produzido;
+    });
+
+    const shifts = Object.entries(shiftMap).map(([name, value]) => ({
+        name,
+        value,
+        percent: total > 0 ? ((value / total) * 100).toFixed(1) : "0"
+    }));
+
+    return { shifts, total };
+  }, [selectedMesaForModal, typoData]);
 
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
@@ -160,7 +190,6 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.1} />
                 <XAxis type="number" domain={[0, 100]} hide />
                 <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 9, fontWeight: '900', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                {/* Tooltip removido conforme solicitado */}
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
                   {metrics.chartEfficiency.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.value >= 90 ? '#10b981' : entry.value >= 70 ? '#f59e0b' : '#ef4444'} />
@@ -223,7 +252,14 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                 <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 12, fontWeight: '900', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={30}>
+                <Bar 
+                    dataKey="value" 
+                    fill="#8b5cf6" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={30}
+                    className="cursor-pointer transition-opacity hover:opacity-80"
+                    onClick={(data) => { if(data && data.name) setSelectedMesaForModal(data.name); }}
+                >
                   <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 'black', fill: '#8b5cf6' }} />
                 </Bar>
               </BarChart>
@@ -231,7 +267,7 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
           </div>
         </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-slate-100 dark:border-slate-800">
+        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
           <h3 className="font-black uppercase tracking-widest text-[10px] text-slate-400 mb-6 flex items-center gap-2">
             <Factory className="w-4 h-4 text-orange-500" /> Volume por Tipologia (Top Modelos)
           </h3>
@@ -249,6 +285,72 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
           </div>
         </div>
       </div>
+
+      {/* MODAL DE DETALHAMENTO DA MESA (APENAS POR TURNO) */}
+      {selectedMesaForModal && (
+        <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
+            <div className="bg-[#1e293b] w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col transform animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-slate-700 flex justify-between items-start">
+                    <div className="flex items-center gap-5">
+                        <div className="p-4 bg-purple-500/10 rounded-2xl border border-purple-500/20">
+                            <Layout className="w-7 h-7 text-purple-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-white tracking-tighter uppercase leading-none mb-2">Detalhamento da Mesa</h2>
+                            <p className="text-xs font-black text-purple-400 uppercase tracking-[0.2em]">{selectedMesaForModal}</p>
+                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">Total Produzido: {mesaDetailsData.total.toLocaleString('pt-BR')}</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => setSelectedMesaForModal(null)} 
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-8 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                    {/* Detalhamento por Turno */}
+                    <div className="space-y-4">
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                           <Clock className="w-3 h-3" /> Produção por Turno
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {mesaDetailsData.shifts.map((s, i) => (
+                                <div key={i} className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700/50 flex flex-col justify-between group hover:border-purple-500/30 transition-all">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{s.name}</p>
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-3xl font-black text-white group-hover:text-purple-400 transition-colors">
+                                            {s.value.toLocaleString('pt-BR')}
+                                        </span>
+                                        <span className="text-[11px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                            {s.percent}%
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 flex gap-3">
+                        <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-slate-400 leading-relaxed italic">
+                            Os dados acima representam a produção consolidada desta mesa baseada nos lançamentos oficiais por turno registrados no sistema Alumasa.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-slate-900/50 border-t border-slate-700">
+                    <button 
+                        onClick={() => setSelectedMesaForModal(null)} 
+                        className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-lg border border-slate-700"
+                    >
+                        Fechar Detalhes
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* PRINT PREVIEW */}
       {showPrintPreview && (

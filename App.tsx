@@ -62,7 +62,7 @@ const getDefaultProfiles = (): SectorProfile[] => {
     },
     {
       id: PRODUCTION_PROFILE_ID,
-      name: 'Produção - Escadas e Plástico',
+      name: 'Produção - Escadas',
       accessKey: '30',
       inventoryUrl: '',
       inUrl: '',
@@ -72,11 +72,11 @@ const getDefaultProfiles = (): SectorProfile[] => {
       sources: [
         { 
           label: 'Ranking Equipes', 
-          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv' 
+          url: getEnvVar('VITE_PROD_RANKING_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7NPvgMa3WLPZhtlXa908jIz9hLlYfcCGw_XqmYX7BEDN4MFRgznrKWhX4p-nhIg/pub?gid=301715581&single=true&output=csv') 
         },
         {
           label: 'Engenharia de Processos',
-          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSucvGIz4K57zAeWyXCOTgsKDGtVCLk7LLruUXxyaa8Zdx3NeyjXCPpMR_5fqNme2LQLXLHG4-YWqvz/pub?gid=1991174007&single=true&output=csv'
+          url: getEnvVar('VITE_PROD_ENGENHARIA_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSucvGIz4K57zAeWyXCOTgsKDGtVCLk7LLruUXxyaa8Zdx3NeyjXCPpMR_5fqNme2LQLXLHG4-YWqvz/pub?gid=1991174007&single=true&output=csv')
         }
       ]
     }
@@ -102,7 +102,12 @@ const App: React.FC = () => {
           } else {
             if (defProf.id === PRODUCTION_PROFILE_ID) {
                const idx = savedProfiles.findIndex((p: SectorProfile) => p.id === defProf.id);
-               savedProfiles[idx] = { ...savedProfiles[idx], sources: defProf.sources };
+               // Atualiza o nome e as fontes caso tenham mudado no default
+               savedProfiles[idx] = { 
+                 ...savedProfiles[idx], 
+                 name: defProf.name,
+                 sources: defProf.sources 
+               };
             }
           }
         });
