@@ -52,7 +52,7 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
     let totalGoal = 0;
     const modelMap: Record<string, number> = {};
     const tableMap: Record<string, number> = {};
-    const dayMap: Record<string, { date: string, produced: number, goal: number }> = {};
+    const dayMap: Record<string, { date: string, produced: number, goal: number, rawDate: Date }> = {};
     
     const efficiencyMap: Record<string, { sum: number, count: number }> = {};
 
@@ -72,7 +72,7 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
       tableMap[mesa] = (tableMap[mesa] || 0) + d.produzido;
 
       const dateStr = d.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      if (!dayMap[dateStr]) dayMap[dateStr] = { date: dateStr, produced: 0, goal: 0 };
+      if (!dayMap[dateStr]) dayMap[dateStr] = { date: dateStr, produced: 0, goal: 0, rawDate: d.data };
       dayMap[dateStr].produced += d.produzido;
       dayMap[dateStr].goal += d.metaDia;
     });
@@ -91,11 +91,7 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
         value: Number((s.sum / s.count).toFixed(1)) 
       })).sort((a, b) => b.value - a.value).slice(0, 8),
       chartTables: Object.entries(tableMap).map(([name, value]) => ({ name, value })),
-      chartDays: Object.values(dayMap).sort((a, b) => {
-        const [da, ma] = a.date.split('/').map(Number);
-        const [db, mb] = b.date.split('/').map(Number);
-        return (ma * 100 + da) - (mb * 100 + db);
-      })
+      chartDays: Object.values(dayMap).sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime())
     };
   }, [filteredData]);
 
@@ -224,8 +220,12 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                     padding: '12px'
                   }}
                   itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                  // Formatter ajustado para não mostrar duplicados se dataKey for o mesmo
-                  formatter={(value: any, name: string) => [value, name]}
+                  formatter={(value: any, name: string) => {
+                    // Garantir que no Tooltip apareçam apenas nomes legíveis
+                    if (name === 'produced') return [value, 'Produzido'];
+                    if (name === 'goal') return [value, 'Meta Diária'];
+                    return [value, name];
+                  }}
                 />
                 <Area type="monotone" dataKey="goal" fill="#3b82f6" stroke="#3b82f6" fillOpacity={0.1} name="Meta Diária" />
                 <Bar dataKey="produced" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} name="Produzido" />
@@ -235,11 +235,11 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                   stroke="#059669" 
                   strokeWidth={3} 
                   dot={{ r: 4, fill: '#059669' }} 
+                  isAnimationActive={false}
                   tooltipType="none"
-                  legendType="none"
-                  name="Produzido" // Adicionado para evitar que o Recharts use a chave original 'produced'
+                  legendType="none" // Isso força o Recharts a ignorar esta linha na legenda
                 />
-                <Legend iconType="circle" />
+                <Legend iconType="circle" verticalAlign="bottom" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
