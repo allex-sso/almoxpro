@@ -23,6 +23,7 @@ const formatHoursMinutes = (decimalHours: number): string => {
 };
 
 const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading }) => {
+  const [selectedWeek, setSelectedWeek] = useState<string>('Todos');
   const [selectedMesa, setSelectedMesa] = useState<string>('Todos');
   const [selectedMesaForModal, setSelectedMesaForModal] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -219,10 +220,15 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                     padding: '12px'
                   }}
                   itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  formatter={(value: any, name: string) => {
+                    // Mapeia os nomes da legenda para nomes amigáveis no Tooltip
+                    if (name === 'Goal') return [value, 'Meta Diária'];
+                    if (name === 'Produced') return [value, 'Produzido'];
+                    return [value, name];
+                  }}
                 />
-                <Area type="monotone" dataKey="goal" fill="#3b82f6" stroke="#3b82f6" fillOpacity={0.1} name="Meta Diária" />
-                {/* Definindo o mesmo 'name' para Bar e Line agrupa os itens na legenda padrão */}
-                <Bar dataKey="produced" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} name="Produzido" />
+                <Area type="monotone" dataKey="goal" fill="#3b82f6" stroke="#3b82f6" fillOpacity={0.1} name="Goal" />
+                <Bar dataKey="produced" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} name="Produced" />
                 <Line 
                   type="monotone" 
                   dataKey="produced" 
@@ -230,9 +236,8 @@ const ProductionTypology: React.FC<ProductionTypologyProps> = ({ data, isLoading
                   strokeWidth={3} 
                   dot={{ r: 4, fill: '#059669' }} 
                   isAnimationActive={false}
-                  tooltipType="none"
-                  legendType="none"
-                  name="Produzido"
+                  tooltipType="none" // Evita que a linha crie uma entrada própria no tooltip
+                  legendType="none" // Evita que a linha crie uma entrada própria na legenda
                 />
                 <Legend iconType="circle" verticalAlign="bottom" />
               </ComposedChart>
