@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -127,7 +128,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         total: s.total, 
         count: s.count,
         avg: (s.total / s.count).toFixed(2) 
-      })).sort((a,b) => b.total - a.total),
+      })).sort((a,b) => b.count - a.count), // Ordenação corrigida para quantidade de requisições
       reasonData
     };
   }, [filteredData]);
