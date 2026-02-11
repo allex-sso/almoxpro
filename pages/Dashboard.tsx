@@ -1,11 +1,11 @@
+
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, 
   PieChart, Pie, Cell
 } from 'recharts';
 import { 
-  DollarSign, TrendingUp, Activity, AlertTriangle, Calendar, TrendingDown, 
-  Filter, X, Info, Package, Printer, Check, ShieldCheck 
+  TrendingUp, Activity, AlertTriangle, Calendar, Package, DollarSign, ArrowUpRight, ArrowDownRight, Printer, Filter, ShieldCheck, Box, Layers, MousePointer2, TrendingDown, LayoutDashboard, X, Check, FileText, RefreshCw
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { DashboardStats, InventoryItem, Movement } from '../types';
@@ -15,419 +15,357 @@ interface DashboardProps {
   stats: DashboardStats;
   movements?: Movement[];
   isLoading?: boolean;
+  isWarehouse?: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLoading = false }) => {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLoading = false, isWarehouse = false }) => {
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
-  const [viewType, setViewType] = useState<'financial' | 'quantity'>('quantity');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
-  const applyFilters = () => {
-    setStartDate(tempStart);
-    setEndDate(tempEnd);
-  };
-
-  const clearFilters = () => {
-    setTempStart('');
-    setTempEnd('');
-    setStartDate('');
-    setEndDate('');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      applyFilters();
-    }
-  };
-
-  const healthData = useMemo(() => {
-    let critical = 0;
-    let warning = 0;
-    let healthy = 0;
-
+  const healthStats = useMemo(() => {
+    const map = { saudavel: 0, atencao: 0, critico: 0 };
     data.forEach(item => {
-      const min = item.quantidadeMinima || 0;
-      if (min > 0) {
-        if (item.quantidadeAtual <= min) critical++;
-        else if (item.quantidadeAtual <= min * 1.2) warning++;
-        else healthy++;
+      const situacao = (item.situacao || 'OK').toUpperCase();
+      // Lógica expandida para capturar diferentes nomenclaturas de erro/alerta
+      if (situacao.includes('ESGOTADO') || situacao.includes('PEDIDO') || situacao.includes('CRITICO') || situacao.includes('REPOR') || situacao.includes('RUPTURA')) {
+        map.critico++;
+      } else if (situacao.includes('ATENCAO') || situacao.includes('ALERTA') || situacao.includes('MINIMO')) {
+        map.atencao++;
       } else {
-        healthy++;
+        map.saudavel++;
       }
     });
-
-    return [
-      { name: 'Crítico (Repor)', value: critical, color: '#ef4444' },
-      { name: 'Atenção', value: warning, color: '#f59e0b' },
-      { name: 'Saudável', value: healthy, color: '#10b981' },
-    ].filter(d => d.value > 0);
+    return map;
   }, [data]);
 
-  const stockTotalFinancial = useMemo(() => {
-    let totalEntradasFinanceiro = 0;
-    let totalSaidasFinanceiro = 0;
-
-    movements.forEach(m => {
-      const valorMovimentacao = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (m.tipo === 'entrada') {
-        totalEntradasFinanceiro += valorMovimentacao;
-      } else if (m.tipo === 'saida') {
-        totalSaidasFinanceiro += valorMovimentacao;
-      }
+  const warehouseKpis = useMemo(() => {
+    let picking = 0;
+    let reserva = 0;
+    let total = 0;
+    data.forEach(item => {
+      picking += (item.quantidadePicking || 0);
+      reserva += (item.quantidadeEstoque || 0);
+      total += (item.quantidadeAtual || 0);
     });
+    return { picking, reserva, total };
+  }, [data]);
 
-    return totalEntradasFinanceiro - totalSaidasFinanceiro;
+  const healthChartData = [
+    { name: 'Saudável', value: healthStats.saudavel, color: '#10b981' },
+    { name: 'Atenção', value: healthStats.atencao, color: '#f59e0b' },
+    { name: 'Crítico', value: healthStats.critico, color: '#ef4444' }
+  ];
+
+  const wmsOccupation = useMemo(() => {
+    return [
+      { name: 'Picking', value: warehouseKpis.picking, color: '#3b82f6' },
+      { name: 'Reserva', value: warehouseKpis.reserva, color: '#10b981' }
+    ].filter(d => d.value > 0);
+  }, [warehouseKpis]);
+
+  const flowData = useMemo(() => {
+    const grouped: Record<string, { date: string, in: number, out: number, ts: number }> = {};
+    movements.forEach(m => {
+        const dStr = m.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        if (!grouped[dStr]) {
+            const dayTs = new Date(m.data.getFullYear(), m.data.getMonth(), m.data.getDate()).getTime();
+            grouped[dStr] = { date: dStr, in: 0, out: 0, ts: dayTs };
+        }
+        if (m.tipo === 'entrada') grouped[dStr].in += m.quantidade; 
+        else if (m.tipo === 'saida') grouped[dStr].out += m.quantidade;
+    });
+    return Object.values(grouped).sort((a, b) => a.ts - b.ts).slice(-30);
   }, [movements]);
 
-  const { flowData, totals } = useMemo(() => {
-    const filteredMovements = movements.filter(m => {
-      if (!startDate && !endDate) return true;
-      if (!m.data || isNaN(m.data.getTime())) return false;
-      const moveTime = m.data.getTime();
-      if (startDate) {
-          const [sy, sm, sd] = startDate.split('-').map(Number);
-          const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0).getTime();
-          if (moveTime < start) return false;
-      }
-      if (endDate) {
-          const [ey, em, ed] = endDate.split('-').map(Number);
-          const end = new Date(ey, em - 1, ed, 23, 59, 59, 999).getTime();
-          if (moveTime > end) return false;
-      }
-      return true;
-    });
-
-    let recordsInTotal = 0;
-    let recordsOutTotal = 0;
-    const grouped: Record<string, { dateIso: string, displayDate: string, entradaFinanceiro: number, saidaFinanceiro: number, entradaQtd: number, saidaQtd: number }> = {};
-
-    filteredMovements.forEach(m => {
-      if (m.tipo === 'entrada') recordsInTotal++; 
-      if (m.tipo === 'saida') recordsOutTotal++;
-      
-      const d = m.data || new Date();
-      const dateIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const displayDate = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      
-      if (!grouped[displayDate]) {
-        grouped[displayDate] = { dateIso, displayDate, entradaFinanceiro: 0, saidaFinanceiro: 0, entradaQtd: 0, saidaQtd: 0 };
-      }
-      
-      const valTotal = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (m.tipo === 'entrada') {
-          grouped[displayDate].entradaFinanceiro += valTotal;
-          grouped[displayDate].entradaQtd += 1;
-      } else {
-          grouped[displayDate].saidaFinanceiro += valTotal;
-          grouped[displayDate].saidaQtd += 1;
-      }
-    });
-
-    const sortedFlow = Object.values(grouped).sort((a, b) => a.dateIso.localeCompare(b.dateIso));
-    const criticalCount = healthData.find(d => d.name.includes('Crítico'))?.value || 0;
-
-    return {
-        flowData: sortedFlow,
-        totals: {
-            in: recordsInTotal,
-            out: recordsOutTotal,
-            critical: criticalCount
-        }
-    };
-  }, [movements, startDate, endDate, healthData]);
-
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(val);
-
-  const handleConfirmPrint = () => {
-    const originalTitle = document.title;
-    document.title = "relatorio_almoxarifado_pecas_alumasa";
-    setTimeout(() => {
-        window.print();
-        document.title = originalTitle;
-    }, 100);
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-[#1e293b]/95 backdrop-blur-md border border-slate-700 p-4 rounded-2xl shadow-2xl min-w-[120px]">
+          <p className="text-white text-lg font-black mb-2 tracking-tighter">{label}</p>
+          <div className="space-y-1">
+            <p className="text-[#10b981] text-[10px] font-black uppercase flex items-center justify-between gap-4">
+              <span>ENT:</span>
+              <span className="text-white">{payload[0].value.toLocaleString('pt-BR')}</span>
+            </p>
+            <p className="text-[#ef4444] text-[10px] font-black uppercase flex items-center justify-between gap-4">
+              <span>SAÍ:</span>
+              <span className="text-white">{payload[1].value.toLocaleString('pt-BR')}</span>
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <Activity className="w-12 h-12 text-primary animate-spin" />
-        <p className="font-black text-slate-500 uppercase tracking-widest">Sincronizando Dados...</p>
-      </div>
-    );
-  }
+  const handlePrint = () => {
+    window.print();
+  };
+
+  if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Sincronizando Dashboard Industrial...</div>;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 no-print">
+    <div className="max-w-[1440px] mx-auto space-y-4 animate-in fade-in duration-500 w-full overflow-hidden">
+      {/* UI DE TELA */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 no-print">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Visão Geral</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Monitoramento de fluxos e saúde do estoque.</p>
+          <h1 className="text-2xl font-black text-white tracking-tight uppercase leading-none">Visão Geral</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Monitoramento industrial em tempo real.</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white dark:bg-dark-card p-2.5 rounded-2xl flex items-center gap-4 shadow-sm border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-3 pl-2">
-                <Calendar className="w-5 h-5 text-slate-400" />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">Filtrar Histórico:</span>
-            </div>
-            
-            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl px-4 py-2 border border-slate-200 dark:border-slate-700">
-              <input 
-                type="date" 
-                className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none focus:text-primary transition-colors cursor-pointer" 
-                value={tempStart} 
-                onChange={e => setTempStart(e.target.value)} 
-                onKeyDown={handleKeyDown}
-              />
-              <span className="text-slate-600 font-bold">-</span>
-              <input 
-                type="date" 
-                className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none focus:text-primary transition-colors cursor-pointer" 
-                value={tempEnd} 
-                onChange={e => setTempEnd(e.target.value)} 
-                onKeyDown={handleKeyDown}
-              />
-            </div>
 
-            <button 
-                onClick={applyFilters} 
-                className="flex items-center px-6 py-2.5 bg-primary hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 group"
-            >
-                <Filter className="w-3.5 h-3.5 mr-2 group-hover:rotate-12 transition-transform" /> APLICAR
+        <div className="flex items-center gap-2">
+          <div className="bg-[#1e293b]/50 backdrop-blur-md p-1.5 rounded-xl flex items-center gap-4 shadow-xl border border-slate-700/50">
+            <div className="flex items-center gap-2 px-2 border-r border-slate-700/50">
+                <input type="date" className="bg-transparent text-[10px] font-black outline-none text-white w-24" value={tempStart} onChange={e => setTempStart(e.target.value)} />
+                <span className="text-slate-600 font-bold">-</span>
+                <input type="date" className="bg-transparent text-[10px] font-black outline-none text-white w-24" value={tempEnd} onChange={e => setTempEnd(e.target.value)} />
+            </div>
+            <button className="px-4 py-1.5 bg-[#2563eb] hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-lg active:scale-95 flex items-center gap-2">
+                <Filter className="w-3 h-3" /> APLICAR
             </button>
-            
-            {(startDate || endDate) && (
-              <button onClick={clearFilters} className="pr-2 text-slate-500 hover:text-rose-500 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            )}
           </div>
-
           <button 
-            onClick={() => setShowPrintPreview(true)} 
-            className="bg-white dark:bg-dark-card border border-gray-700 px-6 py-3 rounded-2xl flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all hover:bg-slate-50 active:scale-95 shadow-md group"
+            onClick={() => setShowPrintPreview(true)}
+            className="bg-[#1e293b] border border-slate-700 px-4 py-2.5 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase shadow-md transition-all active:scale-95 text-white"
           >
-            <Printer className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" /> 
-            <span className="text-slate-800 dark:text-slate-300">Relatório</span>
+            <Printer className="w-4 h-4 text-rose-500" /> Relatório Completo
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
-        <StatCard title="VALOR EM ESTOQUE" value={formatCurrency(stockTotalFinancial)} icon={DollarSign} color="blue" />
-        <StatCard title="ENTRADAS (PERÍODO)" value={totals.in} icon={TrendingUp} color="green" />
-        <StatCard title="SAÍDAS (PERÍODO)" value={totals.out} icon={TrendingDown} color="purple" />
-        <StatCard title="ITENS CRÍTICOS" value={totals.critical} icon={AlertTriangle} color="red" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
+        {isWarehouse ? (
+          <>
+            <StatCard title="ESTOQUE (RESERVA)" value={warehouseKpis.reserva.toLocaleString('pt-BR')} icon={Layers} color="blue" />
+            <StatCard title="PICKING (DISPONÍVEL)" value={warehouseKpis.picking.toLocaleString('pt-BR')} icon={Box} color="green" />
+            <StatCard title="SALDO TOTAL" value={warehouseKpis.total.toLocaleString('pt-BR')} icon={Package} color="purple" />
+          </>
+        ) : (
+          <>
+            <StatCard title="VALOR EM ESTOQUE" value={`R$ ${stats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="blue" />
+            <StatCard title="ENTRADAS (LANÇ.)" value={stats.totalIn} icon={ArrowUpRight} color="green" />
+            <StatCard title="SAÍDAS (LANÇ.)" value={stats.totalOut} icon={ArrowDownRight} color="purple" />
+          </>
+        )}
+        <StatCard title="ITENS CRÍTICOS" value={healthStats.critico} icon={AlertTriangle} color="red" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 no-print">
-        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-3xl p-8 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-             <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-500/10 rounded-2xl">
-                  <Activity className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Fluxo de Movimentações</h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Entradas vs. Saídas no período</p>
-                </div>
-             </div>
-             
-             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
-                <button onClick={() => setViewType('quantity')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'quantity' ? 'bg-white dark:bg-slate-700 text-primary shadow-md' : 'text-slate-500'}`}>Registros</button>
-                <button onClick={() => setViewType('financial')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'financial' ? 'bg-white dark:bg-slate-700 text-primary shadow-md' : 'text-slate-500'}`}>Financeiro</button>
-             </div>
-          </div>
-
-          <div className="h-80">
-            {flowData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={flowData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                  <XAxis dataKey="displayDate" axisLine={false} tickLine={false} tick={{fontSize: 10, fontBold: true, fill: '#94a3b8'}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontBold: true, fill: '#94a3b8'}} tickFormatter={(val) => viewType === 'financial' ? `R$${val}` : val} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                    formatter={(value: number) => [viewType === 'financial' ? formatCurrency(value) : value, viewType === 'financial' ? 'Valor' : 'Lançamentos']}
-                  />
-                  <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase' }} />
-                  <Bar dataKey={viewType === 'financial' ? 'entradaFinanceiro' : 'entradaQtd'} name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
-                  <Bar dataKey={viewType === 'financial' ? 'saidaFinanceiro' : 'saidaQtd'} name="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={24} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
-                <Info className="w-8 h-8 mb-2 opacity-20" />
-                <p className="text-xs font-black uppercase tracking-widest">Sem movimentações no período</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 no-print pb-4">
+        <div className="lg:col-span-2 bg-[#1e293b] rounded-[2rem] p-6 shadow-2xl border border-slate-800 flex flex-col min-h-[380px]">
+          <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                    <Activity className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <h3 className="text-xs font-black text-white uppercase tracking-widest">Fluxo de Movimentações</h3>
               </div>
-            )}
+          </div>
+          <div className="flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={flowData} margin={{ bottom: 10, left: 0, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.3} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 'bold', fill: '#64748b'}} interval={Math.ceil(flowData.length / 12)} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 'bold', fill: '#64748b'}} />
+                <Tooltip cursor={{ fill: '#f8fafc', opacity: 0.1 }} content={<CustomTooltip />} />
+                <Bar dataKey="in" fill="#10b981" radius={[2, 2, 0, 0]} barSize={8} />
+                <Bar dataKey="out" fill="#ef4444" radius={[2, 2, 0, 0]} barSize={8} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
-
-        <div className="bg-white dark:bg-dark-card rounded-3xl p-8 shadow-lg border border-gray-100 dark:border-gray-800">
-          <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-8 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" /> Saúde do Estoque Físico
-          </h3>
-          <div className="h-64 relative">
-            {healthData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={healthData}
-                    innerRadius={70}
-                    outerRadius={95}
-                    paddingAngle={8}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {healthData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 italic text-xs">Aguardando dados...</div>
-            )}
+        <div className="bg-[#1e293b] rounded-[2rem] p-6 shadow-2xl border border-slate-800 flex flex-col items-center min-h-[380px]">
+          <div className="w-full mb-4 flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-emerald-500" />
+              <h3 className="text-xs font-black text-white uppercase tracking-widest">Saúde do Estoque</h3>
+          </div>
+          <div className="h-[180px] w-full relative mb-4 flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={isWarehouse ? wmsOccupation : healthChartData} innerRadius={65} outerRadius={85} paddingAngle={8} dataKey="value" stroke="none" cornerRadius={5}>
+                  {(isWarehouse ? wmsOccupation : healthChartData).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={(entry as any).color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-               <span className="text-4xl font-black text-slate-800 dark:text-white leading-none">{data.length}</span>
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Itens Ativos</span>
+               <span className="text-3xl font-black text-white leading-none">{data.length}</span>
+               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">SKUS Ativos</span>
             </div>
           </div>
-          
-          <div className="grid grid-cols-3 gap-2 mt-8">
-             {healthData.map((d, i) => (
-               <div key={i} className="flex flex-col items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
-                  <div className="w-3 h-3 rounded-full mb-2" style={{ backgroundColor: d.color }}></div>
-                  <span className="text-lg font-black dark:text-white">{d.value}</span>
-                  <span className="text-[8px] font-black text-slate-400 uppercase text-center">{d.name.split(' ')[0]}</span>
-               </div>
-             ))}
+          <div className="grid grid-cols-1 gap-2 w-full mt-auto">
+                <div className="bg-[#0f172a]/40 px-4 py-2.5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-inner">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase">Crítico / Ruptura</span>
+                    </div>
+                    <span className="text-lg font-black text-white">{healthStats.critico}</span>
+                </div>
+                <div className="bg-[#0f172a]/40 px-4 py-2.5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-inner">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase">Atenção</span>
+                    </div>
+                    <span className="text-lg font-black text-white">{healthStats.atencao}</span>
+                </div>
+                <div className="bg-[#0f172a]/40 px-4 py-2.5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-inner">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase">Saudável</span>
+                    </div>
+                    <span className="text-lg font-black text-white">{healthStats.saudavel}</span>
+                </div>
           </div>
         </div>
       </div>
 
+      {/* OVERLAY DE IMPRESSÃO - REFORMULADO PARA PEÇAS COM CORREÇÃO DE VISIBILIDADE */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:relative print:block print:h-auto print:overflow-visible">
-            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
-                <div className="flex items-center">
-                    <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Relatório Gerencial Alumasa</span>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
-                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase flex items-center transition-all shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
-                </div>
-            </div>
+        <div className="fixed inset-0 z-[200] bg-slate-900/95 flex flex-col items-center overflow-auto print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible print:bg-white">
+           <div className="w-full sticky top-0 bg-slate-900 border-b border-slate-700 p-4 flex justify-between items-center shadow-2xl no-print preview-toolbar">
+             <div className="flex items-center gap-2">
+               <FileText className="w-5 h-5 text-blue-400" />
+               <span className="font-black text-xs uppercase tracking-widest text-white">Relatório Gerencial - {isWarehouse ? 'Almoxarifado Geral' : 'Almoxarifado de Peças'}</span>
+             </div>
+             <div className="flex gap-3">
+               <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl font-black text-[10px] uppercase text-white transition-all active:scale-95">Voltar</button>
+               <button onClick={handlePrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase text-white shadow-lg active:scale-95 flex items-center gap-2"><Printer className="w-3.5 h-3.5" /> Confirmar Impressão</button>
+             </div>
+          </div>
 
-            <div className="print-container flex-1 p-4 md:p-12 print:p-0 print:block print:h-auto print:static">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:static print:max-w-none">
-                    <div className="w-full print:static">
-                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
-                            <h1 className="text-5xl font-black mb-1 text-black">ALUMASA</h1>
-                            <p className="text-xl font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
-                            <div className="py-2">
-                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL ALMOXARIFADO DE PEÇAS</h2>
-                                <p className="text-xs font-bold text-black uppercase">Unidade de Peças e Reposição Industrial</p>
-                            </div>
-                        </header>
+          <div className="flex-1 w-full flex justify-center py-10 print:py-0 print:block print:bg-white">
+             <div className="printable-document bg-white !text-black p-12 w-[210mm] shadow-2xl min-h-[297mm] print:shadow-none print:p-0 print:w-full">
+                
+                <header className="mb-10 text-center border-b-[3px] border-black pb-6 text-black">
+                    <h1 className="text-6xl font-black leading-none uppercase tracking-tighter text-black !text-black">ALUMASA</h1>
+                    <span className="text-[12px] font-black uppercase tracking-[0.4em] text-black !text-black">ALUMÍNIO & PLÁSTICO</span>
+                    
+                    <div className="mt-8 space-y-1">
+                        <h2 className="text-3xl font-black uppercase tracking-tight text-black !text-black">
+                          RELATÓRIO GERENCIAL {isWarehouse ? 'ALMOXARIFADO GERAL' : 'ALMOXARIFADO DE PEÇAS'}
+                        </h2>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-black !text-black">
+                          {isWarehouse ? 'UNIDADE DE LOGÍSTICA E ARMAZENAGEM INDUSTRIAL' : 'UNIDADE DE PEÇAS E REPOSIÇÃO INDUSTRIAL'}
+                        </p>
+                    </div>
 
-                        <section className="mb-8 w-full no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">1. INDICADORES GERAIS DE PERFORMANCE</h3>
-                            <table className="w-full text-sm border-collapse border border-black text-black">
-                                <tbody>
-                                    <tr className="border-b border-black">
-                                      <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black uppercase">Valor Total em Estoque</td>
-                                      <td className="p-3 font-black text-black text-lg">{formatCurrency(stockTotalFinancial)}</td>
-                                    </tr>
-                                    <tr className="border-b border-black">
-                                      <td className="border-r border-black p-3 font-black bg-gray-50 text-black uppercase">Entradas Registradas</td>
-                                      <td className="p-3 font-black text-emerald-600 text-lg">{totals.in} Lançamentos</td>
-                                    </tr>
-                                    <tr className="border-b border-black">
-                                      <td className="border-r border-black p-3 font-black bg-gray-50 text-black uppercase">Saídas Registradas</td>
-                                      <td className="p-3 font-black text-rose-600 text-lg">{totals.out} Lançamentos</td>
-                                    </tr>
-                                    <tr>
-                                      <td className="border-r border-black p-3 font-black bg-gray-50 text-black uppercase">Itens em Nível Crítico</td>
-                                      <td className="p-3 font-black text-red-600 text-lg">{totals.critical} Tipologias</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <section className="mb-8 w-full no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">2. SAÚDE DO ESTOQUE CONSOLIDADO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
-                                <thead>
-                                    <tr className="bg-gray-100">
-                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Status do Inventário</th>
-                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Quantidade de Itens</th>
-                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Participação (%)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {healthData.map((d, i) => (
-                                      <tr key={i} className="border-b border-black">
-                                        <td className="border-r border-black p-2 font-bold uppercase text-black">{d.name}</td>
-                                        <td className="border-r border-black p-2 text-right font-black text-black">{d.value}</td>
-                                        <td className="p-2 text-right font-black text-black">{((d.value / (data.length || 1)) * 100).toFixed(1)}%</td>
-                                      </tr>
-                                    ))}
-                                    <tr className="bg-gray-50">
-                                        <td className="border-r border-black p-2 font-black text-black uppercase">Total de Itens Ativos</td>
-                                        <td className="border-r border-black p-2 text-right font-black text-black">{data.length}</td>
-                                        <td className="p-2 text-right font-black text-black">100.0%</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <section className="mb-8 w-full overflow-visible">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">3. DETALHAMENTO ANALÍTICO DO INVENTÁRIO</h3>
-                            <table className="w-full text-[8px] border-collapse border border-black text-black">
-                                <thead style={{ display: 'table-header-group' }}>
-                                    <tr className="bg-gray-100">
-                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Cód.</th>
-                                      <th className="border border-black p-2 text-left font-black uppercase text-black">Descrição do Material</th>
-                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Saldo</th>
-                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Vlr. Unitário</th>
-                                      <th className="border border-black p-2 text-right font-black uppercase text-black">Vlr. Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.map((item, idx) => (
-                                        <tr key={idx} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-1.5 font-bold text-black">{item.codigo}</td>
-                                            <td className="border-r border-black p-1.5 text-black uppercase">{item.descricao}</td>
-                                            <td className={`border-r border-black p-1.5 text-right font-black ${item.quantidadeAtual <= item.quantidadeMinima ? 'text-red-600' : 'text-black'}`}>{item.quantidadeAtual}</td>
-                                            <td className="border-r border-black p-1.5 text-right font-black text-black">{formatCurrency(item.valorUnitario || 0)}</td>
-                                            <td className="p-1.5 text-right font-black text-black">{formatCurrency(item.valorTotal || 0)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <footer className="mt-12 pt-10 flex justify-between gap-24 no-break-inside text-black">
-                            <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Responsável Almoxarifado</div>
-                            </div>
-                            <div className="text-center flex-1">
-                                <div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Gerência Industrial</div>
-                            </div>
-                        </footer>
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside">
-                            <div>Documento Auditável Alumasa Industrial - Almoxarifado de Peças</div>
-                            <div>Emitido em: {new Date().toLocaleString('pt-BR')}</div>
+                    <div className="mt-6 flex justify-center">
+                        <div className="border border-black px-4 py-1.5 text-[9px] font-black uppercase bg-gray-50 rounded text-black !text-black">
+                            EMITIDO EM: {new Date().toLocaleDateString('pt-BR')} - {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                     </div>
+                </header>
+
+                <section className="mb-10" style={{ pageBreakInside: 'avoid' }}>
+                   <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">1. INDICADORES GERAIS DE PERFORMANCE</h3>
+                   <table className="w-full border-collapse border border-black text-black">
+                      <tbody>
+                         <tr className="border-b border-black">
+                            <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black text-black !text-black">
+                              {isWarehouse ? 'SALDO TOTAL' : 'VALOR TOTAL EM ESTOQUE'}
+                            </td>
+                            <td className="p-3 font-black text-lg text-black !text-black">
+                              {isWarehouse ? 
+                                `${warehouseKpis.total.toLocaleString('pt-BR')} Unidades` : 
+                                `R$ ${stats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </td>
+                         </tr>
+                         <tr className="border-b border-black">
+                            <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black text-black !text-black">ENTRADAS REGISTRADAS</td>
+                            <td className="p-3 font-black text-lg text-emerald-600 !text-emerald-600">{stats.totalIn} Lançamentos</td>
+                         </tr>
+                         <tr className="border-b border-black">
+                            <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black text-black !text-black">SAÍDAS REGISTRADAS</td>
+                            <td className="p-3 font-black text-lg text-rose-600 !text-rose-600">{stats.totalOut} Lançamentos</td>
+                         </tr>
+                         <tr>
+                            <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black text-black !text-black">ITENS EM NÍVEL CRÍTICO</td>
+                            <td className="p-3 font-black text-lg text-red-600 !text-red-600">{healthStats.critico} Itens</td>
+                         </tr>
+                      </tbody>
+                   </table>
+                </section>
+
+                <section className="mb-10" style={{ pageBreakInside: 'avoid' }}>
+                   <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">2. SAÚDE DO ESTOQUE CONSOLIDADO</h3>
+                   <table className="w-full border-collapse border border-black text-center text-black">
+                      <thead>
+                         <tr className="bg-gray-100 text-[10px] font-black uppercase text-black">
+                            <th className="border border-black px-4 py-2 text-left w-1/2 text-black !text-black">STATUS DO INVENTÁRIO</th>
+                            <th className="border border-black px-4 py-2 text-black !text-black">QUANTIDADE DE ITENS</th>
+                            <th className="border border-black px-4 py-2 text-black !text-black">PARTICIPAÇÃO (%)</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                         <tr className="text-[10px] font-bold text-black">
+                            <td className="border border-black px-4 py-2 text-left uppercase text-black !text-black">CRÍTICO (REPOR)</td>
+                            <td className="border border-black px-4 py-2 font-black text-black !text-black">{healthStats.critico}</td>
+                            <td className="border border-black px-4 py-2 text-black !text-black">{((healthStats.critico / (data.length || 1)) * 100).toFixed(1)}%</td>
+                         </tr>
+                         <tr className="text-[10px] font-bold text-black">
+                            <td className="border border-black px-4 py-2 text-left uppercase text-black !text-black">ATENÇÃO</td>
+                            <td className="border border-black px-4 py-2 font-black text-black !text-black">{healthStats.atencao}</td>
+                            <td className="border border-black px-4 py-2 text-black !text-black">{((healthStats.atencao / (data.length || 1)) * 100).toFixed(1)}%</td>
+                         </tr>
+                         <tr className="text-[10px] font-bold text-black">
+                            <td className="border border-black px-4 py-2 text-left uppercase text-black !text-black">SAUDÁVEL</td>
+                            <td className="border border-black px-4 py-2 font-black text-black !text-black">{healthStats.saudavel}</td>
+                            <td className="border border-black px-4 py-2 text-black !text-black">{((healthStats.saudavel / (data.length || 1)) * 100).toFixed(1)}%</td>
+                         </tr>
+                         <tr className="bg-gray-50 text-[10px] font-black text-black">
+                            <td className="border border-black px-4 py-2 text-left uppercase text-black !text-black">TOTAL DE ITENS ATIVOS</td>
+                            <td className="border border-black px-4 py-2 text-black !text-black">{data.length}</td>
+                            <td className="border border-black px-4 py-2 text-black !text-black">100.0%</td>
+                         </tr>
+                      </tbody>
+                   </table>
+                </section>
+
+                <section className="mb-10 text-black">
+                   <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">3. DETALHAMENTO ANALÍTICO DO INVENTÁRIO</h3>
+                   <table className="w-full border-collapse border border-black text-black">
+                      <thead style={{ display: 'table-header-group' }}>
+                        <tr className="bg-gray-100 text-[9px] font-black uppercase text-black">
+                           <th className="border border-black px-2 py-2 text-left text-black !text-black">CÓD.</th>
+                           <th className="border border-black px-2 py-2 text-left text-black !text-black">DESCRIÇÃO DO MATERIAL</th>
+                           <th className="border border-black px-2 py-2 text-center text-black !text-black">SALDO</th>
+                           <th className="border border-black px-2 py-2 text-right text-black !text-black">VLR. UNITÁRIO</th>
+                           <th className="border border-black px-2 py-2 text-right text-black !text-black">VLR. TOTAL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.sort((a,b) => (b.valorTotal || 0) - (a.valorTotal || 0)).map((item, idx) => (
+                          <tr key={idx} className="text-[8px] border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
+                             <td className="border-r border-black px-2 py-1.5 font-black text-black !text-black">{item.codigo}</td>
+                             <td className="border-r border-black px-2 py-1.5 font-bold uppercase text-black !text-black">{item.descricao}</td>
+                             <td className="border-r border-black px-2 py-1.5 text-center font-black text-black !text-black">{item.quantidadeAtual.toLocaleString('pt-BR')}</td>
+                             <td className="border-r border-black px-2 py-1.5 text-right font-bold text-black !text-black">R$ {item.valorUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                             <td className="px-2 py-1.5 text-right font-black text-black !text-black">R$ {item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                   </table>
+                </section>
+
+                <footer className="mt-20 pt-16 flex justify-between gap-12 text-black" style={{ pageBreakInside: 'avoid' }}>
+                   <div className="flex-1 text-center text-black">
+                      <div className="w-full border-t border-black mb-1 border-black"></div>
+                      <span className="text-[9px] font-black uppercase text-black !text-black">RESPONSÁVEL PELO INVENTÁRIO</span>
+                   </div>
+                   <div className="flex-1 text-center text-black">
+                      <div className="w-full border-t border-black mb-1 border-black"></div>
+                      <span className="text-[9px] font-black uppercase text-black !text-black">GERÊNCIA INDUSTRIAL</span>
+                   </div>
+                </footer>
+
+                <div className="mt-12 pt-4 border-t border-black/10 flex justify-between text-[7px] font-black uppercase text-gray-400 text-black" style={{ pageBreakInside: 'avoid' }}>
+                   <span className="text-black !text-black">SISTEMA DE GESTÃO ALUMASA • AUDITORIA GERENCIAL</span>
+                   <span className="text-black !text-black">DOCUMENTO DE CONTROLE INTERNO - {new Date().getFullYear()}</span>
                 </div>
-            </div>
+             </div>
+          </div>
         </div>
       )}
     </div>

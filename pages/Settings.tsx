@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Save, Plus, Trash2, Shield, Settings, Layout, ClipboardList, Link as LinkIcon, Calendar, Hash, ExternalLink, Copy, Upload, Download, AlertCircle } from 'lucide-react';
+// Added TrendingUp to the lucide-react imports to fix the "Cannot find name 'TrendingUp'" error
+import { Save, Plus, Trash2, Shield, Settings, Layout, ClipboardList, Link as LinkIcon, Calendar, Hash, ExternalLink, Copy, Upload, Download, AlertCircle, Wrench, ShieldCheck, MapPin, History, Package, TrendingUp } from 'lucide-react';
 import { AppSettings, SectorProfile, CentralSource } from '../types';
 
 interface SettingsProps {
@@ -35,6 +36,8 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
       osUrl: '',
       isCentral: false,
       isProduction: false,
+      isMaintenance: false,
+      isWarehouse: false,
       sources: []
     };
     setLocalSettings(prev => ({ ...prev, profiles: [...prev.profiles, newProfile] }));
@@ -154,11 +157,12 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                   />
                 </div>
                 
-                <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Toggles de Ativação de Módulos */}
+                <div className="col-span-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                         <div>
-                            <h4 className="text-xs font-bold text-slate-800 dark:text-white">Almoxarifado de Perfil</h4>
-                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Indicadores específicos de perfil</p>
+                            <h4 className="text-[10px] font-black text-slate-800 dark:text-white uppercase">Perfil</h4>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Almox. Perfil</p>
                         </div>
                         <button 
                             onClick={() => updateProfileField(currentProfile.id, 'isCentral', !currentProfile.isCentral)}
@@ -170,14 +174,40 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
 
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                         <div>
-                            <h4 className="text-xs font-bold text-slate-800 dark:text-white">Unidade de Produção</h4>
-                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Dashboard de Escada/Plástico</p>
+                            <h4 className="text-[10px] font-black text-slate-800 dark:text-white uppercase">Produção</h4>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Indicadores</p>
                         </div>
                         <button 
                             onClick={() => updateProfileField(currentProfile.id, 'isProduction', !currentProfile.isProduction)}
                             className={`w-10 h-5 rounded-full transition-colors relative ${currentProfile.isProduction ? 'bg-emerald-500' : 'bg-slate-300'}`}
                         >
                             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isProduction ? 'left-5.5' : 'left-0.5'}`} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div>
+                            <h4 className="text-[10px] font-black text-slate-800 dark:text-white uppercase">Manutenção</h4>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Módulo PCM</p>
+                        </div>
+                        <button 
+                            onClick={() => updateProfileField(currentProfile.id, 'isMaintenance', !currentProfile.isMaintenance)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${currentProfile.isMaintenance ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                        >
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isMaintenance ? 'left-5.5' : 'left-0.5'}`} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div>
+                            <h4 className="text-[10px] font-black text-slate-800 dark:text-white uppercase">WMS</h4>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Almox. Geral</p>
+                        </div>
+                        <button 
+                            onClick={() => updateProfileField(currentProfile.id, 'isWarehouse', !currentProfile.isWarehouse)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${currentProfile.isWarehouse ? 'bg-rose-500' : 'bg-slate-300'}`}
+                        >
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${currentProfile.isWarehouse ? 'left-5.5' : 'left-0.5'}`} />
                         </button>
                     </div>
                 </div>
@@ -195,11 +225,83 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                   />
                 </div>
 
+                {/* Seção de Fontes de Dados Condicional */}
                 <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800">
                    <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4">Fontes de Dados (CSV / Google Sheets)</h4>
                    <div className="space-y-4">
-                      {/* Interface de Múltiplas Fontes habilitada tanto para Central (Perfil) quanto para Produção */}
-                      {(currentProfile.isCentral || currentProfile.isProduction) ? (
+                      
+                      {currentProfile.isWarehouse ? (
+                         <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="grid grid-cols-1 gap-4">
+                               <div className="p-4 rounded-2xl border bg-rose-50/30 dark:bg-rose-900/5 border-rose-100 dark:border-rose-900/20 space-y-3">
+                                  <label className="block text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
+                                     <Package className="w-3 h-3" /> Aba Estoque Atual / Cadastro
+                                  </label>
+                                  <input type="text" value={currentProfile.inventoryUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inventoryUrl', e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" />
+                               </div>
+
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="p-4 rounded-2xl border bg-emerald-50/30 dark:bg-emerald-900/5 border-emerald-100 dark:border-emerald-900/20 space-y-3">
+                                     <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                                        <TrendingUp className="w-3 h-3" /> Aba Entradas
+                                     </label>
+                                     <input type="text" value={currentProfile.inUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inUrl', e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" />
+                                  </div>
+                                  <div className="p-4 rounded-2xl border bg-purple-50/30 dark:bg-purple-900/5 border-purple-100 dark:border-purple-900/20 space-y-3">
+                                     <label className="block text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2">
+                                        <History className="w-3 h-3" /> Aba Saídas
+                                     </label>
+                                     <input type="text" value={currentProfile.outUrl} onChange={(e) => updateProfileField(currentProfile.id, 'outUrl', e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" />
+                                  </div>
+                               </div>
+
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="p-4 rounded-2xl border bg-blue-50/30 dark:bg-blue-900/5 border-blue-100 dark:border-blue-900/20 space-y-3">
+                                     <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                                        <History className="w-3 h-3" /> Aba Movimentação Interna
+                                     </label>
+                                     <input type="text" value={currentProfile.moveUrl || ''} onChange={(e) => updateProfileField(currentProfile.id, 'moveUrl', e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" />
+                                  </div>
+                                  <div className="p-4 rounded-2xl border bg-amber-50/30 dark:bg-amber-900/5 border-amber-100 dark:border-amber-900/20 space-y-3">
+                                     <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
+                                        <MapPin className="w-3 h-3" /> Aba Endereços
+                                     </label>
+                                     <input type="text" value={currentProfile.addressUrl || ''} onChange={(e) => updateProfileField(currentProfile.id, 'addressUrl', e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" />
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                      ) : currentProfile.isMaintenance ? (
+                         <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="p-5 rounded-2xl border bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-800/50 space-y-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                   <Wrench className="w-4 h-4 text-indigo-500" />
+                                   <h5 className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Planilha de Manutenções (Aba OS)</h5>
+                                </div>
+                                <input 
+                                   type="text" 
+                                   value={currentProfile.osUrl} 
+                                   onChange={(e) => updateProfileField(currentProfile.id, 'osUrl', e.target.value)} 
+                                   className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" 
+                                   placeholder="Link CSV da aba OS" 
+                                />
+                            </div>
+
+                            <div className="p-5 rounded-2xl border bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/50 space-y-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                   <ShieldCheck className="w-4 h-4 text-blue-500" />
+                                   <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600">Planilha de Preventivas</h5>
+                                </div>
+                                <input 
+                                   type="text" 
+                                   value={currentProfile.preventiveUrl || ''} 
+                                   onChange={(e) => updateProfileField(currentProfile.id, 'preventiveUrl', e.target.value)} 
+                                   className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono shadow-sm" 
+                                   placeholder="Link CSV da planilha de preventivas" 
+                                />
+                            </div>
+                         </div>
+                      ) : (currentProfile.isCentral || currentProfile.isProduction) ? (
                           <div className={`p-5 rounded-2xl border ${currentProfile.isCentral ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/50' : 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50'} space-y-4`}>
                               <div className="flex justify-between items-center">
                                   <h5 className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${currentProfile.isCentral ? 'text-blue-600' : 'text-emerald-600'}`}>
@@ -249,28 +351,28 @@ const SettingsPage: React.FC<SettingsProps> = ({ settings, onUpdateSettings, isM
                               </div>
                           </div>
                       ) : (
-                          <>
+                          <div className="space-y-4 animate-in fade-in duration-200">
                             <div>
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Planilha de Estoque</label>
-                              <input type="text" value={currentProfile.inventoryUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inventoryUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" />
+                              <input type="text" value={currentProfile.inventoryUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inventoryUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Entradas (In)</label>
-                                <input type="text" value={currentProfile.inUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" />
+                                <input type="text" value={currentProfile.inUrl} onChange={(e) => updateProfileField(currentProfile.id, 'inUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono" />
                                 </div>
                                 <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Saídas (Out)</label>
-                                <input type="text" value={currentProfile.outUrl} onChange={(e) => updateProfileField(currentProfile.id, 'outUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" />
+                                <input type="text" value={currentProfile.outUrl} onChange={(e) => updateProfileField(currentProfile.id, 'outUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1">
                                 <ClipboardList className="w-3 h-3 text-blue-500" /> Ordens de Serviço (PCM)
                                 </label>
-                                <input type="text" value={currentProfile.osUrl} onChange={(e) => updateProfileField(currentProfile.id, 'osUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono" />
+                                <input type="text" value={currentProfile.osUrl} onChange={(e) => updateProfileField(currentProfile.id, 'osUrl', e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono" />
                             </div>
-                          </>
+                          </div>
                       )}
                    </div>
                 </div>

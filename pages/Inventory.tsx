@@ -1,439 +1,365 @@
 
-import React, { useState, useMemo } from 'react';
-import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, X, Check, PackageX, Loader2, Trash2 } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Search, Download, ChevronLeft, ChevronRight, Printer, Tag, Info, AlertCircle, CheckCircle2, PackageSearch, X, Check, Maximize2, QrCode, Barcode as BarcodeIcon } from 'lucide-react';
 import { InventoryItem } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
+import JsBarcode from 'jsbarcode';
 
 interface InventoryProps {
   data: InventoryItem[];
   isLoading?: boolean;
+  isWarehouse?: boolean;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false }) => {
+const LABEL_SIZES = [
+  { id: '100x50', label: 'Grande (100x50mm)', width: '100mm', height: '50mm', qrSize: 84, barHeight: 40 },
+  { id: '80x40', label: 'Padrão (80x40mm)', width: '80mm', height: '40mm', qrSize: 64, barHeight: 30 },
+  { id: '60x30', label: 'Médio (60x30mm)', width: '60mm', height: '30mm', qrSize: 48, barHeight: 25 },
+  { id: '40x25', label: 'Pequeno (40x25mm)', width: '40mm', height: '25mm', qrSize: 30, barHeight: 18 },
+];
+
+const BarcodeComponent: React.FC<{ value: string, format: string, height: number, width: number }> = ({ value, format, height, width }) => {
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (svgRef.current) {
+      try {
+        // Validação básica para EAN13 (deve ser numérico)
+        let finalValue = value;
+        if (format === 'EAN13') {
+           finalValue = value.replace(/\D/g, '').padEnd(13, '0').slice(0, 13);
+        }
+
+        JsBarcode(svgRef.current, finalValue, {
+          format: format,
+          width: width === 40 ? 1 : 1.5,
+          height: height,
+          displayValue: false,
+          margin: 0,
+          background: 'transparent'
+        });
+      } catch (e) {
+        console.error("Erro ao gerar código de barras:", e);
+      }
+    }
+  }, [value, format, height, width]);
+
+  return <svg ref={svgRef} className="max-w-full"></svg>;
+};
+
+const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWarehouse = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todos');
-  const [equipmentFilter, setEquipmentFilter] = useState('Todos');
   const [currentPage, setCurrentPage] = useState(1);
-  
-  // Selection State
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  
-  // States de Feedback
-  const [isExportingCSV, setIsExportingCSV] = useState(false);
-  const [isGeneratingZPL, setIsGeneratingZPL] = useState(false);
-  
-  // Print Preview State
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [selectedLabelSize, setSelectedLabelSize] = useState(LABEL_SIZES[1]); // Padrão 80x40
+  const [printCodeType, setPrintCodeType] = useState<'qrcode' | 'barcode'>('qrcode');
+  const [barcodeFormat, setBarcodeFormat] = useState('CODE128');
   
-  const itemsPerPage = 15;
+  const itemsPerPage = 12;
 
-  // Extract unique categories and equipment
   const categories = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.categoria).filter(Boolean)))], [data]);
-  const equipments = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.equipamento).filter(Boolean)))], [data]);
 
-  // Filter Logic
   const filteredData = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    
-    return data.filter(item => {
-      const check = (val: string | number | undefined) => 
-        String(val || '').toLowerCase().includes(term);
-
-      const matchesSearch = 
-        !term || 
-        check(item.codigo) ||
-        check(item.descricao) ||
-        check(item.equipamento) ||
-        check(item.localizacao) ||
-        check(item.fornecedor) ||
-        check(item.categoria);
-      
-      const matchesCategory = categoryFilter === 'Todos' || item.categoria === categoryFilter;
-      const matchesEquipment = equipmentFilter === 'Todos' || item.equipamento === equipmentFilter;
-
-      return matchesSearch && matchesCategory && matchesEquipment;
+    const baseData = data.filter(item => categoryFilter === 'Todos' || item.categoria === categoryFilter);
+    if (!term) return baseData;
+    const exactCodeMatches = baseData.filter(item => (item.codigo || '').toLowerCase() === term);
+    if (exactCodeMatches.length > 0) return exactCodeMatches;
+    return baseData.filter(item => {
+      return (item.codigo || '').toLowerCase().includes(term) ||
+        (item.descricao || '').toLowerCase().includes(term) ||
+        (item.setor || '').toLowerCase().includes(term) ||
+        (item.situacao || '').toLowerCase().includes(term);
     });
-  }, [data, searchTerm, categoryFilter, equipmentFilter]);
+  }, [data, searchTerm, categoryFilter]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // Selection Handlers
-  const toggleSelection = (id: string) => {
-    const newSelection = new Set(selectedItems);
-    if (newSelection.has(id)) {
-      newSelection.delete(id);
-    } else {
-      newSelection.add(id);
-    }
-    setSelectedItems(newSelection);
-  };
-
-  // Verifica se TODOS os itens que estão na filtragem atual estão selecionados
-  const isAllFilteredSelected = useMemo(() => {
-    if (filteredData.length === 0) return false;
-    return filteredData.every(item => selectedItems.has(item.id));
+  const allFilteredSelected = useMemo(() => {
+    return filteredData.length > 0 && filteredData.every(item => selectedItems.has(item.id));
   }, [filteredData, selectedItems]);
 
+  const toggleSelectItem = (id: string) => {
+    const next = new Set(selectedItems);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedItems(next);
+  };
+
   const toggleSelectAll = () => {
-    const newSelection = new Set(selectedItems);
-    if (isAllFilteredSelected) {
-      filteredData.forEach(item => newSelection.delete(item.id));
-    } else {
-      filteredData.forEach(item => newSelection.add(item.id));
-    }
-    setSelectedItems(newSelection);
+    if (allFilteredSelected) setSelectedItems(new Set());
+    else setSelectedItems(new Set(filteredData.map(i => i.id)));
   };
 
-  const handleExportCSV = async () => {
-    setIsExportingCSV(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+  const handlePrint = () => window.print();
 
-    const headers = ["Código", "Descrição", "Equipamento", "Localização", "Fornecedor", "Quantidade em Estoque", "Medida", "Categoria", "Valor Unit", "Valor Total"];
-    const csvContent = [
-      headers.join(";"),
-      ...filteredData.map(item => [
-        item.codigo,
-        item.descricao,
-        item.equipamento || "N/D",
-        item.localizacao || "N/D",
-        item.fornecedor || "N/D",
-        item.quantidadeAtual,
-        item.unidade || "un.",
-        item.categoria,
-        item.valorUnitario.toFixed(2).replace('.', ','),
-        item.valorTotal.toFixed(2).replace('.', ',')
-      ].join(";"))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "inventario_almoxarifado.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setIsExportingCSV(false);
+  const getStatusBadge = (status: string) => {
+    const s = (status || 'OK').toUpperCase();
+    if (s.includes('OK')) return <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> OK</span>;
+    if (s.includes('ESGOTADO')) return <span className="px-3 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="w-3 h-3" /> ESGOTADO</span>;
+    if (s.includes('PEDIDO') || s.includes('ATENCAO')) return <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><PackageSearch className="w-3 h-3" /> REALIZAR PEDIDO</span>;
+    return <span className="px-3 py-1 bg-slate-500/10 text-slate-500 border border-slate-500/20 rounded-full text-[10px] font-black uppercase tracking-widest">{status}</span>;
   };
 
-  const handleDownloadZPL = async () => {
-    if (selectedItems.size === 0) return;
-    setIsGeneratingZPL(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-    let zplContent = "";
-    const selected = data.filter(item => selectedItems.has(item.id));
-    
-    selected.forEach(item => {
-      const cod = normalize(item.codigo);
-      const desc = normalize(item.descricao).substring(0, 40);
-      const equip = normalize(item.equipamento).substring(0, 25);
-
-      zplContent += `
-^XA
-^PW400
-^LL400
-^FO10,10^GB380,380,2^FS
-^FO0,20^A0N,110,100^FB400,1,0,C,0^FD${cod}^FS
-^FO140,130^BQN,2,4^FDQA,${cod}^FS
-^FO10,250^A0N,40,40^FB380,2,0,C,0^FD${desc}^FS
-^FO10,340^A0N,30,30^FB380,1,0,C,0^FD${equip}^FS
-^XZ`;
-    });
-
-    const blob = new Blob([zplContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "etiquetas_50x50_zpl.txt");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setIsGeneratingZPL(false);
-  };
-
-  const selectedItemsList = data.filter(item => selectedItems.has(item.id));
-
-  const handlePrint = () => {
-    const originalTitle = document.title;
-    document.title = "etiquetas_almoxarifado";
-    setTimeout(() => {
-      window.print();
-      document.title = originalTitle;
-    }, 100);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-         <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex gap-4">
-            <div className="h-10 flex-1 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-         </div>
-         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-4">
-            {[1,2,3,4,5,6,7,8].map(i => (
-                <div key={i} className="flex gap-4">
-                    <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                    <div className="h-8 flex-1 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                    <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                    <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                </div>
-            ))}
-         </div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Sincronizando Inventário...</div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      <div className="no-print">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Inventário</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">
-          Gerencie todos os itens do estoque e gere etiquetas.
-        </p>
-      </div>
-      
-      <div className="space-y-4 no-print sticky top-0 z-20">
-        {/* BARRA DE AÇÕES DE SELEÇÃO (APARECE ACIMA DOS FILTROS) */}
-        {selectedItems.size > 0 && (
-          <div className="flex justify-end animate-in slide-in-from-top-2 duration-300">
-            <div className="bg-white dark:bg-dark-card p-2 px-3 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 flex items-center gap-3">
-              <span className="text-[10px] font-black text-primary uppercase tracking-widest px-2 border-r border-gray-200 dark:border-gray-700 mr-1 flex items-center gap-2">
-                <Check className="w-3 h-3" /> {selectedItems.size} selecionados
-              </span>
-              <button 
-                onClick={handleDownloadZPL}
-                disabled={isGeneratingZPL}
-                className="flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm disabled:opacity-70 active:scale-95"
-                title="Baixar arquivo ZPL"
-              >
-                {isGeneratingZPL ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Tag className="w-3.5 h-3.5 mr-2" />}
-                ZPL (50x50mm)
-              </button>
-              <button 
-                onClick={() => setShowPrintPreview(true)}
-                className="flex items-center px-4 py-2 bg-primary hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95"
-              >
-                <Printer className="w-3.5 h-3.5 mr-2" />
-                Imprimir ({selectedItems.size})
-              </button>
-              <button 
-                onClick={() => setSelectedItems(new Set())}
-                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
-                title="Limpar seleção"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* BARRA DE FILTRAGEM GLOBAL */}
-        <div className="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="flex flex-1 gap-4 w-full md:w-auto flex-wrap items-center">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input 
-                type="text"
-                placeholder="Buscar código, nome, local..."
-                className="w-full pl-10 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 dark:text-white transition-shadow"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button 
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                    <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            
-            <select 
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm font-black dark:text-white appearance-none cursor-pointer"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-
-            <select 
-              className="hidden md:block px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-sm font-black dark:text-white appearance-none cursor-pointer"
-              value={equipmentFilter}
-              onChange={(e) => setEquipmentFilter(e.target.value)}
-            >
-              {equipments.map(e => <option key={e} value={e}>{e}</option>)}
-            </select>
-          </div>
-
-          <div className="flex gap-2">
-            <button 
-              onClick={handleExportCSV}
-              disabled={isExportingCSV}
-              className="flex items-center px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm disabled:opacity-70 active:scale-95"
-            >
-              {isExportingCSV ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-2" />}
-              CSV
-            </button>
-          </div>
+    <div className="max-w-[1440px] mx-auto space-y-6 animate-in fade-in duration-300">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
+        <div>
+          <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Inventário de Itens</h1>
+          <p className="text-sm font-medium text-slate-400">
+            {isWarehouse ? 'Controle de saldo, picking e pulmão logístico.' : 'Gerencie todos os itens do estoque e gere etiquetas.'}
+          </p>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-        {filteredData.length > 0 ? (
-        <div className="overflow-x-auto max-h-[70vh]">
-          <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 relative">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300 sticky top-0 z-10 shadow-sm">
+      <div className="bg-[#1e293b] p-4 rounded-3xl shadow-xl border border-slate-800 flex flex-col md:flex-row gap-4 items-center no-print">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+          <input 
+            type="text"
+            placeholder="Buscar código, descrição, setor..."
+            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-[#0f172a] border border-slate-700 text-sm font-bold outline-none text-white focus:ring-2 focus:ring-blue-500 transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <select 
+          className="px-6 py-3 rounded-2xl bg-[#0f172a] border border-slate-700 text-xs font-black outline-none cursor-pointer w-full md:w-auto text-white uppercase tracking-widest"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          {categories.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
+        </select>
+        
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowPrintPreview(true)}
+            disabled={selectedItems.size === 0}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50"
+          >
+             <Tag className="w-4 h-4" /> Etiquetas ({selectedItems.size})
+          </button>
+          <button className="flex items-center gap-2 px-6 py-3 bg-[#10b981] hover:bg-emerald-600 text-white text-[10px] font-black uppercase rounded-2xl transition-all shadow-lg active:scale-95">
+             <Download className="w-4 h-4" /> CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-[#1e293b] rounded-[2rem] shadow-2xl border border-slate-800 overflow-hidden no-print">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-[10px] uppercase text-slate-500 font-black tracking-widest bg-slate-800/30">
               <tr>
-                <th className="px-4 py-3 w-4">
+                <th className="px-6 py-5 w-10">
                   <input 
                     type="checkbox" 
-                    checked={isAllFilteredSelected}
+                    className="w-4 h-4 rounded-md border-slate-700 bg-slate-900 cursor-pointer" 
+                    checked={allFilteredSelected}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded cursor-pointer"
                   />
                 </th>
-                <th className="px-6 py-3">Código</th>
-                <th className="px-6 py-3">Descrição</th>
-                <th className="px-6 py-3">Equipamento</th>
-                <th className="px-6 py-3">Localização</th>
-                <th className="px-6 py-3 text-right">Qtd Estoque</th>
-                <th className="px-6 py-3 text-center">Medida</th>
-                <th className="px-6 py-3 text-right">Valor Unit.</th>
-                <th className="px-6 py-3 text-center">Categoria</th>
+                <th className="px-6 py-5">CÓDIGO</th>
+                <th className="px-6 py-5">DESCRIÇÃO</th>
+                {isWarehouse ? (
+                  <>
+                    <th className="px-6 py-5 text-center">ESTOQUE</th>
+                    <th className="px-6 py-5 text-center">PICKING</th>
+                    <th className="px-6 py-5 text-center">SALDO TOTAL</th>
+                    <th className="px-6 py-5 text-center">MÍNIMO</th>
+                    <th className="px-6 py-5 text-center">SITUAÇÃO</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-6 py-5">EQUIPAMENTO</th>
+                    <th className="px-6 py-5">LOCALIZAÇÃO</th>
+                    <th className="px-6 py-5 text-center">QTD ESTOQUE</th>
+                    <th className="px-6 py-5 text-center">MEDIDA</th>
+                    <th className="px-6 py-5 text-right">VALOR UNIT.</th>
+                    <th className="px-6 py-5 text-center">CATEGORIA</th>
+                  </>
+                )}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-800">
               {paginatedData.map((item) => (
-                <tr key={item.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-dark-card'}`}>
-                  <td className="px-4 py-4">
+                <tr 
+                  key={item.id} 
+                  className={`hover:bg-slate-800/40 transition-colors group cursor-pointer ${selectedItems.has(item.id) ? 'bg-blue-500/5' : ''}`}
+                  onClick={() => toggleSelectItem(item.id)}
+                >
+                  <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
+                      className="w-4 h-4 rounded-md border-slate-700 bg-slate-900 cursor-pointer" 
                       checked={selectedItems.has(item.id)}
-                      onChange={() => toggleSelection(item.id)}
-                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded cursor-pointer"
+                      onChange={() => toggleSelectItem(item.id)}
                     />
                   </td>
-                  <td className="px-6 py-4 font-black text-gray-900 dark:text-white whitespace-nowrap font-mono">{item.codigo}</td>
-                  <td className="px-6 py-4 max-w-xs truncate">{item.descricao}</td>
-                  <td className="px-6 py-4">
-                    {item.equipamento ? (
-                      <span className="bg-blue-100 text-blue-800 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                        {item.equipamento}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 italic text-xs">N/D</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-slate-600 dark:text-slate-300 text-xs">
-                    {item.localizacao || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-right font-black text-slate-800 dark:text-white">{item.quantidadeAtual}</td>
-                  <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 text-xs uppercase font-bold">
-                      {item.unidade || 'un.'}
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs">R$ {item.valorUnitario.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                      {item.categoria}
-                    </span>
-                  </td>
+                  <td className="px-6 py-5 font-black text-white font-mono">{item.codigo}</td>
+                  <td className="px-6 py-5 font-bold text-slate-300 uppercase text-[11px] leading-tight max-w-xs">{item.descricao}</td>
+                  
+                  {isWarehouse ? (
+                    <>
+                      <td className="px-6 py-5 text-center font-bold text-slate-400">{item.quantidadeEstoque.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-5 text-center font-bold text-blue-400">{item.quantidadePicking.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-5 text-center font-black text-white">{item.quantidadeAtual.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-5 text-center font-bold text-slate-500">{item.quantidadeMinima.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-5 text-center flex justify-center" onClick={(e) => e.stopPropagation()}>
+                        {getStatusBadge(item.situacao || 'OK')}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-6 py-5 text-slate-500 text-[10px] font-bold italic">{item.equipamento || 'N/D'}</td>
+                      <td className="px-6 py-5 text-slate-400 font-bold text-[11px] uppercase">{item.localizacao || 'Rua 1 Lado A'}</td>
+                      <td className="px-6 py-5 text-center font-black text-white">{item.quantidadeAtual}</td>
+                      <td className="px-6 py-5 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">{item.unidade}</td>
+                      <td className="px-6 py-5 text-right font-bold text-slate-400">R$ {item.valorUnitario?.toFixed(2) || '0.00'}</td>
+                      <td className="px-6 py-5 text-center">
+                        <span className="px-3 py-1 bg-slate-800/80 rounded-full text-[9px] font-black uppercase border border-slate-700 text-slate-400 tracking-tighter">
+                          {item.categoria}
+                        </span>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-              <PackageX className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
-              <h3 className="text-lg font-medium mb-1">Nenhum item encontrado</h3>
-              <p className="text-sm">Tente ajustar os filtros ou a busca.</p>
-          </div>
-        )}
 
         {filteredData.length > 0 && (
-        <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
-          <span className="text-sm text-gray-700 dark:text-gray-400">
-            Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length}
-          </span>
-          <div className="inline-flex gap-2">
-            <button 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+          <div className="flex items-center justify-between p-6 border-t border-slate-800 bg-slate-800/20">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Página {currentPage} de {totalPages} • Mostrando {paginatedData.length} de {filteredData.length} itens</span>
+            <div className="flex gap-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2.5 rounded-xl bg-[#0f172a] border border-slate-700 hover:bg-slate-800 disabled:opacity-30 transition-all shadow-lg"><ChevronLeft className="w-4 h-4" /></button>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2.5 rounded-xl bg-[#0f172a] border border-slate-700 hover:bg-slate-800 disabled:opacity-30 transition-all shadow-lg"><ChevronRight className="w-4 h-4" /></button>
+            </div>
           </div>
-        </div>
         )}
       </div>
 
-      {/* --- PREVIEW OVERLAY --- */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
-          <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
-             <div className="flex items-center">
-               <Printer className="mr-2 w-5 h-5" />
-               <span className="font-bold text-sm uppercase tracking-widest">Impressão de Etiquetas (50x50mm)</span>
+        <div className="fixed inset-0 z-[200] bg-slate-900/95 overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300">
+           <div className="sticky top-0 bg-slate-900 text-white p-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-2xl z-50 no-print border-b border-slate-800">
+             <div className="flex items-center gap-4">
+               <div className="p-2 bg-blue-600/20 rounded-xl"><Printer className="w-5 h-5 text-blue-400" /></div>
+               <div>
+                  <span className="font-black text-xs uppercase tracking-widest block">Configuração de Impressão</span>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase italic">Selecione o tamanho adequado para o seu rolo de etiquetas</p>
+               </div>
              </div>
-             <div className="flex gap-3">
-               <button 
-                 onClick={() => setShowPrintPreview(false)}
-                 className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase flex items-center"
-               >
-                 <X className="w-4 h-4 mr-2" /> Voltar
-               </button>
-               <button 
-                 onClick={handlePrint}
-                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase flex items-center shadow-lg"
-               >
-                 <Check className="w-4 h-4 mr-2" /> Confirmar Impressão
-               </button>
+
+             <div className="flex flex-wrap items-center gap-4">
+                <div className="bg-slate-800 p-1.5 rounded-xl flex items-center gap-3 border border-slate-700">
+                   <div className="flex items-center gap-2 px-3 border-r border-slate-700">
+                      <Maximize2 className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tamanho:</span>
+                   </div>
+                   <select 
+                      value={selectedLabelSize.id} 
+                      onChange={(e) => setSelectedLabelSize(LABEL_SIZES.find(s => s.id === e.target.value) || LABEL_SIZES[1])}
+                      className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer pr-4"
+                   >
+                      {LABEL_SIZES.map(size => <option key={size.id} value={size.id} className="bg-slate-900">{size.label}</option>)}
+                   </select>
+                </div>
+
+                <div className="bg-slate-800 p-1.5 rounded-xl flex items-center gap-3 border border-slate-700">
+                   <div className="flex items-center gap-2 px-3 border-r border-slate-700">
+                      <QrCode className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tipo Código:</span>
+                   </div>
+                   <select 
+                      value={printCodeType} 
+                      onChange={(e) => setPrintCodeType(e.target.value as any)}
+                      className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer pr-4"
+                   >
+                      <option value="qrcode" className="bg-slate-900">QR CODE</option>
+                      <option value="barcode" className="bg-slate-900">CÓD. BARRAS</option>
+                   </select>
+                   
+                   {printCodeType === 'barcode' && (
+                     <div className="flex items-center gap-3 border-l border-slate-700 pl-3">
+                        <select 
+                            value={barcodeFormat} 
+                            onChange={(e) => setBarcodeFormat(e.target.value)}
+                            className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer pr-4"
+                        >
+                            <option value="CODE128" className="bg-slate-900">CODE128</option>
+                            <option value="CODE39" className="bg-slate-900">CODE39</option>
+                            <option value="EAN13" className="bg-slate-900">EAN-13</option>
+                        </select>
+                     </div>
+                   )}
+                </div>
+
+               <div className="flex gap-2">
+                 <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase flex items-center transition-all border border-slate-700"><X className="w-4 h-4 mr-2" /> Voltar</button>
+                 <button onClick={handlePrint} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase flex items-center shadow-lg active:scale-95 transition-all"><Check className="w-4 h-4 mr-2" /> Imprimir</button>
+               </div>
              </div>
           </div>
 
-          <div className="thermal-label-container printable-area flex flex-row flex-wrap justify-start content-start bg-white w-full h-auto overflow-visible p-0 m-0">
-               {selectedItemsList.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="thermal-label"
-                    style={{ width: '50mm', height: '50mm' }}
-                  >
-                     <div className="w-full text-center mt-0">
-                        <span className="text-5xl font-black text-black tracking-tighter leading-none block">
-                          {item.codigo}
-                        </span>
+          <div className="printable-area flex flex-wrap gap-2 bg-white p-6 justify-start flex-1">
+            {data.filter(i => selectedItems.has(i.id)).map(item => {
+              const isMini = selectedLabelSize.id === '40x25';
+              const isMedium = selectedLabelSize.id === '60x30';
+              return (
+                <div 
+                  key={item.id} 
+                  style={{ width: selectedLabelSize.width, height: selectedLabelSize.height }}
+                  className={`border-2 border-black flex flex-col items-center justify-between bg-white no-break overflow-hidden ${isMini ? 'p-1' : 'p-3'}`}
+                >
+                   <div className={`w-full text-center border-b border-black/20 shrink-0 ${isMini ? 'pb-0.5' : 'pb-1'}`}>
+                      <span className={`font-black text-black uppercase tracking-widest ${isMini ? 'text-[7px]' : 'text-[10px]'}`}>ALUMASA INDUSTRIAL</span>
+                   </div>
+                   
+                   <div className={`flex items-center w-full flex-1 min-h-0 ${isMini ? 'gap-1.5 py-1' : (printCodeType === 'barcode' ? 'gap-2 py-1' : 'gap-4 py-2')}`}>
+                      {printCodeType === 'qrcode' ? (
+                        <div className="shrink-0">
+                          <QRCodeSVG value={item.codigo} size={selectedLabelSize.qrSize} level="M" />
+                        </div>
+                      ) : (
+                        <div className="w-full flex items-center justify-center overflow-hidden h-full">
+                          <BarcodeComponent 
+                            value={item.codigo} 
+                            format={barcodeFormat} 
+                            height={selectedLabelSize.barHeight} 
+                            width={parseInt(selectedLabelSize.width)} 
+                          />
+                        </div>
+                      )}
+
+                      {(printCodeType === 'qrcode' || (isMini || isMedium)) && (
+                        <div className="flex flex-col flex-1 min-w-0">
+                            <span className={`font-black text-black leading-none font-mono ${isMini ? 'text-[9px] mb-0.5' : (printCodeType === 'barcode' ? 'text-sm mb-1' : 'text-xl mb-1')}`}>{item.codigo}</span>
+                            <span className={`font-bold text-black uppercase leading-tight line-clamp-2 ${isMini ? 'text-[6px]' : 'text-[9px]'}`}>{item.descricao}</span>
+                        </div>
+                      )}
+                   </div>
+
+                   {/* Se for código de barras e não for mini, mostramos a descrição abaixo para aproveitar largura */}
+                   {printCodeType === 'barcode' && !isMini && !isMedium && (
+                     <div className="w-full text-center mb-1">
+                        <span className="font-bold text-black uppercase text-[9px] leading-tight line-clamp-1">{item.descricao}</span>
+                        <span className="font-black text-black block text-[10px] font-mono mt-0.5 tracking-widest">{item.codigo}</span>
                      </div>
-                     <div className="flex-1 flex items-center justify-center py-1">
-                       <QRCodeSVG value={item.codigo} size={70} level="H" />
-                     </div>
-                     <div className="w-full text-center pb-1">
-                        <p className="text-[9px] font-bold text-black uppercase leading-tight line-clamp-2 px-1">
-                          {item.descricao}
-                        </p>
-                        {item.equipamento && (
-                          <p className="text-[8px] font-black text-black uppercase leading-none mt-1 opacity-80">
-                            {item.equipamento}
-                          </p>
-                        )}
-                     </div>
-                  </div>
-               ))}
-            </div>
+                   )}
+
+                   <div className={`w-full flex justify-between items-end font-black uppercase text-black border-t border-black/20 shrink-0 ${isMini ? 'text-[6px] pt-0.5' : 'text-[8px] pt-1'}`}>
+                      <span>{item.setor || 'ALMOXARIFADO'}</span>
+                      <span>{item.unidade}</span>
+                   </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

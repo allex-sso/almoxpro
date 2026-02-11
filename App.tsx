@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, RefreshCw, LogOut } from 'lucide-react';
-import { AppSettings, InventoryItem, Movement, Page, SectorProfile, ProductionEntry, ServiceOrder } from './types';
-import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData, fetchProductionData } from './services/sheetService';
+import { AppSettings, InventoryItem, Movement, Page, SectorProfile, ProductionEntry, ServiceOrder, PreventiveEntry, AddressItem, DashboardStats } from './types';
+import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData, fetchProductionData, fetchPreventiveData, fetchAddressData } from './services/sheetService';
 import Sidebar from './components/Sidebar';
 
 // Pages
@@ -12,15 +12,20 @@ import Consumption from './pages/Consumption';
 import AlertPage from './pages/Alerts';
 import SettingsPage from './pages/Settings';
 import ServiceOrdersPage from './pages/ServiceOrders';
+import PreventivePage from './pages/Preventives';
 import LoginPage from './pages/Login';
 import CentralDashboard from './pages/CentralDashboard';
 import CentralProfiles from './pages/CentralProfiles';
 import ProductionDashboard from './pages/ProductionDashboard';
 import ProductionTypology from './pages/ProductionTypology';
+import WarehouseAddresses from './pages/WarehouseAddresses';
+import WarehousePerformance from './pages/WarehousePerformance';
 
 const MASTER_PROFILE_ID = 'almox-pecas';
 const CENTRAL_PROFILE_ID = 'almox-central';
 const PRODUCTION_PROFILE_ID = 'prod-escadas';
+const MAINTENANCE_PROFILE_ID = 'manutencao';
+const WAREHOUSE_PROFILE_ID = 'almox-geral';
 
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
   try {
@@ -40,9 +45,33 @@ const getDefaultProfiles = (): SectorProfile[] => {
       name: 'Almoxarifado de Peças',
       accessKey: '10',
       inventoryUrl: getEnvVar('VITE_INVENTORY_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?output=csv'),
-      inUrl: getEnvVar('VITE_IN_URL', ''),
-      outUrl: getEnvVar('VITE_OUT_URL', ''),
-      osUrl: getEnvVar('VITE_OS_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?output=csv')
+      inUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?gid=1698687683&single=true&output=csv',
+      outUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBMwcgSD7Z6_n69F64Z16Ys4RWWohvf7xniWm1AoohkdYrg9cVXkUXJ2pogwaUCA/pub?gid=1950267668&single=true&output=csv',
+      osUrl: '',
+      preventiveUrl: ''
+    },
+    {
+      id: WAREHOUSE_PROFILE_ID,
+      name: 'Almoxarifado Geral',
+      accessKey: '50',
+      isWarehouse: true,
+      inventoryUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgoRrtI17w2H_SsE28OaPpIQBoED9ZcmRf4sTZo8KNtWb7yvDa-mrS8wpOnrnoAoSh_T9J_-yIRT1/pub?gid=2095331650&single=true&output=csv',
+      inUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgoRrtI17w2H_SsE28OaPpIQBoED9ZcmRf4sTZo8KNtWb7yvDa-mrS8wpOnrnoAoSh_T9J_-yIRT1/pub?gid=1698687683&single=true&output=csv',
+      outUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgoRrtI17w2H_SsE28OaPpIQBoED9ZcmRf4sTZo8KNtWb7yvDa-mrS8wpOnrnoAoSh_T9J_-yIRT1/pub?gid=1950267668&single=true&output=csv',
+      moveUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgoRrtI17w2H_SsE28OaPpIQBoED9ZcmRf4sTZo8KNtWb7yvDa-mrS8wpOnrnoAoSh_T9J_-yIRT1/pub?gid=36636399&single=true&output=csv',
+      addressUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgoRrtI17w2H_SsE28OaPpIQBoED9ZcmRf4sTZo8KNtWb7yvDa-mrS8wpOnrnoAoSh_T9J_-yIRT1/pub?gid=1491159035&single=true&output=csv',
+      osUrl: ''
+    },
+    {
+      id: MAINTENANCE_PROFILE_ID,
+      name: 'Manutenção',
+      accessKey: '40',
+      inventoryUrl: '',
+      inUrl: '',
+      outUrl: '',
+      osUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgS_Ap0GsTp-p-HEL7MCpRfCqfWrPIydYbODTzMpCpD1DaZASPqw0WHyOYaT-0dQ/pub?gid=1950267668&single=true&output=csv',
+      preventiveUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQrLFeuc92GdbLzpbODvpcRh60tqFoc0-t9Tf175oDyNuI7cKrNZBbDVDVZbW41DgC2OCMxAsjmDO70/pub?gid=194213390&single=true&output=csv',
+      isMaintenance: true
     },
     {
       id: CENTRAL_PROFILE_ID,
@@ -100,245 +129,213 @@ const App: React.FC = () => {
           if (!exists) {
             savedProfiles.push(defProf);
           } else {
-            if (defProf.id === PRODUCTION_PROFILE_ID) {
-               const idx = savedProfiles.findIndex((p: SectorProfile) => p.id === defProf.id);
-               // Atualiza o nome e as fontes caso tenham mudado no default
-               savedProfiles[idx] = { 
-                 ...savedProfiles[idx], 
-                 name: defProf.name,
-                 sources: defProf.sources 
-               };
-            }
+             const idx = savedProfiles.findIndex((p: SectorProfile) => p.id === defProf.id);
+             if (defProf.id === WAREHOUSE_PROFILE_ID || defProf.id === MASTER_PROFILE_ID || defProf.id === MAINTENANCE_PROFILE_ID) {
+                savedProfiles[idx] = { ...savedProfiles[idx], ...defProf };
+             } else {
+                savedProfiles[idx] = { ...defProf, ...savedProfiles[idx], isWarehouse: defProf.isWarehouse };
+             }
           }
         });
 
         return { 
           profiles: savedProfiles,
           activeProfileId: parsed.activeProfileId || null,
-          refreshRate: parsed.refreshRate || 30
+          refreshRate: parsed.refreshRate || 0 
         };
       }
     } catch (e) {}
-    return { profiles: defaultProfiles, activeProfileId: null, refreshRate: 30 };
+    return { profiles: defaultProfiles, activeProfileId: null, refreshRate: 0 };
   });
 
-  const activeProfile = useMemo(() => 
-    (settings.profiles || []).find(p => p.id === settings.activeProfileId) || null
-  , [settings.profiles, settings.activeProfileId]);
-
-  const isMasterAccount = activeProfile?.id === MASTER_PROFILE_ID;
-
-  const [data, setData] = useState<InventoryItem[]>([]);
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
-  const [productionData, setProductionData] = useState<ProductionEntry[]>([]);
   const [osData, setOsData] = useState<ServiceOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(false); 
+  const [productionData, setProductionData] = useState<ProductionEntry[]>([]);
+  const [preventiveData, setPreventiveData] = useState<PreventiveEntry[]>([]);
+  const [addressData, setAddressData] = useState<AddressItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('alumasa_config_v1', JSON.stringify(settings));
-    } catch (e) {}
-  }, [settings]);
+  const activeProfile = useMemo(() => 
+    settings.profiles.find(p => p.id === settings.activeProfileId), 
+    [settings]
+  );
 
-  const loadData = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     if (!activeProfile) return;
-    setIsLoading(true);
-
+    setLoading(true);
     try {
-      if (activeProfile.isCentral) {
-        const sources = (activeProfile.sources || []);
-        if (sources.length > 0) {
-            const results = await Promise.allSettled(sources.map(s => fetchCentralData(s.url)));
-            const consolidated: Movement[] = [];
-            results.forEach((res) => {
-                if (res.status === 'fulfilled') consolidated.push(...res.value);
-            });
-            setMovements(consolidated);
-        }
-      } else if (activeProfile.isProduction) {
-        const sources = (activeProfile.sources || []);
-        if (sources.length > 0) {
-            const results = await Promise.allSettled(sources.map(async s => {
-              const data = await fetchProductionData(s.url);
-              return data.map(entry => ({ ...entry, setor: s.label }));
-            }));
-            const consolidated: ProductionEntry[] = [];
-            results.forEach((res) => {
-                if (res.status === 'fulfilled') consolidated.push(...res.value);
-            });
-            setProductionData(consolidated);
-        }
-      } else {
-        const results = await Promise.allSettled([
-          fetchInventoryData(activeProfile.inventoryUrl),
-          activeProfile.inUrl ? fetchMovements(activeProfile.inUrl, 'entrada') : Promise.resolve([]),
-          activeProfile.outUrl ? fetchMovements(activeProfile.outUrl, 'saida') : Promise.resolve([]),
-          activeProfile.osUrl ? fetchServiceOrders(activeProfile.osUrl) : Promise.resolve([])
-        ]);
-        
-        let inventoryItems = results[0].status === 'fulfilled' ? results[0].value : [];
-        let inMoves = results[1].status === 'fulfilled' ? results[1].value : [];
-        let outMoves = results[2].status === 'fulfilled' ? results[2].value : [];
-        const osList = results[3].status === 'fulfilled' ? results[3].value : [];
+      const results = await Promise.all([
+        activeProfile.inventoryUrl ? fetchInventoryData(activeProfile.inventoryUrl) : Promise.resolve([]),
+        activeProfile.inUrl ? fetchMovements(activeProfile.inUrl, 'entrada') : Promise.resolve([]),
+        activeProfile.outUrl ? fetchMovements(activeProfile.outUrl, 'saida') : Promise.resolve([]),
+        activeProfile.moveUrl ? fetchMovements(activeProfile.moveUrl, 'transferencia') : Promise.resolve([]),
+        activeProfile.osUrl ? fetchServiceOrders(activeProfile.osUrl) : Promise.resolve([]),
+        activeProfile.preventiveUrl ? fetchPreventiveData(activeProfile.preventiveUrl) : Promise.resolve([]),
+        activeProfile.addressUrl ? fetchAddressData(activeProfile.addressUrl) : Promise.resolve([]),
+        activeProfile.isProduction ? Promise.all((activeProfile.sources || []).map(s => fetchProductionData(s.url))).then(res => res.flat()) : Promise.resolve([]),
+        activeProfile.isCentral ? Promise.all((activeProfile.sources || []).map(s => fetchCentralData(s.url))).then(res => res.flat()) : Promise.resolve([]),
+      ]);
 
-        if (activeProfile.id === MASTER_PROFILE_ID) {
-          const priceMap = new Map<string, number>();
-          [...inMoves].sort((a,b) => a.data.getTime() - b.data.getTime()).forEach(m => {
-            if (m.codigo && m.valorUnitario && m.valorUnitario > 0) {
-              const codeClean = String(m.codigo).trim().toLowerCase();
-              priceMap.set(codeClean, m.valorUnitario);
-            }
-          });
-
-          outMoves = outMoves.map(m => {
-            const codeClean = String(m.codigo).trim().toLowerCase();
-            const lastKnownPrice = priceMap.get(codeClean);
-            if (lastKnownPrice && (m.valorUnitario === 0 || !m.valorUnitario)) {
-              return {
-                ...m,
-                valorUnitario: lastKnownPrice,
-                valorTotal: m.quantidade * lastKnownPrice
-              };
-            }
-            return m;
-          });
-
-          inventoryItems = inventoryItems.map(item => {
-            const codeClean = String(item.codigo).trim().toLowerCase();
-            const precoEncontrado = priceMap.get(codeClean);
-            if (precoEncontrado !== undefined) {
-               return {
-                 ...item,
-                 valorUnitario: precoEncontrado,
-                 valorTotal: item.quantidadeAtual * precoEncontrado
-               };
-            }
-            return {
-              ...item,
-              valorTotal: item.quantidadeAtual * (item.valorUnitario || 0)
-            };
-          });
-
-          const outgoingByCode = new Map<string, number>();
-          outMoves.forEach(m => {
-             const code = String(m.codigo).trim().toLowerCase();
-             outgoingByCode.set(code, (outgoingByCode.get(code) || 0) + m.quantidade);
-          });
-          
-          const incomingByCode = new Map<string, number>();
-          inMoves.forEach(m => {
-             const code = String(m.codigo).trim().toLowerCase();
-             incomingByCode.set(code, (incomingByCode.get(code) || 0) + m.quantidade);
-          });
-
-          inventoryItems = inventoryItems.map(item => {
-             const codeClean = String(item.codigo).trim().toLowerCase();
-             return {
-              ...item,
-              entradas: incomingByCode.get(codeClean) || 0,
-              saidas: outgoingByCode.get(codeClean) || 0
-             };
-          });
-        }
-        
-        setData(inventoryItems);
-        setMovements([...inMoves, ...outMoves]);
-        setOsData(osList);
-      }
-    } catch (err) {
-      console.error("Erro ao sincronizar dados:", err);
+      setInventoryData(results[0]);
+      const allMovs = [...results[1], ...results[2], ...results[3], ...(activeProfile.isCentral ? (results[8] as Movement[]) : [])];
+      setMovements(allMovs);
+      setOsData(results[4]);
+      setPreventiveData(results[5]);
+      setAddressData(results[6]);
+      setProductionData(results[7] as ProductionEntry[]);
+    } catch (error) {
+      console.error("Error fetching data:", error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, [activeProfile]);
 
   useEffect(() => {
-    if (activeProfile) {
-        loadData();
-        if (activeProfile.isProduction) setCurrentPage(Page.PRODUCTION_DASHBOARD);
-        else if (activeProfile.isCentral) setCurrentPage(Page.CENTRAL_DASHBOARD);
-        else setCurrentPage(Page.DASHBOARD);
-    }
-  }, [activeProfile, loadData]);
+    fetchData();
+  }, [fetchData]);
 
-  const dashboardStats = useMemo(() => {
-    const totalItems = data.length;
-    const totalValue = data.reduce((sum, item) => sum + (item.valorTotal || 0), 0);
+  const handleSelectProfile = (profileId: string) => {
+    setSettings(prev => {
+      const newSettings = { ...prev, activeProfileId: profileId };
+      localStorage.setItem('alumasa_config_v1', JSON.stringify(newSettings));
+      return newSettings;
+    });
+    setCurrentPage(Page.DASHBOARD);
+  };
+
+  const handleLogout = () => {
+    setSettings(prev => ({ ...prev, activeProfileId: null }));
+    localStorage.removeItem('alumasa_config_v1');
+  };
+
+  const handleUpdateSettings = (newSettings: AppSettings) => {
+    setSettings(newSettings);
+    localStorage.setItem('alumasa_config_v1', JSON.stringify(newSettings));
+  };
+
+  // CÁLCULO DINÂMICO DE VALORIZAÇÃO FINANCEIRA (Entradas - Saídas por Código)
+  const stats: DashboardStats = useMemo(() => {
+    const itemPricing: Record<string, number> = {};
+    const itemBalances: Record<string, number> = {};
     
-    let totalIn = 0;
-    let totalOut = 0;
+    // 1. Processar todas as movimentações para reconstruir saldo e capturar último preço
+    movements.forEach(m => {
+        const code = m.codigo;
+        if (!code || code === 'N/D') return;
 
-    if (movements.length > 0) {
-      totalIn = movements.filter(m => m.tipo === 'entrada').length;
-      totalOut = movements.filter(m => m.tipo === 'saida').length;
-    } else {
-      totalIn = data.reduce((sum, item) => sum + (item.entradas || 0), 0);
-      totalOut = data.reduce((sum, item) => sum + (item.saidas || 0), 0);
+        if (m.tipo === 'entrada') {
+            itemBalances[code] = (itemBalances[code] || 0) + m.quantidade;
+            // Captura o valor unitário da entrada (sempre o último registrado para valorização)
+            if (m.valorUnitario && m.valorUnitario > 0) {
+                itemPricing[code] = m.valorUnitario;
+            }
+        } else if (m.tipo === 'saida') {
+            itemBalances[code] = (itemBalances[code] || 0) - m.quantidade;
+        }
+    });
+
+    // 2. Calcular valor total cruzando Saldo Atual x Último Preço
+    let totalValue = 0;
+    Object.keys(itemBalances).forEach(code => {
+        const balance = itemBalances[code];
+        const price = itemPricing[code] || 0;
+        if (balance > 0 && price > 0) {
+            totalValue += (balance * price);
+        }
+    });
+
+    // Fallback caso a lógica de movimentos não retorne valor (usa o que estiver no cadastro se houver)
+    if (totalValue === 0) {
+        totalValue = inventoryData.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
     }
 
     return {
-      totalItems,
-      totalValue,
-      totalIn,
-      totalOut
+      totalItems: inventoryData.length,
+      totalValue: totalValue,
+      totalIn: movements.filter(m => m.tipo === 'entrada').length,
+      totalOut: movements.filter(m => m.tipo === 'saida').length,
     };
-  }, [data, movements]);
+  }, [movements, inventoryData]);
 
   if (!settings.activeProfileId) {
-    return <LoginPage profiles={settings.profiles} onSelectProfile={(id) => setSettings(prev => ({ ...prev, activeProfileId: id }))} />;
+    return <LoginPage profiles={settings.profiles} onSelectProfile={handleSelectProfile} />;
   }
 
   const renderPage = () => {
-    if (activeProfile?.isProduction) {
-        switch (currentPage) {
-          case Page.PRODUCTION_TYPOLOGY: return <ProductionTypology data={productionData} isLoading={isLoading} />;
-          case Page.PRODUCTION_DETAILS: return <ProductionDashboard data={productionData} isLoading={isLoading} initialTab="table" />;
-          default: return <ProductionDashboard data={productionData} isLoading={isLoading} initialTab="stats" />;
-        }
-    }
-    
-    if (activeProfile?.isCentral) {
-      if (currentPage === Page.CENTRAL_PERFIL) return <CentralProfiles movements={movements} isLoading={isLoading} />;
-      return <CentralDashboard data={movements} isLoading={isLoading} />;
-    }
-    
     switch (currentPage) {
-      case Page.INVENTORY: return <Inventory data={data} isLoading={isLoading} />;
-      case Page.CONSUMPTION: return <Consumption data={data} movements={movements} />;
-      case Page.SERVICE_ORDERS: return <ServiceOrdersPage osData={osData} inventoryData={data} isLoading={isLoading} />;
-      case Page.ALERTS: return <AlertPage data={data} />;
-      case Page.SETTINGS: return <SettingsPage settings={settings} onUpdateSettings={setSettings} isMasterAccount={isMasterAccount} />;
-      default: return <Dashboard data={data} stats={dashboardStats} movements={movements} isLoading={isLoading} />;
+      case Page.DASHBOARD:
+        return <Dashboard data={inventoryData} stats={stats} movements={movements} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
+      case Page.INVENTORY:
+        return <Inventory data={inventoryData} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
+      case Page.CONSUMPTION:
+        return <Consumption data={inventoryData} movements={movements} isWarehouse={activeProfile?.isWarehouse} />;
+      case Page.ALERTS:
+        return <AlertPage data={inventoryData} movements={movements} />;
+      case Page.SERVICE_ORDERS:
+        return <ServiceOrdersPage osData={osData} inventoryData={inventoryData} isLoading={loading} />;
+      case Page.PREVENTIVES:
+        return <PreventivePage data={preventiveData} isLoading={loading} />;
+      case Page.CENTRAL_DASHBOARD:
+        return <CentralDashboard data={movements} isLoading={loading} />;
+      case Page.CENTRAL_PERFIL:
+        return <CentralProfiles movements={movements} isLoading={loading} />;
+      case Page.PRODUCTION_DASHBOARD:
+        return <ProductionDashboard data={productionData} isLoading={loading} />;
+      case Page.PRODUCTION_DETAILS:
+        return <ProductionDashboard data={productionData} isLoading={loading} initialTab="table" />;
+      case Page.PRODUCTION_TYPOLOGY:
+        return <ProductionTypology data={productionData} isLoading={loading} />;
+      case Page.WAREHOUSE_ADDRESSES:
+        return <WarehouseAddresses addresses={addressData} isLoading={loading} />;
+      case Page.WAREHOUSE_PERFORMANCE:
+        return <WarehousePerformance data={inventoryData} movements={movements} isLoading={loading} />;
+      case Page.SETTINGS:
+        return <SettingsPage settings={settings} onUpdateSettings={handleUpdateSettings} isMasterAccount={activeProfile?.id === MASTER_PROFILE_ID} />;
+      default:
+        return <Dashboard data={inventoryData} stats={stats} movements={movements} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
     }
   };
 
   return (
-    <div className="flex h-screen bg-dark overflow-hidden font-sans text-slate-100 print:block print:h-auto print:overflow-visible">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0f1e]">
       <Sidebar 
         currentPage={currentPage} 
         onNavigate={setCurrentPage} 
         isOpen={isSidebarOpen} 
-        toggleOpen={() => setIsSidebarOpen(!isSidebarOpen)} 
+        toggleOpen={() => setIsSidebarOpen(!isSidebarOpen)}
         isCentral={activeProfile?.isCentral}
         isProduction={activeProfile?.isProduction}
-        isMaster={isMasterAccount}
+        isMaintenance={activeProfile?.isMaintenance}
+        isWarehouse={activeProfile?.isWarehouse}
+        isMaster={activeProfile?.id === MASTER_PROFILE_ID}
       />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:h-auto print:overflow-visible">
-        <header className="bg-dark-card border-b border-gray-700 h-16 flex items-center justify-between px-4 sm:px-6 no-print">
-          <div className="flex items-center">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-md text-gray-400"><Menu className="h-6 w-6" /></button>
-            <div className="ml-4 lg:ml-0 flex flex-col">
-              <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">ALUMASA - GESTÃO INDUSTRIAL</h2>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{activeProfile?.name}</span>
-            </div>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-16 bg-white dark:bg-dark-card border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 lg:px-8 no-print">
+          <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 dark:text-slate-400">
+            <Menu className="w-6 h-6" />
+          </button>
+          <div className="flex items-center gap-4">
+            <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest">{activeProfile?.name}</h2>
+            {loading && <RefreshCw className="w-4 h-4 text-primary animate-spin" />}
           </div>
-          <div className="flex items-center space-x-4">
-            <button onClick={loadData} className={`p-2 rounded-full transition-all ${isLoading ? 'animate-spin text-primary' : 'text-slate-400'}`}><RefreshCw className="h-4 w-4" /></button>
-            <button onClick={() => setSettings(prev => ({...prev, activeProfileId: null}))} className="px-3 py-1.5 bg-slate-800 text-slate-400 hover:text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors"><LogOut className="w-3.5 h-3.5" /></button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={fetchData} 
+              disabled={loading}
+              className={`p-2.5 rounded-xl transition-all border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 active:scale-95 ${loading ? 'animate-pulse' : ''}`}
+              title="Atualizar Dados Manualmente"
+            >
+              <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            
+            <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors font-bold text-xs border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40">
+              <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">SAIR</span>
+            </button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-dark print:block print:h-auto print:overflow-visible print:bg-white">
-          <div className="max-w-7xl mx-auto print:max-w-none">{renderPage()}</div>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+          {renderPage()}
         </main>
       </div>
     </div>

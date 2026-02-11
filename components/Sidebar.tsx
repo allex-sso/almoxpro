@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List, Settings2 } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List, Settings2, ShieldCheck, MapPin, History, BarChart3 } from 'lucide-react';
 import { Page } from '../types';
 
 interface SidebarProps {
@@ -10,10 +10,12 @@ interface SidebarProps {
   toggleOpen: () => void;
   isCentral?: boolean;
   isProduction?: boolean;
+  isMaintenance?: boolean;
+  isWarehouse?: boolean;
   isMaster?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isProduction, isMaster }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isProduction, isMaintenance, isWarehouse, isMaster }) => {
   const menuItems = [];
   
   if (isCentral) {
@@ -23,12 +25,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
     menuItems.push({ id: Page.PRODUCTION_DASHBOARD, label: 'Painel de Produção', icon: Factory });
     menuItems.push({ id: Page.PRODUCTION_TYPOLOGY, label: 'Análise de Tipologias', icon: Settings2 });
     menuItems.push({ id: Page.PRODUCTION_DETAILS, label: 'Detalhamento Diário', icon: List });
+  } else if (isMaintenance) {
+    menuItems.push({ id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList });
+    menuItems.push({ id: Page.PREVENTIVES, label: 'Preventivas', icon: ShieldCheck });
+  } else if (isWarehouse) {
+    menuItems.push({ id: Page.DASHBOARD, label: 'Painel', icon: LayoutDashboard });
+    menuItems.push({ id: Page.WAREHOUSE_PERFORMANCE, label: 'Performance', icon: BarChart3 });
+    menuItems.push({ id: Page.INVENTORY, label: 'Inventário de Itens', icon: Package });
+    menuItems.push({ id: Page.WAREHOUSE_ADDRESSES, label: 'Mapa Endereços', icon: MapPin });
+    menuItems.push({ id: Page.CONSUMPTION, label: 'Fluxo Movimento', icon: History });
+    menuItems.push({ id: Page.ALERTS, label: 'Reposição', icon: AlertTriangle });
   } else {
+    // Unidade de Peças (Original)
     menuItems.push({ id: Page.DASHBOARD, label: 'Visão Geral', icon: LayoutDashboard });
     menuItems.push({ id: Page.INVENTORY, label: 'Inventário', icon: Package });
     menuItems.push({ id: Page.CONSUMPTION, label: 'Consumo', icon: TrendingDown });
-    menuItems.push({ id: Page.SERVICE_ORDERS, label: 'Ordem de Serviço', icon: ClipboardList });
-    menuItems.push({ id: Page.ALERTS, label: 'Alertas', icon: AlertTriangle });
+    menuItems.push({ id: Page.ALERTS, label: 'Reposição', icon: AlertTriangle });
   }
 
   if (isMaster) {
@@ -40,7 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, togg
       <div className={`fixed inset-0 bg-black/50 z-20 lg:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={toggleOpen} />
       <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white dark:bg-dark-card border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} no-print`}>
         <div className="h-full flex flex-col">
-          <div className="py-6 px-6 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center font-black text-xl tracking-tighter uppercase">ALUMASA</div>
+          <div className="py-6 px-6 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center font-black text-xl tracking-tighter uppercase text-slate-800 dark:text-white">ALUMASA</div>
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;

@@ -1,387 +1,431 @@
 
 import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, PieChart, Pie, Legend, LabelList, Tooltip } from 'recharts';
-import { Filter, Users, PackageMinus, UserCheck, ClipboardList, Info, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, 
+  Legend, PieChart, Pie, Cell, LabelList, ComposedChart, Line, Area
+} from 'recharts';
+import { 
+  Filter, Calendar, ChevronLeft, ChevronRight, ShoppingCart, 
+  Users, Package, TrendingDown, LayoutDashboard, Wallet, Search, ArrowRight, ArrowUpRight, ArrowDownRight, History, Layers, Box, Activity, UserCheck, BarChart3, ArrowRightLeft, ArrowUpCircle, ArrowDownCircle, RefreshCw, Clock
+} from 'lucide-react';
 import { InventoryItem, Movement } from '../types';
+import StatCard from '../components/StatCard';
 
 interface ConsumptionProps {
   data: InventoryItem[];
   movements?: Movement[];
+  isWarehouse?: boolean;
 }
 
-const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [] }) => {
-  const [categoryFilter, setCategoryFilter] = useState('Todos');
-  const [equipmentFilter, setEquipmentFilter] = useState('Todos');
-  
-  // Estado para paginação da tabela de responsáveis
-  const [currentResponsiblePage, setCurrentResponsiblePage] = useState(1);
-  const responsibleItemsPerPage = 10;
+const months = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
 
-  const categories = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.categoria).filter(Boolean)))], [data]);
-  const equipments = useMemo(() => ['Todos', ...Array.from(new Set(data.map(i => i.equipamento).filter(Boolean)))], [data]);
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
-  const filteredData = useMemo(() => {
-     let res = data;
-     if (categoryFilter !== 'Todos') {
-         res = res.filter(item => item.categoria === categoryFilter);
-     }
-     if (equipmentFilter !== 'Todos') {
-         // Fix: Changed item.equipment to item.equipamento to match the InventoryItem interface
-         res = res.filter(item => item.equipamento === equipmentFilter);
-     }
-     return res;
-  }, [data, categoryFilter, equipmentFilter]);
+const WmsCustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#1e293b]/95 backdrop-blur-md border border-slate-700 p-4 rounded-2xl shadow-2xl min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
+        <p className="text-white text-[11px] font-black mb-3 border-b border-slate-700 pb-2 uppercase tracking-tight leading-tight">
+          {label}
+        </p>
+        <div className="space-y-2">
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }}></div>
+                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{entry.name}:</span>
+              </div>
+              <span className="text-white text-xs font-black">
+                {entry.name.includes('%') || entry.name.includes('Percentual') 
+                  ? `${Number(entry.value).toFixed(1)}%` 
+                  : entry.value.toLocaleString('pt-BR')}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
-  // Função auxiliar para abreviar unidades
-  const formatUnitShort = (unit: string) => {
-    const u = (unit || '').toLowerCase().trim();
-    if (u.includes('unidade')) return 'uni';
-    if (u.includes('metro')) return 'mt';
-    if (u.includes('peca')) return 'pc';
-    if (u.includes('quilo') || u === 'kg') return 'kg';
-    if (u.includes('litro')) return 'lt';
-    return u || 'uni';
-  };
+const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWarehouse = false }) => {
+  const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
+  const [selectedYear, setSelectedYear] = useState<string>('Todos');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rankingPage, setRankingPage] = useState(1);
+  const itemsPerPage = 10;
 
-  // Gráfico: Itens Mais Consumidos (Saídas físicas)
-  const topConsumedItems = useMemo(() => {
-    return [...filteredData]
-      .filter(item => item.saidas > 0)
-      .sort((a, b) => b.saidas - a.saidas)
-      .slice(0, 10)
-      .map(item => ({
-        name: item.descricao,
-        shortName: item.descricao.length > 25 ? item.descricao.substring(0, 25) + '...' : item.descricao,
-        value: item.saidas,
-        code: item.codigo,
-        unit: item.unidade
-      }));
-  }, [filteredData]);
+  const inventoryMap = useMemo(() => {
+    const map: Record<string, InventoryItem> = {};
+    data.forEach(item => { map[item.id] = item; });
+    return map;
+  }, [data]);
 
-  // --- Custo por Equipamento ---
-  const costByEquipment = useMemo(() => {
-    const map: Record<string, number> = {};
-    const codeToEquipment = new Map<string, string>();
-    data.forEach(item => {
-      if (item.equipamento) {
-        codeToEquipment.set(item.codigo, item.equipamento);
-      }
+  const filteredMovements = useMemo(() => {
+    return movements.filter(m => {
+      const monthMatch = selectedMonth === 'Todos' || months[m.data.getMonth()] === selectedMonth;
+      const yearMatch = selectedYear === 'Todos' || m.data.getFullYear().toString() === selectedYear;
+      return monthMatch && yearMatch;
     });
+  }, [movements, selectedMonth, selectedYear]);
 
-    const inMovements = movements.filter(m => m.tipo === 'entrada');
-
-    inMovements.forEach(m => {
-      const eq = codeToEquipment.get(m.codigo) || 'Geral/Não Vinculado';
-      if (equipmentFilter !== 'Todos' && eq !== equipmentFilter) return;
-      const cost = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (cost > 0) {
-        if (!map[eq]) map[eq] = 0;
-        map[eq] += cost;
-      }
-    });
-    
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [movements, data, equipmentFilter]);
-
-  // --- Top Fornecedores ---
-  const supplierData = useMemo(() => {
-    const map: Record<string, number> = {};
-    const inMovements = movements.filter(m => m.tipo === 'entrada');
-
-    inMovements.forEach(m => {
-      let forn = m.fornecedor?.trim() || 'Não Identificado';
-      if (forn.toLowerCase() === 'n/d' || forn === '-' || forn === '' || forn.toLowerCase() === '0') {
-        forn = 'Outros';
-      }
-      const key = forn.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      const value = m.valorTotal || (m.quantidade * (m.valorUnitario || 0));
-      if (value > 0) {
-        if (!map[key]) map[key] = 0;
-        map[key] += value;
-      }
-    });
-
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .filter(item => item.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
+  const years = useMemo(() => {
+    const y = new Set<string>();
+    movements.forEach(m => y.add(m.data.getFullYear().toString()));
+    return ['Todos', ...Array.from(y).sort().reverse()];
   }, [movements]);
 
-  // Estatísticas por Responsável (Saídas)
-  const responsibleStats = useMemo(() => {
-    if (!movements || movements.length === 0) return [];
-    const grouped: Record<string, { totalQty: number, count: number, items: Record<string, number> }> = {};
+  // Lógica para WMS (Almoxarifado Geral)
+  const wmsMetrics = useMemo(() => {
+    let inbound = 0;
+    let outbound = 0;
+    let internal = 0;
+    const dayMap: Record<string, { date: string, in: number, out: number, move: number, ts: number }> = {};
+    const itemGiro: Record<string, number> = {};
+    
+    const operatorActionMap: Record<string, { 
+      name: string, 
+      type: 'entrada' | 'saida' | 'transferencia', 
+      total: number, 
+      lastDate: Date,
+      itemCounts: Record<string, number> 
+    }> = {};
+    
+    filteredMovements.forEach(m => {
+      const qty = m.quantidade || 0;
+      const dateStr = m.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      
+      if (!dayMap[dateStr]) {
+        dayMap[dateStr] = { date: dateStr, in: 0, out: 0, move: 0, ts: m.data.getTime() };
+      }
 
-    movements.forEach(m => {
-        if (m.tipo !== 'saida' || !m.responsavel) return;
-        const name = m.responsavel.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-        if (!grouped[name]) grouped[name] = { totalQty: 0, count: 0, items: {} };
-        grouped[name].totalQty += m.quantidade;
-        grouped[name].count += 1;
-        const code = m.codigo;
-        if (!grouped[name].items[code]) grouped[name].items[code] = 0;
-        grouped[name].items[code] += m.quantidade;
+      const opName = m.responsavel || 'N/D';
+      const opType = m.tipo;
+      const dayKey = m.data.toLocaleDateString('pt-BR');
+      const compositeKey = `${opName}|${opType}|${dayKey}`;
+
+      if (!operatorActionMap[compositeKey]) {
+        operatorActionMap[compositeKey] = { name: opName, type: opType, total: 0, lastDate: m.data, itemCounts: {} };
+      }
+
+      if (opType === 'entrada') { inbound += qty; dayMap[dateStr].in += qty; }
+      else if (opType === 'saida') { outbound += qty; dayMap[dateStr].out += qty; }
+      else if (opType === 'transferencia') { internal += qty; dayMap[dateStr].move += qty; }
+
+      operatorActionMap[compositeKey].total += qty;
+      const code = m.codigo;
+      operatorActionMap[compositeKey].itemCounts[code] = (operatorActionMap[compositeKey].itemCounts[code] || 0) + qty;
+      const itemKey = inventoryMap[m.codigo]?.descricao || m.codigo;
+      itemGiro[itemKey] = (itemGiro[itemKey] || 0) + qty;
     });
 
-    return Object.entries(grouped)
-        .map(([name, stats]) => {
-            let topCode = ''; let max = 0;
-            Object.entries(stats.items).forEach(([c, q]) => { if (q > max) { max = q; topCode = c; } });
-            
-            const itemObj = data.find(d => d.codigo === topCode);
-            const desc = itemObj?.descricao || `Item ${topCode}`;
-            const unit = itemObj?.unidade || 'un';
+    const sortedGiro = Object.entries(itemGiro).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    const totalGiroSum = sortedGiro.reduce((acc, curr) => acc + curr.value, 0);
+    let cumulative = 0;
+    const abcData = sortedGiro.map(item => {
+        cumulative += item.value;
+        const cumPercent = (cumulative / totalGiroSum) * 100;
+        let cls = 'C';
+        if (cumPercent <= 80) cls = 'A';
+        else if (cumPercent <= 95) cls = 'B';
+        return { ...item, cumPercent, class: cls };
+    });
 
-            return { name, totalQty: stats.totalQty, requestCount: stats.count, topItem: desc, topItemQty: max, unit };
-        })
-        .sort((a, b) => b.totalQty - a.totalQty);
-  }, [movements, data]);
+    const individualActions = Object.values(operatorActionMap).map(action => {
+        let maxQty = 0;
+        let topCode = '-';
+        Object.entries(action.itemCounts).forEach(([code, qty]) => { if (qty > maxQty) { maxQty = qty; topCode = code; } });
+        const desc = inventoryMap[topCode]?.descricao || topCode;
+        let typeTotal = action.type === 'entrada' ? inbound : action.type === 'saida' ? outbound : internal;
+        return { ...action, representation: typeTotal > 0 ? ((action.total / typeTotal) * 100).toFixed(1) : "0", topItem: `${desc} (${maxQty} ${inventoryMap[topCode]?.unidade || 'un'})` };
+    }).sort((a, b) => b.lastDate.getTime() - a.lastDate.getTime());
 
-  const totalResponsiblePages = Math.ceil(responsibleStats.length / responsibleItemsPerPage);
-  const paginatedResponsibleStats = useMemo(() => {
-    const start = (currentResponsiblePage - 1) * responsibleItemsPerPage;
-    return responsibleStats.slice(start, start + responsibleItemsPerPage);
-  }, [responsibleStats, currentResponsiblePage]);
+    return { inbound, outbound, internal, total: inbound + outbound + internal, chartTimeline: Object.values(dayMap).sort((a,b) => a.ts - b.ts).slice(-30), chartGiro: abcData.slice(0, 15), abcSummary: { A: abcData.filter(x => x.class === 'A').length, B: abcData.filter(x => x.class === 'B').length, C: abcData.filter(x => x.class === 'C').length }, chartTypes: [ { name: 'Entradas', value: inbound, color: '#10b981' }, { name: 'Saídas', value: outbound, color: '#ef4444' }, { name: 'Internas', value: internal, color: '#3b82f6' } ].filter(d => d.value > 0), individualActions };
+  }, [filteredMovements, inventoryMap]);
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
+  // Lógica para Almoxarifado de Peças
+  const partsMetrics = useMemo(() => {
+    // 1. Custo por Equipamento
+    const costMap: Record<string, number> = {};
+    filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
+      const equip = (inventoryMap[m.codigo]?.equipamento || 'Geral/Não Vinculado').trim();
+      costMap[equip] = (costMap[equip] || 0) + (m.valorTotal || 0);
+    });
+    const costByEquipment = Object.entries(costMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
+
+    // 2. Top Fornecedores
+    const supplierMap: Record<string, number> = {};
+    filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
+      const forn = (m.fornecedor || 'DIVERSOS').trim();
+      supplierMap[forn] = (supplierMap[forn] || 0) + (m.valorTotal || 0);
+    });
+    const totalInvest = Object.values(supplierMap).reduce((a, b) => a + b, 0);
+    const topSuppliers = Object.entries(supplierMap).map(([name, value]) => ({ 
+      name, value, percent: totalInvest > 0 ? ((value / totalInvest) * 100).toFixed(1) : "0"
+    })).sort((a, b) => b.value - a.value).slice(0, 8);
+
+    // 3. Itens com Maior Volume de Saída
+    const exitVolMap: Record<string, { desc: string, qty: number, unit: string }> = {};
+    filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
+      if (!exitVolMap[m.codigo]) {
+        const item = inventoryMap[m.codigo];
+        exitVolMap[m.codigo] = { desc: item?.descricao || m.codigo, qty: 0, unit: item?.unidade || 'un' };
+      }
+      exitVolMap[m.codigo].qty += m.quantidade;
+    });
+    const topExitItems = Object.entries(exitVolMap)
+      .map(([code, data]) => ({ name: code, desc: data.desc, value: data.qty, unit: data.unit }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+
+    // 4. Ranking de Retiradas por Responsável
+    const respMap: Record<string, { total: number, count: number, items: Record<string, number> }> = {};
+    filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
+      const resp = m.responsavel || 'N/D';
+      if (!respMap[resp]) respMap[resp] = { total: 0, count: 0, items: {} };
+      respMap[resp].total += m.quantidade;
+      respMap[resp].count += 1;
+      respMap[resp].items[m.codigo] = (respMap[resp].items[m.codigo] || 0) + m.quantidade;
+    });
+
+    const rankingResponsaveis = Object.entries(respMap).map(([name, s]) => {
+      let topItemCode = '';
+      let topItemQty = 0;
+      Object.entries(s.items).forEach(([code, qty]) => {
+        if (qty > topItemQty) { topItemQty = qty; topItemCode = code; }
+      });
+      const itemDesc = inventoryMap[topItemCode]?.descricao || topItemCode;
+      const unit = inventoryMap[topItemCode]?.unidade || 'mt';
+      return {
+        name,
+        qty: s.total,
+        count: s.count,
+        topItem: `${itemDesc} (${topItemQty} ${unit})`
+      };
+    }).sort((a, b) => b.qty - a.qty);
+
+    return { costByEquipment, topSuppliers, topExitItems, rankingResponsaveis };
+  }, [filteredMovements, inventoryMap]);
+
+  if (isWarehouse) {
+    const paginatedActions = wmsMetrics.individualActions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalPages = Math.ceil(wmsMetrics.individualActions.length / itemsPerPage);
+    const getActionBadge = (type: string) => {
+      switch (type) {
+        case 'entrada': return <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-[9px] font-black uppercase"><ArrowUpCircle className="w-3 h-3" /> Entrada</div>;
+        case 'saida': return <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-[9px] font-black uppercase"><ArrowDownCircle className="w-3 h-3" /> Saída</div>;
+        case 'transferencia': return <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-lg text-[9px] font-black uppercase"><RefreshCw className="w-3 h-3" /> Interna</div>;
+        default: return <div className="px-3 py-1 bg-slate-500/10 text-slate-500 border border-slate-500/20 rounded-lg text-[9px] font-black uppercase">{type}</div>;
+      }
+    };
+
+    return (
+      <div className="max-w-[1440px] mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div><h1 className="text-2xl font-black text-white uppercase tracking-tighter">Fluxo de Movimentação WMS</h1><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Auditabilidade, Produtividade e Curva ABC.</p></div>
+          <div className="bg-[#1e293b] p-1.5 rounded-xl flex items-center gap-4 border border-slate-700 shadow-xl"><Filter className="w-3.5 h-3.5 text-blue-500 ml-2" /><select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">{years.map(y => <option key={y} value={y} className="bg-slate-900">{y}</option>)}</select><select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer"><option value="Todos" className="bg-slate-900">Mês: Todos</option>{months.map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}</select></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard title="INBOUND (ENTRADAS)" value={wmsMetrics.inbound.toLocaleString('pt-BR')} icon={ArrowUpRight} color="green" /><StatCard title="OUTBOUND (SAÍDAS)" value={wmsMetrics.outbound.toLocaleString('pt-BR')} icon={ArrowDownRight} color="red" /><StatCard title="INTERNAL (TRANSF.)" value={wmsMetrics.internal.toLocaleString('pt-BR')} icon={ArrowRightLeft} color="blue" /><StatCard title="VOLUME TOTAL" value={wmsMetrics.total.toLocaleString('pt-BR')} icon={Layers} color="purple" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
+             <div className="flex justify-between items-center mb-8"><div className="flex items-center gap-3"><BarChart3 className="w-5 h-5 text-amber-500" /><h3 className="text-xs font-black text-white uppercase tracking-widest">Curva ABC de Movimentação (Pareto)</h3></div><div className="flex gap-2"><div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[9px] font-black border border-emerald-500/20">CLASSE A: {wmsMetrics.abcSummary.A}</div></div></div>
+             <div className="h-[350px]"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={wmsMetrics.chartGiro} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.1} /><XAxis dataKey="name" tick={{fontSize: 8, fontWeight: 'bold', fill: '#64748b'}} axisLine={false} tickLine={false} interval={0} angle={-35} textAnchor="end" height={80} /><YAxis yAxisId="left" hide /><YAxis yAxisId="right" orientation="right" hide /><Tooltip cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} content={<WmsCustomTooltip />} /><Bar yAxisId="left" dataKey="value" name="Volume Movimentado" radius={[4, 4, 0, 0]} barSize={25}>{wmsMetrics.chartGiro.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.class === 'A' ? '#10b981' : entry.class === 'B' ? '#f59e0b' : '#64748b'} />)}</Bar><Line yAxisId="right" type="monotone" dataKey="cumPercent" name="% Acumulado" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#ef4444' }} /></ComposedChart></ResponsiveContainer></div>
+          </div>
+          <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl flex flex-col"><div className="flex items-center gap-3 mb-8"><Layers className="w-5 h-5 text-blue-500" /><h3 className="text-xs font-black text-white uppercase tracking-widest">Mix de Operações</h3></div><div className="flex-1 min-h-[250px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={wmsMetrics.chartTypes} innerRadius={60} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">{wmsMetrics.chartTypes.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip content={<WmsCustomTooltip />} /></PieChart></ResponsiveContainer></div><div className="space-y-2 mt-4">{wmsMetrics.chartTypes.map((t, idx) => (<div key={idx} className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }}></div><span>{t.name}</span></div><span className="text-white">{((t.value / wmsMetrics.total) * 100).toFixed(1)}%</span></div>))}</div></div>
+        </div>
+        <div className="bg-[#1e293b] rounded-[2rem] shadow-2xl border border-slate-800 overflow-hidden">
+            <div className="p-8 border-b border-slate-800 flex justify-between items-center"><div className="flex items-center gap-4"><div className="p-3 bg-indigo-500/10 rounded-2xl"><Users className="w-6 h-6 text-indigo-500" /></div><h3 className="text-sm font-black text-white uppercase tracking-widest">Log de Atividade por Operador</h3></div><div className="flex items-center gap-2 no-print"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 bg-slate-800 rounded-lg disabled:opacity-20"><ChevronLeft className="w-4 h-4 text-white" /></button><button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 bg-slate-800 rounded-lg disabled:opacity-20"><ChevronRight className="w-4 h-4 text-white" /></button></div></div>
+            <div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800"><tr><th className="px-8 py-5">COLABORADOR</th><th className="px-8 py-5">MOVIMENTAÇÃO REALIZADA</th><th className="px-8 py-5 text-center">VOLUME MOVIMENTADO</th><th className="px-8 py-5 text-center">DATA DA ÚLTIMA AÇÃO</th><th className="px-8 py-5">ITEM PRINCIPAL (NA AÇÃO)</th></tr></thead><tbody className="divide-y divide-slate-800">{paginatedActions.map((row, idx) => (<tr key={idx} className="hover:bg-slate-800/40 transition-colors"><td className="px-8 py-5 font-black text-slate-200 uppercase text-lg">{row.name}</td><td className="px-8 py-5">{getActionBadge(row.type)}</td><td className="px-8 py-5 text-center"><div className="flex flex-col items-center"><span className="font-black text-blue-400 text-lg">{row.total.toLocaleString('pt-BR')}</span><span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{row.representation}% do total de {row.type}s</span></div></td><td className="px-8 py-5 text-center"><div className="flex flex-col items-center gap-1"><div className="flex items-center gap-1.5 text-slate-300 font-bold"><Clock className="w-3 h-3 text-indigo-400" /><span>{row.lastDate.toLocaleDateString('pt-BR')}</span></div><span className="text-[9px] font-black text-slate-500 uppercase">{row.lastDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div></td><td className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase italic line-clamp-1 max-w-[300px]">{row.topItem}</td></tr>))}</tbody></table></div><div className="p-6 bg-slate-900/20 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center border-t border-slate-800">Mostrando {paginatedActions.length} registros de {wmsMetrics.individualActions.length} total • Página {currentPage} de {totalPages}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Visual para Almoxarifado de Peças
+  const paginatedRanking = partsMetrics.rankingResponsaveis.slice((rankingPage - 1) * itemsPerPage, rankingPage * itemsPerPage);
+  const rankingTotalPages = Math.ceil(partsMetrics.rankingResponsaveis.length / itemsPerPage);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="max-w-[1440px] mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 no-print">
         <div>
-           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Análise Financeira e Consumo</h1>
-           <p className="text-sm text-slate-500">Monitoramento de custos por equipamento e investimentos por fornecedor.</p>
-        </div>
-        <div className="flex items-center bg-white dark:bg-dark-card p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm gap-2">
-             <Filter className="w-4 h-4 text-gray-400 ml-2" />
-             <select className="px-3 py-1.5 rounded-md bg-slate-50 dark:bg-slate-800 text-sm font-bold dark:text-white outline-none" value={categoryFilter} onChange={(e) => {setCategoryFilter(e.target.value); setCurrentResponsiblePage(1);}}>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-             </select>
-             <select className="px-3 py-1.5 rounded-md bg-slate-50 dark:bg-slate-800 text-sm font-bold dark:text-white outline-none" value={equipmentFilter} onChange={(e) => {setEquipmentFilter(e.target.value); setCurrentResponsiblePage(1);}}>
-                {equipments.map(e => <option key={e} value={e}>{e}</option>)}
-             </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center mb-6">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg mr-3">
-                <ShoppingCart className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Custo de Compras por Equipamento</h3>
-                <p className="text-xs text-slate-500">Valor total das ENTRADAS vinculadas ao EQUIPAMENTO.</p>
-            </div>
-          </div>
-          <div className="h-80">
-            {costByEquipment.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={costByEquipment} layout="vertical" margin={{ left: 40, right: 100 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={120} stroke="#64748b" tick={{fontSize: 10, fontWeight: 700}} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                      {costByEquipment.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                      <LabelList 
-                        dataKey="value" 
-                        position="right" 
-                        offset={10}
-                        formatter={(val: number) => formatCurrency(val)}
-                        style={{ fill: '#64748b', fontSize: '11px', fontWeight: 'bold' }} 
-                      />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                 <Info className="w-8 h-8 mb-2 opacity-20" />
-                 <p className="text-sm">Sem dados para os filtros selecionados.</p>
-              </div>
-            )}
-          </div>
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Análise Financeira e Consumo</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Monitoramento de custos por equipamento e investimentos por fornecedor.</p>
         </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center mb-6">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg mr-3">
-                <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Top Fornecedores (Investimento)</h3>
-                <p className="text-xs text-slate-500">Financeiro total das Entradas de Itens.</p>
-            </div>
-          </div>
-          <div className="h-80">
-            {supplierData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie 
-                    data={supplierData} 
-                    cx="50%" 
-                    cy="50%" 
-                    innerRadius={60} 
-                    outerRadius={100} 
-                    paddingAngle={2} 
-                    dataKey="value" 
-                    nameKey="name" 
-                    label={({name}) => name.length > 15 ? `${name.substring(0, 15)}...` : name}
-                    labelLine={true}
-                  >
-                    {supplierData.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                  </Pie>
-                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                 <Info className="w-8 h-8 mb-2 opacity-20" />
-                 <p className="text-sm">Sem dados financeiros nas Entradas.</p>
-              </div>
-            )}
+        <div className="flex gap-2">
+          <div className="bg-[#1e293b] p-1.5 rounded-xl flex items-center gap-4 border border-slate-700 shadow-xl">
+             <div className="flex items-center gap-2 px-3 border-r border-slate-700">
+                <Filter className="w-3.5 h-3.5 text-blue-500" />
+                <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">
+                   {years.map(y => <option key={y} value={y} className="bg-slate-900">{y}</option>)}
+                </select>
+             </div>
+             <div className="flex items-center gap-2 px-3">
+                <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">
+                   <option value="Todos" className="bg-slate-900">Todos</option>
+                   {months.map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
+                </select>
+             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center mb-6">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg mr-3">
-                <PackageMinus className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Itens com Maior Volume de Saída</h3>
-                <p className="text-xs text-slate-500">Top 10 itens com maior movimentação física de retirada.</p>
-            </div>
-          </div>
-          <div className="h-64">
-            {topConsumedItems.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topConsumedItems} layout="vertical" margin={{ left: 10, right: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="shortName" type="category" width={150} stroke="#64748b" tick={{fontSize: 11, fontWeight: 500}} />
-                  <Bar dataKey="value" name="Qtd. Saída" radius={[0, 4, 4, 0]} barSize={20} fill="#f97316">
-                    <LabelList 
-                        dataKey="value" 
-                        position="right" 
-                        offset={10}
-                        formatter={(val: number) => `${val} un.`}
-                        style={{ fill: '#f97316', fontSize: '12px', fontWeight: '900' }} 
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                 <Info className="w-8 h-8 mb-2 opacity-20" />
-                 <p className="text-sm">Nenhuma saída registrada para os filtros atuais.</p>
+      {/* LINHA 1: CUSTO E FORNECEDORES */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
+           <div className="flex items-center gap-4 mb-8">
+              <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20">
+                <ShoppingCart className="w-6 h-6 text-blue-500" />
               </div>
-            )}
-          </div>
+              <div>
+                 <h3 className="text-sm font-black text-white uppercase tracking-tight">Custo de Compras por Equipamento</h3>
+                 <p className="text-[9px] font-bold text-slate-500 uppercase">Valor total das ENTRADAS vinculadas ao EQUIPAMENTO.</p>
+              </div>
+           </div>
+           <div className="h-[350px]">
+             <ResponsiveContainer width="100%" height="100%">
+               <BarChart data={partsMetrics.costByEquipment} layout="vertical" margin={{ right: 80, left: 100 }}>
+                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.1} />
+                 <XAxis type="number" hide />
+                 <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 8, fontWeight: 'bold', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                 <Tooltip cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} content={<WmsCustomTooltip />} />
+                 <Bar dataKey="value" name="Investimento" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={18}>
+                    <LabelList dataKey="value" position="right" formatter={(v: number) => `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} style={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'black' }} offset={10} />
+                 </Bar>
+               </BarChart>
+             </ResponsiveContainer>
+           </div>
+        </div>
+
+        <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
+           <div className="flex items-center gap-4 mb-8">
+              <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                <Users className="w-6 h-6 text-emerald-500" />
+              </div>
+              <div>
+                 <h3 className="text-sm font-black text-white uppercase tracking-tight">Top Fornecedores (Investimento)</h3>
+                 <p className="text-[9px] font-bold text-slate-500 uppercase">Financeiro total das Entradas de itens.</p>
+              </div>
+           </div>
+           <div className="h-[350px]">
+             <ResponsiveContainer width="100%" height="100%">
+               <PieChart>
+                 <Pie data={partsMetrics.topSuppliers} innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" stroke="none">
+                   {partsMetrics.topSuppliers.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                 </Pie>
+                 <Tooltip content={<WmsCustomTooltip />} />
+                 <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'black', paddingLeft: '20px' }} />
+               </PieChart>
+             </ResponsiveContainer>
+           </div>
+        </div>
       </div>
 
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="flex items-center">
-              <UserCheck className="w-5 h-5 mr-2 text-primary" />
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">Ranking de Retiradas por Responsável</h3>
+      {/* LINHA 2: ITENS COM MAIOR VOLUME DE SAÍDA */}
+      <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
+            <TrendingDown className="w-6 h-6 text-orange-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-white uppercase tracking-tight">Itens com Maior Volume de Saída</h3>
+            <p className="text-[9px] font-bold text-slate-500 uppercase">Top 10 itens com maior movimentação física de retirada.</p>
+          </div>
+        </div>
+        <div className="h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={partsMetrics.topExitItems} layout="vertical" margin={{ left: 120, right: 80 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.1} />
+              <XAxis type="number" hide />
+              <YAxis 
+                dataKey="desc" 
+                type="category" 
+                width={120} 
+                tick={{fontSize: 8, fontWeight: 'black', fill: '#94a3b8'}} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <Tooltip cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} content={<WmsCustomTooltip />} />
+              <Bar dataKey="value" name="Volume Saída" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20}>
+                 <LabelList 
+                   dataKey="value" 
+                   position="right" 
+                   formatter={(v: number, entry: any) => `${v.toLocaleString('pt-BR')} ${entry?.payload?.unit || 'un.'}`} 
+                   style={{ fill: '#f97316', fontSize: 10, fontWeight: 'black' }} 
+                   offset={10} 
+                 />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* LINHA 3: RANKING DE RETIRADAS POR RESPONSÁVEL */}
+      <div className="bg-[#1e293b] rounded-[2rem] shadow-2xl border border-slate-800 overflow-hidden">
+        <div className="p-8 border-b border-slate-800 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-500/10 rounded-2xl">
+              <Users className="w-6 h-6 text-indigo-500" />
             </div>
-            {totalResponsiblePages > 1 && (
-              <div className="flex items-center gap-2 no-print">
-                <button 
-                  onClick={() => setCurrentResponsiblePage(p => Math.max(1, p - 1))}
-                  disabled={currentResponsiblePage === 1}
-                  className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  {currentResponsiblePage} / {totalResponsiblePages}
-                </span>
-                <button 
-                  onClick={() => setCurrentResponsiblePage(p => Math.min(totalResponsiblePages, p + 1))}
-                  disabled={currentResponsiblePage === totalResponsiblePages}
-                  className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-widest">Ranking de Retiradas por Responsável</h3>
+              <p className="text-[9px] font-bold text-slate-500 uppercase">Produtividade por colaborador em requisições de almoxarifado.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+             <span className="text-[10px] font-black text-slate-500 uppercase">{rankingPage} / {rankingTotalPages}</span>
+             <div className="flex gap-2">
+                <button onClick={() => setRankingPage(p => Math.max(1, p-1))} disabled={rankingPage === 1} className="p-2 bg-slate-800 rounded-lg disabled:opacity-20"><ChevronLeft className="w-4 h-4 text-white" /></button>
+                <button onClick={() => setRankingPage(p => Math.min(rankingTotalPages, p+1))} disabled={rankingPage === rankingTotalPages} className="p-2 bg-slate-800 rounded-lg disabled:opacity-20"><ChevronRight className="w-4 h-4 text-white" /></button>
+             </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-800 dark:text-gray-300">
-                    <tr>
-                        <th className="px-6 py-4">Funcionário</th>
-                        <th className="px-6 py-4 text-center">Quantidade Retirada</th>
-                        <th className="px-6 py-4 text-center">Nº Requisições</th>
-                        <th className="px-6 py-4">Item mais solicitado</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {paginatedResponsibleStats.map((item, index) => (
-                        <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
-                            <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{item.name}</td>
-                            <td className="px-6 py-4 text-center font-black text-blue-600">{item.totalQty}</td>
-                            <td className="px-6 py-4 text-center text-slate-500">{item.requestCount}</td>
-                            <td className="px-6 py-4 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                {item.topItem} <span className="opacity-50">({item.topItemQty} {formatUnitShort(item.unit)})</span>
-                            </td>
-                        </tr>
-                    ))}
-                    {paginatedResponsibleStats.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
-                          Nenhum dado de movimentação para os filtros atuais.
-                        </td>
-                      </tr>
-                    )}
-                </tbody>
-            </table>
+          <table className="w-full text-left">
+            <thead className="bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
+              <tr>
+                <th className="px-8 py-5">FUNCIONÁRIO</th>
+                <th className="px-8 py-5 text-center">QUANTIDADE RETIRADA</th>
+                <th className="px-8 py-5 text-center">Nº REQUISIÇÕES</th>
+                <th className="px-8 py-5">ITEM MAIS SOLICITADO</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {paginatedRanking.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                  <td className="px-8 py-5 font-black text-slate-200 uppercase">{row.name}</td>
+                  <td className="px-8 py-5 text-center">
+                    <span className="text-sm font-black text-blue-400">{row.qty.toLocaleString('pt-BR')}</span>
+                  </td>
+                  <td className="px-8 py-5 text-center font-bold text-slate-500">{row.count}</td>
+                  <td className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase italic line-clamp-1 max-w-[350px]">{row.topItem}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        {totalResponsiblePages > 1 && (
-          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-slate-800/30 no-print">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em]">
-              Exibindo {paginatedResponsibleStats.length} de {responsibleStats.length} registros
-            </span>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setCurrentResponsiblePage(p => Math.max(1, p - 1))}
-                disabled={currentResponsiblePage === 1}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-30 transition-colors"
-              >
-                <ChevronLeft className="w-3 h-3" /> Anterior
-              </button>
-              <div className="flex gap-1">
-                {Array.from({ length: totalResponsiblePages }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentResponsiblePage(page)}
-                    className={`w-6 h-6 flex items-center justify-center rounded text-[10px] font-bold transition-all ${
-                      currentResponsiblePage === page 
-                        ? 'bg-primary text-white shadow-sm' 
-                        : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
-              <button 
-                onClick={() => setCurrentResponsiblePage(p => Math.min(totalResponsiblePages, p + 1))}
-                disabled={currentResponsiblePage === totalResponsiblePages}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-30 transition-colors"
-              >
-                Próximo <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
+        <div className="p-6 bg-slate-900/20 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest border-t border-slate-800">
+          <span>EXIBINDO {paginatedRanking.length} DE {partsMetrics.rankingResponsaveis.length} REGISTROS</span>
+          <div className="flex gap-1">
+             {Array.from({ length: Math.min(5, rankingTotalPages) }).map((_, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => setRankingPage(i + 1)}
+                  className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${rankingPage === (i+1) ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
+                >
+                  {i + 1}
+                </button>
+             ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

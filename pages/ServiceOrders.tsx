@@ -1,3 +1,4 @@
+
 // Import React explicitly to support React.FC and other React namespace types
 import React, { useState, useMemo } from 'react';
 import { 
@@ -61,7 +62,19 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
-  const SECTOR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+  // Paleta de cores variadas conforme a imagem
+  const VIBRANT_COLORS = [
+    '#3b82f6', // Azul
+    '#10b981', // Verde
+    '#f59e0b', // Laranja
+    '#ef4444', // Vermelho
+    '#8b5cf6', // Roxo
+    '#ec4899', // Rosa
+    '#06b6d4', // Ciano
+    '#34d399', // Esmeralda
+    '#fbbf24', // Âmbar
+    '#a855f7'  // Violeta
+  ];
 
   const availableSectors = useMemo(() => {
     const sSet = new Set<string>();
@@ -96,13 +109,18 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     const total = filteredData.length;
     let totalHours = 0;
     
-    // Mapa para calcular médias por profissional primeiro
     const profMap: Record<string, { count: number, respSum: number }> = {};
 
     filteredData.forEach(os => {
       totalHours += (os.horas || 0);
 
-      const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['N/D'];
+      // Lógica de nomes aprimorada para evitar "N", "D" ou "N/D"
+      const names = os.professional 
+        ? os.professional.split('/')
+            .map(n => n.trim())
+            .filter(n => n.toUpperCase() !== 'N' && n.toUpperCase() !== 'D' && n.toUpperCase() !== 'N/D' && n !== '') 
+        : [];
+
       names.forEach(n => {
         if (!profMap[n]) profMap[n] = { count: 0, respSum: 0 };
         profMap[n].count++;
@@ -130,7 +148,13 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const professionalStats = useMemo(() => {
     const map: Record<string, { count: number, hours: number, respSum: number }> = {};
     filteredData.forEach(os => {
-      const names = os.professional ? os.professional.split('/').map(n => n.trim()) : ['N/D'];
+      // Filtrando "N", "D" e "N/D" na geração da tabela
+      const names = os.professional 
+        ? os.professional.split('/')
+            .map(n => n.trim())
+            .filter(n => n.toUpperCase() !== 'N' && n.toUpperCase() !== 'D' && n.toUpperCase() !== 'N/D' && n !== '')
+        : [];
+        
       const dHours = os.horas || 0;
 
       names.forEach(n => {
@@ -179,16 +203,31 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     sectorDistribution.reduce((acc, curr) => acc + curr.value, 0)
   , [sectorDistribution]);
 
+  // Lógica de Downtime (Tempo Parado) otimizada para capturar os dados da imagem
   const downtimeByEquipment = useMemo(() => {
     const map: Record<string, number> = {};
     filteredData.forEach(os => {
-      if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) {
+      if (os.parada === 'Sim') {
         const eq = os.equipamento || 'Geral';
-        const diff = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
-        if (diff > 0 && diff < 8760) map[eq] = (map[eq] || 0) + diff;
+        
+        // Prioridade 1: Diferença entre Fim e Abertura
+        if (os.dataFim && os.dataAbertura) {
+          const diff = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
+          if (diff > 0 && diff < 8760) {
+             map[eq] = (map[eq] || 0) + diff;
+             return;
+          }
+        }
+
+        // Fallback: Usa o tempo da coluna "Horas" (estimativa PCM)
+        if (os.horas > 0) {
+          map[eq] = (map[eq] || 0) + os.horas;
+        }
       }
     });
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [filteredData]);
 
   const equipmentPartsData = useMemo(() => {
@@ -262,7 +301,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">PCM - Gestão de Ativos</h1>
@@ -315,132 +354,58 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         <StatCard title="Horas Totais" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
       </div>
 
-      {showPrintPreview && (
-        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible">
-            {/* Header Print Preview */}
-            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
-                <div className="flex items-center">
-                    <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório Gerencial</span>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
-                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
-                </div>
-            </div>
-
-            <div className="print-container flex-1 p-4 md:p-12 print:p-0 print:block print:h-auto print:static">
-                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:static print:max-w-none">
-                    <div className="w-full print:static">
-                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside">
-                            <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
-                            <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
-                            <div className="py-2">
-                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL DE MANUTENÇÃO</h2>
-                                <p className="text-xs font-bold text-black">Módulo PCM / Auditoria de Ativos</p>
-                            </div>
-                        </header>
-
-                        <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
-                                <tbody>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td><td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Responsável</td><td className="p-2 font-black text-black">Administrador PCM</td></tr>
-                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td><td className="p-2 font-black text-black">Gerencial / Auditoria Industrial</td></tr>
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
-                                <tbody>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgResponseTime)}</td></tr>
-                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.totalHours)}</td></tr>
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <section className="mb-8 no-break-inside">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
-                                <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
-                                <tbody>
-                                    {professionalStats.map((p, i) => (
-                                    <tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td></tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <div className="space-y-8 mb-8 overflow-visible">
-                            <section className="no-break-inside">
-                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black text-black">
-                                    <thead>
-                                        <tr className="bg-gray-200">
-                                            <th className="border border-black p-2 text-left font-black text-black">Ativo</th>
-                                            <th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
-                                </table>
-                            </section>
-                            
-                            <section className="no-break-inside">
-                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black text-black">
-                                    <thead>
-                                        <tr className="bg-gray-200">
-                                            <th className="border border-black p-2 text-left font-black text-black">Equipamento</th>
-                                            <th className="border border-black p-2 text-right font-black text-black">Tempo Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-1.5 font-black bg-gray-100 text-black">{d.name}</td><td className="p-1.5 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
-                                </table>
-                            </section>
-                        </div>
-
-                        <div className="mb-12 overflow-visible">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black text-black">
-                                <thead style={{ display: 'table-header-group' }}>
-                                    <tr className="bg-gray-200">
-                                        <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredData.map((os, i) => {
-                                    let downtime = 0; if (os.parada === 'Sim' && os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
-                                    let execTime = os.horas || 0;
-                                    return (
-                                        <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
-                                            <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTimeWithSpace(downtime) : '-'}</td>
-                                            <td className="border-r border-black p-1.5 font-black text-black">{os.professional}</td>
-                                            <td className="p-1.5 text-center font-black text-black">{formatDetailedTimeWithSpace(execTime)}</td>
-                                        </tr>
-                                    );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside text-black">
-                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
-                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
-                        </footer>
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside"><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
-                    </div>
-                </div>
-            </div>
+      {/* GRÁFICO DE DOWNTIME REFINADO - SEM VAZIO E COM ALINHAMENTO PRECISO */}
+      <div className="bg-white dark:bg-dark-card rounded-[2rem] p-8 shadow-2xl border border-gray-100 dark:border-gray-800 no-print">
+        <div className="flex items-center mb-8">
+          <TrendingDown className="w-6 h-6 text-rose-500 mr-3" />
+          <h3 className="font-black text-xl text-slate-800 dark:text-white uppercase tracking-tight">Tempo Total Parado por Equipamento (Top 10)</h3>
         </div>
-      )}
+        <div className="h-[480px]">
+          {downtimeByEquipment.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart 
+                data={downtimeByEquipment.slice(0, 10)} 
+                margin={{ top: 50, bottom: 160, left: 10, right: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700 opacity-30" />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#94a3b8" 
+                  fontSize={10} 
+                  fontWeight="900"
+                  height={120}
+                  tick={{ dy: 15, dx: -5, angle: -45, textAnchor: 'end' }} 
+                  interval={0} 
+                  axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                  tickLine={false}
+                />
+                <YAxis 
+                   stroke="#94a3b8" 
+                   fontSize={10} 
+                   fontWeight="bold"
+                   tickFormatter={(val) => `${val}h`} 
+                   axisLine={false}
+                   tickLine={false}
+                />
+                <Bar dataKey="value" name="Tempo Parado" radius={[8, 8, 0, 0]} barSize={55}>
+                  {downtimeByEquipment.slice(0, 10).map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} />
+                  ))}
+                  <LabelList 
+                    dataKey="value" 
+                    position="top" 
+                    offset={20} 
+                    formatter={(val: any) => formatDetailedTime(val)} 
+                    style={{ fill: '#ef4444', fontSize: '13px', fontWeight: '900', textShadow: '0px 0px 2px rgba(0,0,0,0.05)' }} 
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado para este período</div>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
@@ -518,31 +483,136 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       </div>
 
-      <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 no-print">
-        <div className="flex items-center mb-6">
-          <TrendingDown className="w-5 h-5 text-rose-500 mr-2" />
-          <h3 className="font-bold text-slate-800 dark:text-white">Tempo Total Parado por Equipamento</h3>
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible print:bg-white">
+            {/* Header Print Preview */}
+            <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
+                <div className="flex items-center">
+                    <Printer className="mr-2 w-5 h-5" />
+                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório Gerencial</span>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
+                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase flex items-center shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
+                </div>
+            </div>
+
+            <div className="flex-1 p-4 md:p-12 print:p-0 print:block print:h-auto print:static">
+                <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-100 h-auto overflow-visible block print:border-none print:p-0 print:static print:max-w-none print:block">
+                    <div className="w-full print:static">
+                        <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside" style={{ pageBreakInside: 'avoid' }}>
+                            <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
+                            <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
+                            <div className="py-2">
+                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL DE MANUTENÇÃO</h2>
+                                <p className="text-xs font-bold text-black">Módulo PCM / Auditoria de Ativos</p>
+                            </div>
+                        </header>
+
+                        <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
+                                <tbody>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td><td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Responsável</td><td className="p-2 font-black text-black">Administrador PCM</td></tr>
+                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td><td className="p-2 font-black text-black">Gerencial / Auditoria Industrial</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
+                                <tbody>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td></tr>
+                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgResponseTime)}</td></tr>
+                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.totalHours)}</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
+                            <table className="w-full text-[10px] border-collapse border border-black text-black">
+                                <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
+                                <tbody>
+                                    {professionalStats.map((p, i) => (
+                                    <tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td></tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <div className="space-y-8 mb-8 overflow-visible">
+                            <section style={{ pageBreakInside: 'avoid' }}>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
+                                <table className="w-full text-[9px] border-collapse border border-black text-black">
+                                    <thead>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black">Ativo</th>
+                                            <th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
+                                </table>
+                            </section>
+                            
+                            <section style={{ pageBreakInside: 'avoid' }}>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
+                                <table className="w-full text-[9px] border-collapse border border-black text-black">
+                                    <thead>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black">Equipamento</th>
+                                            <th className="border border-black p-2 text-right font-black text-black">Tempo Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-1.5 font-black bg-gray-100 text-black">{d.name}</td><td className="p-1.5 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
+                                </table>
+                            </section>
+                        </div>
+
+                        <div className="mb-12 overflow-visible">
+                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black text-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredData.map((os, i) => {
+                                    let downtime = 0; 
+                                    if (os.parada === 'Sim') {
+                                      if (os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
+                                      else if (os.horas > 0) downtime = os.horas;
+                                    }
+                                    let execTime = os.horas || 0;
+                                    return (
+                                        <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
+                                            <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
+                                            <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTimeWithSpace(downtime) : '-'}</td>
+                                            <td className="border-r border-black p-1.5 font-black text-black">{os.professional}</td>
+                                            <td className="p-1.5 text-center font-black text-black">{formatDetailedTimeWithSpace(execTime)}</td>
+                                        </tr>
+                                    );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside text-black" style={{ pageBreakInside: 'avoid' }}>
+                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
+                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
+                        </footer>
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside" style={{ pageBreakInside: 'avoid' }}><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div className="h-80">
-          {downtimeByEquipment.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={downtimeByEquipment.slice(0, 10)} margin={{ top: 30, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tick={{ dy: 5 }} interval={0} angle={-15} textAnchor="end" />
-                <YAxis stroke="#94a3b8" fontSize={10} tickFormatter={(val) => `${val}h`} />
-                <Bar dataKey="value" name="Tempo Parado (h)" radius={[4, 4, 0, 0]} barSize={35}>
-                  {downtimeByEquipment.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
-                  ))}
-                  <LabelList dataKey="value" position="top" offset={12} formatter={(val: any) => formatDetailedTime(val)} style={{ fill: '#ef4444', fontSize: '11px', fontWeight: '900' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado</div>
-          )}
-        </div>
-      </div>
+      )}
 
       {selectedEquipmentForModal && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">

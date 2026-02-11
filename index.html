@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR" class="dark">
   <head>
@@ -31,102 +32,96 @@
       ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-      .print-mode-wrapper { background-color: #f1f5f9; }
-      .dark .print-mode-wrapper { background-color: #0f172a; }
-
-      /* Estilos base para área de impressão */
-      .printable-area {
-        color: #000000 !important;
-        background-color: #ffffff !important;
-        box-sizing: border-box !important;
-        width: 100% !important;
-        display: block !important;
-      }
-      
-      .printable-area .bg-black {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-
+      /* CSS DE IMPRESSÃO - CORREÇÃO DEFINITIVA PARA MULTIPÁGINAS */
       @media print {
-        /* CONFIGURAÇÃO GLOBAL DE PÁGINA */
         @page {
           size: A4 portrait;
-          margin: 15mm 10mm !important;
+          margin: 10mm;
         }
 
-        /* RESET TOTAL DE LAYOUT PARA MÚLTIPLAS PÁGINAS */
-        /* Forçamos TODOS os containers a permitirem overflow e altura automática */
-        html, body, #root, #root > div, main, .flex-1, .print-mode-wrapper, .print-container, .printable-area {
-          background: #ffffff !important;
-          margin: 0 !important;
-          padding: 0 !important;
+        /* Oculta interface do sistema */
+        aside, 
+        header.no-print, 
+        nav,
+        .no-print, 
+        .preview-toolbar, 
+        .preview-header,
+        button {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
+        /* Reseta restrições de altura e overflow de TODOS os pais para permitir quebra de página */
+        html, body, #root, #root > div, .flex-1, main {
+          background: white !important;
+          color: black !important;
+          display: block !important;
           height: auto !important;
           min-height: 0 !important;
-          max-height: none !important;
           overflow: visible !important;
           position: static !important;
-          display: block !important;
           width: 100% !important;
-          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          float: none !important;
+        }
+
+        /* O container de impressão deve ser estático para fluir entre páginas */
+        .print-mode-wrapper {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          overflow: visible !important;
+          background: white !important;
+        }
+
+        .printable-area {
+          background: white !important;
+          color: black !important;
+          display: block !important;
+          position: static !important;
+        }
+
+        .printable-document {
+          visibility: visible !important;
           box-shadow: none !important;
+          border: none !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+          display: block !important;
+          position: static !important;
         }
 
-        /* Esconder elementos de interface de forma agressiva */
-        .no-print,
-        nav,
-        button,
-        aside,
-        .preview-header,
-        .sticky,
-        .fixed:not(.print-mode-wrapper) {
-          display: none !important;
-        }
-
-        /* Garantir que tabelas quebrem corretamente */
-        table { 
-          page-break-inside: auto !important; 
-          width: 100% !important; 
-          border-collapse: collapse !important; 
-          table-layout: auto !important;
-          color: black !important;
-          margin-bottom: 20px !important;
-        }
-        
-        thead { 
-          display: table-header-group !important; /* Repete cabeçalho em cada página */
-        }
-        
-        tr { 
-          page-break-inside: avoid !important; 
-          page-break-after: auto !important; 
-        }
-
-        td, th {
-          word-break: break-word !important;
-          color: black !important;
-          border: 1px solid #000000 !important;
-          padding: 6px !important;
-        }
-        
-        .no-break-inside { 
-          page-break-inside: avoid !important; 
-          break-inside: avoid !important; 
-        }
-
-        /* Garantir texto preto puro para economia e nitidez */
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          color-adjust: exact !important;
-          text-shadow: none !important;
+        .printable-document * {
+          visibility: visible !important;
           color: black !important;
         }
-        
-        h1, h2, h3, h4, p, span, td, th {
-            color: black !important;
+
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          border: 1px solid black !important;
+          page-break-inside: auto;
+          margin-bottom: 20px;
+        }
+
+        tr {
+          page-break-inside: avoid !important;
+          page-break-after: auto;
+        }
+
+        thead {
+          display: table-header-group; /* Repete o cabeçalho em cada página */
+        }
+
+        footer, .signature-area, header, section {
+          page-break-inside: avoid !important;
+        }
+
+        h1, h2, h3 {
+          page-break-after: avoid;
         }
       }
     </style>
@@ -141,6 +136,7 @@
         "vite": "https://aistudiocdn.com/vite@^7.2.4",
         "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
         "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0",
+        "jsbarcode": "https://esm.sh/jsbarcode@3.11.6",
         "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
       }
     }
