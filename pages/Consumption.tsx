@@ -149,6 +149,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
 
   // Lógica para Almoxarifado de Peças
   const partsMetrics = useMemo(() => {
+    // 1. Custo por Equipamento
     const costMap: Record<string, number> = {};
     filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
       const equip = (inventoryMap[m.codigo]?.equipamento || 'Geral/Não Vinculado').trim();
@@ -156,6 +157,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
     });
     const costByEquipment = Object.entries(costMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
 
+    // 2. Top Fornecedores
     const supplierMap: Record<string, number> = {};
     filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
       const forn = (m.fornecedor || 'DIVERSOS').trim();
@@ -166,6 +168,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       name, value, percent: totalInvest > 0 ? ((value / totalInvest) * 100).toFixed(1) : "0"
     })).sort((a, b) => b.value - a.value).slice(0, 8);
 
+    // 3. Itens com Maior Volume de Saída
     const exitVolMap: Record<string, { desc: string, qty: number, unit: string }> = {};
     filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
       if (!exitVolMap[m.codigo]) {
@@ -179,28 +182,29 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
 
-    // Ranking de Retiradas por Responsável - Lógica com Quantidade de Requisições e Item Mais Solicitado
-    const respMap: Record<string, { total: number, count: number, itemFreq: Record<string, number> }> = {};
+    // 4. Ranking de Retiradas por Responsável
+    const respMap: Record<string, { total: number, count: number, items: Record<string, number> }> = {};
     filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
       const resp = m.responsavel || 'N/D';
-      if (!respMap[resp]) respMap[resp] = { total: 0, count: 0, itemFreq: {} };
+      if (!respMap[resp]) respMap[resp] = { total: 0, count: 0, items: {} };
       respMap[resp].total += m.quantidade;
       respMap[resp].count += 1;
-      respMap[resp].itemFreq[m.codigo] = (respMap[resp].itemFreq[m.codigo] || 0) + 1;
+      respMap[resp].items[m.codigo] = (respMap[resp].items[m.codigo] || 0) + m.quantidade;
     });
 
     const rankingResponsaveis = Object.entries(respMap).map(([name, s]) => {
       let topItemCode = '';
-      let maxFreq = 0;
-      Object.entries(s.itemFreq).forEach(([code, freq]) => {
-        if (freq > maxFreq) { maxFreq = freq; topItemCode = code; }
+      let topItemQty = 0;
+      Object.entries(s.items).forEach(([code, qty]) => {
+        if (qty > topItemQty) { topItemQty = qty; topItemCode = code; }
       });
       const itemDesc = inventoryMap[topItemCode]?.descricao || topItemCode;
+      const unit = inventoryMap[topItemCode]?.unidade || 'mt';
       return {
         name,
         qty: s.total,
-        requestCount: s.count,
-        topItem: topItemCode ? `${itemDesc} (${maxFreq}x)` : 'N/D'
+        count: s.count,
+        topItem: `${itemDesc} (${topItemQty} ${unit})`
       };
     }).sort((a, b) => b.qty - a.qty);
 
@@ -390,7 +394,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
               <tr>
                 <th className="px-8 py-5">FUNCIONÁRIO</th>
                 <th className="px-8 py-5 text-center">QUANTIDADE RETIRADA</th>
-                <th className="px-8 py-5 text-center">QUANTIDADE REQUISIÇÕES</th>
+                <th className="px-8 py-5 text-center">Nº REQUISIÇÕES</th>
                 <th className="px-8 py-5">ITEM MAIS SOLICITADO</th>
               </tr>
             </thead>
@@ -401,9 +405,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
                   <td className="px-8 py-5 text-center">
                     <span className="text-sm font-black text-blue-400">{row.qty.toLocaleString('pt-BR')}</span>
                   </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className="text-sm font-black text-emerald-400">{row.requestCount.toLocaleString('pt-BR')}</span>
-                  </td>
+                  <td className="px-8 py-5 text-center font-bold text-slate-500">{row.count}</td>
                   <td className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase italic line-clamp-1 max-w-[350px]">{row.topItem}</td>
                 </tr>
               ))}
