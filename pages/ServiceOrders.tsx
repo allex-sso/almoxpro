@@ -1,4 +1,3 @@
-
 // Import React explicitly to support React.FC and other React namespace types
 import React, { useState, useMemo } from 'react';
 import { 
@@ -6,7 +5,7 @@ import {
   PieChart, Pie, Legend, LabelList
 } from 'recharts';
 import { 
-  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check
+  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check, FileText, ArrowUpCircle, Calendar
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
@@ -17,6 +16,11 @@ interface ServiceOrdersProps {
   inventoryData: InventoryItem[];
   isLoading: boolean;
 }
+
+const monthsList = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
 
 const formatDetailedTime = (decimalHours: number | string): string => {
   const hoursNum = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
@@ -55,6 +59,7 @@ const formatDetailedTimeWithSpace = (decimalHours: number | string): string => {
 };
 
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
+  const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [selectedSector, setSelectedSector] = useState<string>('Todos');
   const [selectedEquipmentForModal, setSelectedEquipmentForModal] = useState<string | null>(null);
@@ -82,28 +87,26 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     return ['Todos', ...Array.from(sSet).sort()];
   }, [data]);
 
-  const availableMonths = useMemo(() => {
-    const mMap = new Map<string, Date>();
+  const availableYears = useMemo(() => {
+    const ySet = new Set<string>();
     data.forEach(os => {
-      const label = os.dataAbertura.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      if (!mMap.has(label)) {
-        mMap.set(label, new Date(os.dataAbertura.getFullYear(), os.dataAbertura.getMonth(), 1));
-      }
+      ySet.add(os.dataAbertura.getFullYear().toString());
     });
-    const sortedLabels = Array.from(mMap.entries())
-      .sort((a, b) => b[1].getTime() - a[1].getTime())
-      .map(e => e[0]);
-    return ['Todos', ...sortedLabels];
+    return ['Todos', ...Array.from(ySet).sort().reverse()];
   }, [data]);
 
   const filteredData = useMemo(() => {
     return data.filter(os => {
-      const osMonth = os.dataAbertura.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const osYear = os.dataAbertura.getFullYear().toString();
+      const osMonth = monthsList[os.dataAbertura.getMonth()];
+      
+      const matchesYear = selectedYear === 'Todos' || osYear === selectedYear;
       const matchesMonth = selectedMonth === 'Todos' || osMonth === selectedMonth;
       const matchesSector = selectedSector === 'Todos' || os.setor === selectedSector;
-      return matchesMonth && matchesSector;
+      
+      return matchesYear && matchesMonth && matchesSector;
     });
-  }, [data, selectedMonth, selectedSector]);
+  }, [data, selectedYear, selectedMonth, selectedSector]);
 
   const stats = useMemo(() => {
     const total = filteredData.length;
@@ -139,7 +142,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         return acc + avg;
     }, 0);
 
-    const avgResponseTime = total > 0 ? (sumOfProfAverages / total) : 0;
+    const avgResponseTime = total > 0 ? (sumOfProfAverages / (Object.keys(profMap).length || 1)) : 0;
     const avgExecutionTime = total > 0 ? (totalHours / total) : 0;
 
     return { total, totalHours, avgResponseTime, avgExecutionTime };
@@ -303,47 +306,74 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">PCM - Gestão de Ativos</h1>
-          <p className="text-sm text-slate-500">Relatórios auditáveis Alumasa Industrial.</p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary rounded-xl shadow-lg">
+            <ClipboardList className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white uppercase tracking-tighter">PCM - Gestão de Ativos</h1>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Relatórios Industriais Alumasa</p>
+          </div>
         </div>
+
         <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white dark:bg-dark-card p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2">
-            <div className="flex items-center gap-2 px-2 border-r border-gray-100 dark:border-gray-800 mr-1">
-                <Filter className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros:</span>
+          {/* BARRA DE FILTROS PADRONIZADA (IGUAL PREVENTIVAS) */}
+          <div className="bg-[#1e293b] p-2 rounded-xl flex items-center gap-3 border border-slate-800 shadow-xl no-print">
+            <div className="flex items-center gap-2 px-2 border-r border-slate-700">
+                <Filter className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Filtros:</span>
             </div>
 
-            <div className="relative flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-2 py-1.5 border border-gray-200 dark:border-gray-700 min-w-[120px]">
-               <Building className="w-3 h-3 text-slate-400 mr-2" />
-               <select 
-                 value={selectedSector}
-                 onChange={(e) => setSelectedSector(e.target.value)}
-                 className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer appearance-none pr-4 z-10 w-full"
-               >
-                 {availableSectors.map(s => (
-                   <option key={s} value={s} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{s}</option>
-                 ))}
-               </select>
-               <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
+            <div className="flex items-center gap-2">
+               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-1">SETOR:</span>
+               <div className="relative flex items-center bg-slate-900/50 rounded-lg px-2 py-1.5 border border-slate-700 min-w-[110px]">
+                  <Building className="w-3 h-3 text-slate-400 mr-2" />
+                  <select 
+                    value={selectedSector} 
+                    onChange={(e) => setSelectedSector(e.target.value)} 
+                    className="bg-transparent text-xs font-black text-slate-200 outline-none cursor-pointer appearance-none pr-6 w-full"
+                  >
+                    {availableSectors.map(s => <option key={s} value={s} className="bg-slate-900">{s}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
+               </div>
             </div>
 
-            <div className="relative flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-2 py-1.5 border border-gray-200 dark:border-gray-700 min-w-[140px]">
-               <CalendarDays className="w-3 h-3 text-slate-400 mr-2" />
-               <select 
-                 value={selectedMonth}
-                 onChange={(e) => setSelectedMonth(e.target.value)}
-                 className="bg-transparent text-xs font-black text-slate-800 dark:text-white outline-none cursor-pointer appearance-none pr-4 z-10 w-full capitalize"
-               >
-                 {availableMonths.map(m => (
-                   <option key={m} value={m} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white capitalize">{m}</option>
-                 ))}
-               </select>
-               <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
+            <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
+               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-1">ANO:</span>
+               <div className="relative flex items-center bg-slate-900/50 rounded-lg px-2 py-1.5 border border-slate-700 min-w-[90px]">
+                  <Calendar className="w-3 h-3 text-slate-400 mr-2" />
+                  <select 
+                    value={selectedYear} 
+                    onChange={(e) => setSelectedYear(e.target.value)} 
+                    className="bg-transparent text-xs font-black text-slate-200 outline-none cursor-pointer appearance-none pr-6 w-full"
+                  >
+                    {availableYears.map(y => <option key={y} value={y} className="bg-slate-900">{y}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
+               </div>
+            </div>
+
+            <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
+               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-1">MÊS:</span>
+               <div className="relative flex items-center bg-slate-900/50 rounded-lg px-2 py-1.5 border border-slate-700 min-w-[110px]">
+                  <CalendarDays className="w-3 h-3 text-slate-400 mr-2" />
+                  <select 
+                    value={selectedMonth} 
+                    onChange={(e) => setSelectedMonth(e.target.value)} 
+                    className="bg-transparent text-xs font-black text-slate-200 outline-none cursor-pointer appearance-none pr-6 w-full"
+                  >
+                    <option value="Todos" className="bg-slate-900">Todos</option>
+                    {monthsList.map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-1 w-3 h-3 text-slate-400 pointer-events-none" />
+               </div>
             </div>
           </div>
 
-          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 shadow-sm"><Printer className="w-4 h-4 text-rose-500" /> Relatório</button>
+          <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 shadow-sm">
+            <Printer className="w-4 h-4 text-rose-500" /> Relatório
+          </button>
         </div>
       </div>
 
@@ -374,7 +404,9 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                   fontSize={10} 
                   fontWeight="900"
                   height={120}
-                  tick={{ dy: 15, dx: -5, angle: -45, textAnchor: 'end' }} 
+                  tick={{ dy: 15, dx: -5, fill: '#94a3b8' }} 
+                  angle={-45}
+                  textAnchor="end"
                   interval={0} 
                   axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
                   tickLine={false}
@@ -462,7 +494,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 <th className="px-6 py-4">Profissional</th>
                 <th className="px-6 py-4 text-center">OS</th>
                 <th className="px-6 py-4 text-center">Total Tempo Serviço</th>
-                <th className="px-6 py-4 text-right">Média Resposta</th>
+                <th className="px-6 py-4 text-right">MÉDIA RESPOSTA</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -489,11 +521,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
                 <div className="flex items-center">
                     <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Pré-visualização do Relatório Gerencial</span>
+                    <span className="font-bold text-sm uppercase tracking-widest">Painel de Ordens de Serviço - Relatório</span>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
-                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase flex items-center shadow-lg active:scale-95"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
+                    <button onClick={handleConfirmPrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase flex items-center shadow-lg active:scale-95 transition-all"><Check className="w-4 h-4 mr-2" /> Confirmar Impressão</button>
                 </div>
             </div>
 
@@ -503,111 +535,117 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         <header className="mb-8 text-center border-b-[3px] border-black pb-4 no-break-inside" style={{ pageBreakInside: 'avoid' }}>
                             <h1 className="text-4xl font-black mb-1 text-black">ALUMASA</h1>
                             <p className="text-lg font-bold mb-4 uppercase text-black">Alumínio & Plástico</p>
-                            <div className="py-2">
-                                <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO GERENCIAL DE MANUTENÇÃO</h2>
-                                <p className="text-xs font-bold text-black">Módulo PCM / Auditoria de Ativos</p>
+                            <div className="bg-black text-white py-2 mb-2">
+                                <h2 className="text-xl font-black uppercase tracking-wider">RELATÓRIO DE GESTÃO DE ORDENS DE SERVIÇO</h2>
                             </div>
+                            <p className="text-[10px] font-bold uppercase text-black">Monitoramento Técnico Industrial • Filtros: {selectedYear} / {selectedMonth} • Setor: {selectedSector}</p>
                         </header>
 
                         <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">DADOS DA EMISSÃO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">1. INDICADORES EXECUTIVOS (KPIS)</h3>
+                            <table className="w-full text-[11px] border-collapse border border-black text-black">
                                 <tbody>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Data e Hora</td><td className="p-2 font-black text-black">{new Date().toLocaleString('pt-BR')}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Responsável</td><td className="p-2 font-black text-black">Administrador PCM</td></tr>
-                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tipo de Documento</td><td className="p-2 font-black text-black">Gerencial / Auditoria Industrial</td></tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-r border-black font-black w-1/4 bg-gray-50 uppercase text-[10px] text-black">Total O.S.</td>
+                                        <td className="p-2 font-black text-black">{stats.total} chamados</td>
+                                        <td className="p-2 border-l border-black font-black w-1/4 bg-gray-50 uppercase text-[10px] text-black">Méd. Resposta</td>
+                                        <td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgResponseTime)}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-r border-black font-black bg-gray-50 uppercase text-[10px] text-black">Horas Totais</td>
+                                        <td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.totalHours)}</td>
+                                        <td className="p-2 border-l border-black font-black bg-gray-50 uppercase text-[10px] text-black">Méd. Execução</td>
+                                        <td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </section>
 
                         <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">RESUMO EXECUTIVO DE DESEMPENHO</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">2. TEMPO TOTAL PARADO POR EQUIPAMENTO (TOP 10)</h3>
+                            <table className="w-full text-[11px] border-collapse border border-black text-black">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="border border-black p-2 text-left font-black uppercase text-black">EQUIPAMENTO</th>
+                                        <th className="border border-black p-2 text-right font-black uppercase text-black">TEMPO TOTAL PARADO</th>
+                                        <th className="border border-black p-2 text-center font-black uppercase text-black">REPRESENTATIVIDADE (%)</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black w-1/3 bg-gray-100 text-black">Total de OS no Período</td><td className="p-2 font-black text-black">{stats.total}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Execução</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td></tr>
-                                    <tr className="border-b border-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Tempo Médio de Resposta</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgResponseTime)}</td></tr>
-                                    <tr><td className="border-r border-black p-2 font-black bg-gray-100 text-black">Total de Horas Trabalhadas</td><td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.totalHours)}</td></tr>
-                                </tbody>
-                            </table>
-                        </section>
-
-                        <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">PERFORMANCE INDIVIDUAL DA EQUIPE</h3>
-                            <table className="w-full text-[10px] border-collapse border border-black text-black">
-                                <thead><tr className="bg-gray-200"><th className="border border-black p-2 text-left font-black text-black">Técnico Responsável</th><th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th><th className="border border-black p-2 text-center font-black text-black">Horas Totais</th><th className="border border-black p-2 text-center font-black text-black">Média Resposta</th></tr></thead>
-                                <tbody>
-                                    {professionalStats.map((p, i) => (
-                                    <tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black text-black">{p.name}</td><td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td><td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td><td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td></tr>
+                                    {downtimeByEquipment.slice(0, 10).map((item, i) => (
+                                        <tr key={i} className="border-b border-black">
+                                            <td className="border-r border-black p-2 font-bold uppercase text-black">{item.name}</td>
+                                            <td className="border-r border-black p-2 text-right font-black text-black">{formatDetailedTime(item.value)}</td>
+                                            <td className="p-2 text-center font-black text-black">{((item.value / (stats.totalHours || 1)) * 100).toFixed(1)}%</td>
+                                        </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </section>
 
-                        <div className="space-y-8 mb-8 overflow-visible">
-                            <section style={{ pageBreakInside: 'avoid' }}>
-                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">ATIVOS COM MAIOR DEMANDA</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black text-black">
-                                    <thead>
-                                        <tr className="bg-gray-200">
-                                            <th className="border border-black p-2 text-left font-black text-black">Ativo</th>
-                                            <th className="border border-black p-2 text-center font-black text-black">Qtd. OS</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>{assetsDemand.map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-2 font-black bg-gray-100 text-black">{d[0]}</td><td className="p-2 text-center font-black text-black">{d[1]} OS</td></tr>))}</tbody>
-                                </table>
-                            </section>
-                            
-                            <section style={{ pageBreakInside: 'avoid' }}>
-                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">INDISPONIBILIDADE (DOWNTIME)</h3>
-                                <table className="w-full text-[9px] border-collapse border border-black text-black">
-                                    <thead>
-                                        <tr className="bg-gray-200">
-                                            <th className="border border-black p-2 text-left font-black text-black">Equipamento</th>
-                                            <th className="border border-black p-2 text-right font-black text-black">Tempo Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>{downtimeByEquipment.slice(0, 5).map((d, i) => (<tr key={i} className="border-b border-black text-black"><td className="border-r border-black p-1.5 font-black bg-gray-100 text-black">{d.name}</td><td className="p-1.5 text-right font-black text-red-700">{formatDetailedTimeWithSpace(d.value)}</td></tr>))}</tbody>
-                                </table>
-                            </section>
-                        </div>
-
-                        <div className="mb-12 overflow-visible">
-                            <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">AUDITORIA DETALHADA DE OPERAÇÕES (PCM)</h3>
-                            <table className="w-full text-[9px] border-collapse border border-black text-black">
-                                <thead style={{ display: 'table-header-group' }}>
+                        <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">3. PERFORMANCE DO TIME TÉCNICO</h3>
+                            <table className="w-full text-[11px] border-collapse border border-black text-black">
+                                <thead>
                                     <tr className="bg-gray-200">
-                                        <th className="border border-black p-2 font-black text-black">Nº OS</th><th className="border border-black p-2 font-black text-left text-black">Ativo / Equipamento</th><th className="border border-black p-2 text-center font-black text-black">Parada</th><th className="border border-black p-2 text-center font-black text-black">T. Parado</th><th className="border border-black p-2 font-black text-left text-black">Técnico</th><th className="border border-black p-2 text-center font-black text-black">T. Execução</th>
+                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">Técnico Responsável</th>
+                                        <th className="border border-black p-2 text-center font-black text-black uppercase text-[10px]">Qtd. OS</th>
+                                        <th className="border border-black p-2 text-center font-black text-black uppercase text-[10px]">Horas Totais</th>
+                                        <th className="border border-black p-2 text-center font-black text-black uppercase text-[10px]">Média Resposta</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredData.map((os, i) => {
-                                    let downtime = 0; 
-                                    if (os.parada === 'Sim') {
-                                      if (os.dataFim && os.dataAbertura) downtime = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
-                                      else if (os.horas > 0) downtime = os.horas;
-                                    }
-                                    let execTime = os.horas || 0;
-                                    return (
+                                    {professionalStats.map((p, i) => (
+                                    <tr key={i} className="border-b border-black text-black">
+                                        <td className="border-r border-black p-2 font-black text-black uppercase">{p.name}</td>
+                                        <td className="border-r border-black p-2 text-center font-black text-black">{p.count}</td>
+                                        <td className="border-r border-black p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.hours)}</td>
+                                        <td className="p-2 text-center font-black text-black">{formatDetailedTimeWithSpace(p.avgResp)}</td>
+                                    </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <div className="mb-12 overflow-visible">
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">4. LOG ANALÍTICO DE ORDENS DE SERVIÇO</h3>
+                            <table className="w-full text-[8.5px] border-collapse border border-black text-black">
+                                <thead style={{ display: 'table-header-group' }}>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">DATA / NÚMERO</th>
+                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">EQUIPAMENTO</th>
+                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">ATIVIDADE / PEÇA</th>
+                                        <th className="border border-black p-2 text-center font-black text-black uppercase text-[10px]">TEMPO</th>
+                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">TÉCNICO</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredData.map((os, i) => (
                                         <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-1.5 font-black text-black">{os.numero}</td>
-                                            <td className="border-r border-black p-1.5 text-black">{os.equipamento}</td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{os.parada === 'Sim' ? 'SIM' : 'NÃO'}</td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-red-600">{downtime > 0 ? formatDetailedTimeWithSpace(downtime) : '-'}</td>
-                                            <td className="border-r border-black p-1.5 font-black text-black">{os.professional}</td>
-                                            <td className="p-1.5 text-center font-black text-black">{formatDetailedTimeWithSpace(execTime)}</td>
+                                            <td className="border-r border-black p-1.5">
+                                                <div className="font-bold text-black">{os.dataAbertura.toLocaleDateString('pt-BR')}</div>
+                                                <div className="font-black text-blue-700">{os.numero}</div>
+                                            </td>
+                                            <td className="border-r border-black p-1.5 uppercase font-bold text-black">{os.equipamento}</td>
+                                            <td className="border-r border-black p-1.5 italic text-black">
+                                                <div className="line-clamp-2">{os.descricao}</div>
+                                                {os.peca && <div className="font-black text-[7px] text-gray-500 uppercase mt-0.5">PEÇA: {os.peca}</div>}
+                                            </td>
+                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{formatDetailedTime(os.horas)}</td>
+                                            <td className="p-1.5 uppercase font-bold text-black">{os.professional}</td>
                                         </tr>
-                                    );
-                                    })}
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
 
-                        <footer className="mt-8 pt-16 flex justify-between gap-24 no-break-inside text-black" style={{ pageBreakInside: 'avoid' }}>
-                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Coordenador PCM</div></div>
-                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Assinatura Gerente Industrial</div></div>
+                        <footer className="mt-20 pt-10 flex justify-between gap-24 no-break-inside text-black" style={{ pageBreakInside: 'avoid' }}>
+                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Responsável Manutenção / PCM</div></div>
+                            <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Gerência Industrial</div></div>
                         </footer>
-                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside" style={{ pageBreakInside: 'avoid' }}><div>Documento Auditável Alumasa Industrial - Gestão de Ativos</div><div>Emitido em: {new Date().toLocaleString('pt-BR')}</div></div>
+                        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[7px] font-black uppercase text-black no-break-inside" style={{ pageBreakInside: 'avoid' }}>
+                            <div>Relatório Gerencial Alumasa Industrial - Emitido em: {new Date().toLocaleString('pt-BR')}</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -637,13 +675,13 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                       <XAxis type="number" hide />
                       <YAxis dataKey="name" type="category" width={180} tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 'bold'}} />
                       <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) setSelectedPartForReasons(data.name); }}>
-                        <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = totalPieceOccurrences > 0 ? ((value / totalPieceOccurrences) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                        <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
                         <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-12"><AlertCircle className="w-12 h-12 opacity-20" /><p className="font-bold uppercase tracking-widest text-xs">Nenhuma peça registrada para este equipamento</p></div>
+                  <div className="h-full flex items-center justify-center text-slate-400 gap-4 py-12"><AlertCircle className="w-12 h-12 opacity-20" /><p className="font-bold uppercase tracking-widest text-xs">Nenhuma peça registrada para este equipamento</p></div>
                 )}
               </div>
             </div>

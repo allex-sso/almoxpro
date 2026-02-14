@@ -7,43 +7,25 @@ const formatCodigo = (code: any): string => {
   if (code === null || code === undefined) return "";
   let str = String(code).trim();
   if (str === "" || str === "0") return str;
-  
-  if (/^\d$/.test(str)) {
-    return "0" + str;
-  }
-  
+  if (/^\d$/.test(str)) return "0" + str;
   return str;
 }
 
 const parseNumber = (value: string | number): number => {
   if (value === null || value === undefined) return 0;
   if (typeof value === 'number') return value;
-  
-  let str = value.toString().trim()
-    .replace(/R\$/gi, '')
-    .replace(/\s/g, '')
-    .replace(/[^\d,.-]/g, '');
-
+  let str = value.toString().trim().replace(/R\$/gi, '').replace(/\s/g, '').replace(/[^\d,.-]/g, '');
   if (!str || str === '-' || str === '.') return 0;
-
   const hasComma = str.includes(',');
   const hasDot = str.includes('.');
-
   if (hasComma && hasDot) {
-    if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
-      str = str.replace(/\./g, '').replace(',', '.');
-    } else {
-      str = str.replace(/,/g, '');
-    }
-  } else if (hasComma) {
-    str = str.replace(',', '.');
-  } else if (hasDot) {
+    if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
+    else str = str.replace(/,/g, '');
+  } else if (hasComma) str = str.replace(',', '.');
+  else if (hasDot) {
     const parts = str.split('.');
-    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
-      str = str.replace(/\./g, '');
-    }
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) str = str.replace(/\./g, '');
   }
-  
   const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
 };
@@ -68,8 +50,7 @@ const parseDurationToHours = (value: string | number): number => {
 
 const detectDelimiter = (text: string): string => {
   const lines = text.split('\n').slice(0, 20).filter(l => l.trim().length > 0);
-  let commaCount = 0;
-  let semicolonCount = 0;
+  let commaCount = 0, semicolonCount = 0;
   lines.forEach(line => {
       commaCount += (line.match(/,/g) || []).length;
       semicolonCount += (line.match(/;/g) || []).length;
@@ -79,23 +60,14 @@ const detectDelimiter = (text: string): string => {
 
 const parseCSVLine = (text: string, delimiter: string): string[] => {
   const result: string[] = [];
-  let cell = '';
-  let inQuotes = false;
+  let cell = '', inQuotes = false;
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     if (char === '"') {
-      if (inQuotes && text[i + 1] === '"') {
-        cell += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(cell.trim());
-      cell = '';
-    } else {
-      cell += char;
-    }
+      if (inQuotes && text[i + 1] === '"') { cell += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (char === delimiter && !inQuotes) { result.push(cell.trim()); cell = ''; }
+    else cell += char;
   }
   result.push(cell.trim());
   return result;
@@ -115,11 +87,8 @@ const parseDate = (value: string): Date | null => {
   const parts = datePart.split(separator);
   let d, m, y;
   if (parts.length === 3) {
-    if (parts[0].length === 4) {
-      y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]);
-    } else {
-      d = parseInt(parts[0]); m = parseInt(parts[1]); y = parseInt(parts[2]);
-    }
+    if (parts[0].length === 4) { y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]); }
+    else { d = parseInt(parts[0]); m = parseInt(parts[1]); y = parseInt(parts[2]); }
     if (y < 100) y += 2000;
     const [hh, min, ss] = timePart.split(':').map(x => parseInt(x) || 0);
     if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
@@ -168,14 +137,9 @@ const findBestCol = (headers: string[], terms: string[]) => {
   return -1;
 };
 
-/**
- * Lógica de persistência para datas ausentes.
- * Gera um timestamp fixo baseado na impressão digital do registro.
- */
 const getPersistentFallbackDate = (fingerprint: string): Date => {
-  const storageKey = 'alumasa_fallback_timestamps';
+  const storageKey = 'alumasa_persistent_timestamps';
   let timestamps: Record<string, string> = {};
-  
   try {
     const stored = localStorage.getItem(storageKey);
     if (stored) timestamps = JSON.parse(stored);
@@ -191,7 +155,6 @@ const getPersistentFallbackDate = (fingerprint: string): Date => {
   try {
     localStorage.setItem(storageKey, JSON.stringify(timestamps));
   } catch (e) {}
-  
   return now;
 };
 
@@ -207,8 +170,6 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const idxQtdPicking = findBestCol(headers, ['quantidade em picking', 'picking']);
   const idxQtdTotal = findBestCol(headers, ['quantidade total', 'saldo total', 'estoque total', 'saldo']);
   const idxMin = findBestCol(headers, ['quantidade minima', 'minimo']);
-  const idxMax = findBestCol(headers, ['quantidade maxima', 'maximo']);
-  const idxLead = findBestCol(headers, ['tempo de entrega', 'lead time', 'entrega', 'prazo']);
   const idxSit = findBestCol(headers, ['situacao', 'status']);
   const idxCat = findBestCol(headers, ['categoria', 'tipo']);
   const idxMedida = findBestCol(headers, ['medida', 'unidade']);
@@ -216,35 +177,27 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
   const idxValUni = findBestCol(headers, ['valor unitario', 'preco unitario', 'custo unit', 'vlr unit']);
   const idxValTot = findBestCol(headers, ['valor total', 'total', 'vlr total']);
+  const idxLocal = findBestCol(headers, ['endereco', 'localizacao', 'local']);
 
   return rows.slice(headerIdx + 1).map((row) => {
     const codigo = formatCodigo(row[idxCodigo]);
     if (!codigo) return null;
-    
     const qtyEstoque = parseNumber(row[idxQtdEstoque]);
     const qtyPicking = idxQtdPicking !== -1 ? parseNumber(row[idxQtdPicking]) : 0;
     const qtyTotal = idxQtdTotal !== -1 ? parseNumber(row[idxQtdTotal]) : (qtyEstoque + qtyPicking);
-    
     const unitPrice = idxValUni !== -1 ? parseNumber(row[idxValUni]) : 0;
     const totalPrice = idxValTot !== -1 ? parseNumber(row[idxValTot]) : (qtyTotal * unitPrice);
-    
     return {
-        id: codigo, 
-        codigo, 
+        id: codigo, codigo, 
         descricao: row[idxDesc] || 'Sem Descrição', 
         quantidadeEstoque: qtyEstoque,
         quantidadePicking: qtyPicking,
         quantidadeAtual: qtyTotal,
         quantidadeMinima: parseNumber(row[idxMin]),
-        quantidadeMaxima: parseNumber(row[idxMax]),
-        tempoEntrega: parseNumber(row[idxLead]),
-        valorUnitario: unitPrice, 
-        valorTotal: totalPrice, 
-        categoria: row[idxCat] || 'Geral', 
-        unidade: row[idxMedida] || 'un',
-        situacao: row[idxSit] || 'OK',
-        equipamento: row[idxEquip] || 'Geral',
-        setor: row[idxSetor] || 'N/D',
+        valorUnitario: unitPrice, valorTotal: totalPrice, 
+        categoria: row[idxCat] || 'Geral', unidade: row[idxMedida] || 'un',
+        situacao: row[idxSit] || 'OK', equipamento: row[idxEquip] || 'Geral',
+        setor: row[idxSetor] || 'N/D', localizacao: idxLocal !== -1 ? row[idxLocal] : '',
         dataAtualizacao: new Date().toISOString()
     } as InventoryItem;
   }).filter((i): i is InventoryItem => i !== null);
@@ -253,32 +206,30 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
 export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 'transferencia'): Promise<Movement[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['peça', 'equipamento', 'codigo', 'data', 'quantidade', 'movimentada', 'colaborador']);
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['peça', 'equipamento', 'codigo', 'data', 'quantidade', 'colaborador']);
   if (headerIdx === -1) return [];
   
-  const idxData = findBestCol(headers, ['data/hora', 'data de entrada', 'data de saida', 'data lançamento', 'data mov', 'data', 'dia', 'abertura']);
+  const idxData = findBestCol(headers, ['data/hora', 'data lançamento', 'data mov', 'data', 'dia', 'abertura', 'lancamento']);
   const idxCodigo = findBestCol(headers, ['peça', 'peca', 'item', 'codigo', 'cod']);
   const idxQtd = findBestCol(headers, ['quantidade recebida', 'quantidade retirada', 'quantidade movimentada', 'quantidade', 'qtd']);
-  const idxValUni = findBestCol(headers, ['valor unitario', 'preco unitario', 'custo unit']);
-  const idxValTot = findBestCol(headers, ['valor total', 'total']);
   const idxResp = findBestCol(headers, ['colaborador', 'responsavel', 'solicitante', 'quem', 'profissional', 'operador']);
-  const idxForn = findBestCol(headers, ['fornecedor', 'forn', 'empresa']);
   const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'destino', 'ativo']);
-  const idxMovTipo = findBestCol(headers, ['tipo movimentação', 'tipo movimentacao', 'tipo mov', 'tipo']);
+  const idxEndOrigem = findBestCol(headers, ['endereço origem', 'origem']);
+  const idxEndDestino = findBestCol(headers, ['endereço destino', 'endereço', 'destino', 'localizacao', 'localização']);
+  const idxMovType = findBestCol(headers, ['tipo movimentação', 'tipo mov', 'tipo']);
+  
+  // NOVAS COLUNAS FINANCEIRAS NAS MOVIMENTAÇÕES
+  const idxForn = findBestCol(headers, ['fornecedor', 'origem material']);
+  const idxValUni = findBestCol(headers, ['valor unitario', 'preco unitario', 'custo unit', 'vlr unit']);
+  const idxValTot = findBestCol(headers, ['valor total', 'total', 'vlr total']);
 
-  const seenFingerprints: Record<string, number> = {};
+  const seenFpCount: Record<string, number> = {};
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
-    const rawPiece = row[idxCodigo];
-    if (!rawPiece && !row[idxEquip]) return null;
-    const codigo = formatCodigo(rawPiece || 'Não especificada');
-    const equip = String(row[idxEquip] || '').trim();
-    const qty = idxQtd !== -1 ? parseNumber(row[idxQtd]) : 1;
-    const uPrice = parseNumber(row[idxValUni]);
+    const codigo = formatCodigo(row[idxCodigo] || row[idxEquip]);
+    if (!codigo) return null;
+    const qty = parseNumber(row[idxQtd]);
     const resp = row[idxResp] || 'N/D';
-    const movTipo = row[idxMovTipo] || (type === 'transferencia' ? 'MUDAR ENDEREÇO' : type.toUpperCase());
-    
     const parsedDate = parseDate(row[idxData]);
     
     let finalDate: Date;
@@ -287,30 +238,22 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
     if (parsedDate) {
       finalDate = parsedDate;
     } else {
-      const rawFp = `mov_${type}_${codigo}_${qty}_${resp}_${equip}_${movTipo}`;
-      const occurrence = (seenFingerprints[rawFp] || 0) + 1;
-      seenFingerprints[rawFp] = occurrence;
-      
-      const finalFp = `${rawFp}_occ${occurrence}`;
-      finalDate = getPersistentFallbackDate(finalFp);
+      const fpBase = `mov_${type}_${codigo}_${qty}_${resp}_${row[idxEquip] || 'none'}`;
+      seenFpCount[fpBase] = (seenFpCount[fpBase] || 0) + 1;
+      finalDate = getPersistentFallbackDate(`${fpBase}_v${seenFpCount[fpBase]}`);
       isDateFallback = true;
     }
     
     return {
-      id: `${type}-${i}-${Date.now()}`,
-      tipo: type,
-      data: finalDate,
-      isDateFallback: isDateFallback,
-      codigo,
-      quantidade: qty,
-      responsavel: resp,
-      fornecedor: row[idxForn] || 'DIVERSOS',
-      equipamento: equip,
-      valorUnitario: uPrice,
-      valorTotal: parseNumber(row[idxValTot]) || (qty * uPrice),
-      localizacaoOrigem: '',
-      localizacaoDestino: '',
-      movimentoTipo: movTipo
+      id: `${type}-${i}-${finalDate.getTime()}`,
+      tipo: type, data: finalDate, isDateFallback, codigo, quantidade: qty,
+      responsavel: resp, equipamento: String(row[idxEquip] || ''),
+      localizacaoOrigem: idxEndOrigem !== -1 ? row[idxEndOrigem] : '',
+      localizacaoDestino: idxEndDestino !== -1 ? row[idxEndDestino] : '',
+      movimentoTipo: idxMovType !== -1 ? row[idxMovType] : '',
+      fornecedor: idxForn !== -1 ? row[idxForn] : '',
+      valorUnitario: idxValUni !== -1 ? parseNumber(row[idxValUni]) : 0,
+      valorTotal: idxValTot !== -1 ? parseNumber(row[idxValTot]) : 0
     };
   }).filter((m): m is Movement => m !== null && m.quantidade > 0);
 };
@@ -318,19 +261,14 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
 export const fetchAddressData = async (url: string): Promise<AddressItem[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['endereco', 'quantidade atual no local']);
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['endereco', 'quantidade atual']);
   if (headerIdx === -1) return [];
   const idxEnd = findBestCol(headers, ['endereco', 'cod']);
-  const idxQtd = findBestCol(headers, ['quantidade atual no local', 'quantidade atual', 'atual', 'quantidade', 'saldo']);
+  const idxQtd = findBestCol(headers, ['quantidade atual', 'saldo', 'atual']);
   return rows.slice(headerIdx + 1).map((row, i) => ({
-    id: `addr-${i}-${Date.now()}`,
-    endereco: row[idxEnd] || 'N/D',
-    rua: row[findBestCol(headers, ['rua'])] || '',
-    predio: row[findBestCol(headers, ['predio'])] || '',
-    andar: row[findBestCol(headers, ['andar'])] || '',
-    sala: row[findBestCol(headers, ['sala'])] || '',
-    quantidadeInicial: 0,
-    quantidadeAtual: parseNumber(row[idxQtd])
+    id: `addr-${i}`, endereco: row[idxEnd] || 'N/D', rua: row[findBestCol(headers, ['rua'])] || '',
+    predio: row[findBestCol(headers, ['predio'])] || '', andar: row[findBestCol(headers, ['andar'])] || '',
+    sala: row[findBestCol(headers, ['sala'])] || '', quantidadeInicial: 0, quantidadeAtual: parseNumber(row[idxQtd])
   })).filter(a => a.endereco !== 'N/D');
 };
 
@@ -343,17 +281,12 @@ export const fetchPreventiveData = async (url: string): Promise<PreventiveEntry[
     const equip = row[findBestCol(headers, ['equipamento', 'maquina'])]?.trim();
     if (!equip) return null;
     return {
-      id: `prev-${i}-${Date.now()}`,
-      dataPrevista: parseDate(row[findBestCol(headers, ['prevista'])]),
+      id: `prev-${i}`, dataPrevista: parseDate(row[findBestCol(headers, ['prevista'])]),
       dataExecucao: parseDate(row[findBestCol(headers, ['execucao', 'realizada'])]),
-      setor: row[findBestCol(headers, ['setor'])]?.trim() || 'N/D',
-      equipamento: equip,
-      atividade: row[findBestCol(headers, ['atividade'])]?.trim() || '',
-      natureza: row[findBestCol(headers, ['natureza', 'tipo'])]?.trim() || 'preventiva',
-      status: row[findBestCol(headers, ['status'])]?.trim() || 'Concluído',
-      descricaoTrabalho: row[findBestCol(headers, ['descricao'])]?.trim() || '',
-      tempo: parseDurationToHours(row[findBestCol(headers, ['tempo', 'horas'])]),
-      profissional: row[findBestCol(headers, ['colaborador', 'profissional', 'tecnico'])]?.trim() || 'N/D'
+      setor: row[findBestCol(headers, ['setor'])] || 'N/D', equipamento: equip,
+      atividade: row[findBestCol(headers, ['atividade'])] || '', natureza: row[findBestCol(headers, ['natureza'])] || 'preventiva',
+      status: row[findBestCol(headers, ['status'])] || 'Concluído', tempo: parseDurationToHours(row[findBestCol(headers, ['tempo'])]),
+      profissional: row[findBestCol(headers, ['profissional'])] || 'N/D', descricaoTrabalho: ''
     };
   }).filter((p): p is PreventiveEntry => p !== null);
 };
@@ -367,17 +300,11 @@ export const fetchProductionData = async (url: string): Promise<ProductionEntry[
       const dataParsed = parseDate(row[findBestCol(headers, ['dia', 'data'])]);
       if (!dataParsed) return null;
       return {
-        id: `prod-${i}-${Date.now()}`,
-        data: dataParsed,
-        tipologia: row[findBestCol(headers, ['tipologia', 'modelo'])] || 'N/D',
-        metaDia: parseNumber(row[findBestCol(headers, ['meta'])]),
-        pecasHoraAlvo: parseNumber(row[findBestCol(headers, ['alvo'])]),
-        mesa: row[findBestCol(headers, ['mesa', 'posto'])] || 'N/D',
-        horasTrabalhadas: parseDurationToHours(row[findBestCol(headers, ['horas'])]),
-        produzido: parseNumber(row[findBestCol(headers, ['produzido', 'total'])]),
-        percentual: parseNumber(row[findBestCol(headers, ['percentual', 'eficiencia'])]),
-        turno: row[findBestCol(headers, ['turno'])] || 'Geral',
-        semana: row[findBestCol(headers, ['semana'])] || ''
+        id: `prod-${i}`, data: dataParsed, tipologia: row[findBestCol(headers, ['tipologia'])] || 'N/D',
+        metaDia: parseNumber(row[findBestCol(headers, ['meta'])]), pecasHoraAlvo: 0, 
+        mesa: row[findBestCol(headers, ['mesa'])] || 'N/D', horasTrabalhadas: parseDurationToHours(row[findBestCol(headers, ['horas'])]),
+        produzido: parseNumber(row[findBestCol(headers, ['produzido'])]), percentual: parseNumber(row[findBestCol(headers, ['percentual'])]),
+        turno: row[findBestCol(headers, ['turno'])] || 'Geral', semana: row[findBestCol(headers, ['semana'])] || ''
       };
     }).filter((p): p is ProductionEntry => p !== null);
   }
@@ -389,22 +316,39 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
   if (rows.length === 0) return [];
   const { index: headerIdx, headers } = findHeaderRow(rows, ['ordem', 'equipamento']);
   if (headerIdx === -1) return [];
+
+  const colAbertura = findBestCol(headers, ['abertura', 'aberta', 'lancamento']);
+  const colInicio = findBestCol(headers, ['inicio', 'comeco', 'start', 'atendimento']); 
+  const colFim = findBestCol(headers, ['fim', 'conclusao', 'termino', 'fechamento']);
+  const colEquip = findBestCol(headers, ['equipamento', 'maquina', 'ativo']);
+  const colPeca = findBestCol(headers, ['peca', 'componente', 'item']);
+  const colParada = findBestCol(headers, ['parada', 'maquina parada']);
+  const colMotivo = findBestCol(headers, ['motivo', 'falha', 'problema']);
+  const colProf = findBestCol(headers, ['colaborador', 'tecnico', 'profissional', 'quem']);
+  const colOS = findBestCol(headers, ['ordem', 'os', 'numero']);
+  const colAtiv = findBestCol(headers, ['atividade', 'servico', 'descricao']);
+  const colTempo = findBestCol(headers, ['tempo', 'horas', 'duracao']);
+  const colSetor = findBestCol(headers, ['setor', 'area']);
+
   return rows.slice(headerIdx + 1).map((row, i): ServiceOrder | null => {
+    const dataAbertura = parseDate(row[colAbertura]);
+    if (!dataAbertura) return null;
+
     return {
-      id: `os-${i}-${Date.now()}`,
-      numero: row[findBestCol(headers, ['ordem', 'os', 'numero'])] || '',
-      dataAbertura: parseDate(row[findBestCol(headers, ['abertura', 'data'])]) || new Date(),
-      dataInicio: parseDate(row[findBestCol(headers, ['inicio', 'start'])]),
-      dataFim: parseDate(row[findBestCol(headers, ['fim', 'conclusao', 'termino'])]),
-      professional: row[findBestCol(headers, ['colaborador', 'profissional', 'tecnico'])] || 'N/D',
-      equipamento: row[findBestCol(headers, ['equipamento', 'maquina'])] || 'Geral',
-      setor: row[findBestCol(headers, ['setor'])] || 'Manutenção',
-      status: row[findBestCol(headers, ['status'])] || 'Concluído',
-      horas: parseDurationToHours(row[findBestCol(headers, ['tempo', 'horas'])]),
-      descricao: row[findBestCol(headers, ['atividade', 'descricao'])] || '',
-      peca: row[findBestCol(headers, ['peça', 'peca', 'pecas'])] || '',
-      motivo: row[findBestCol(headers, ['motivo', 'causa'])] || '',
-      parada: row[findBestCol(headers, ['parada', 'maq parada'])] || 'Não'
+      id: `os-${i}`, 
+      numero: row[colOS] || `OS-${i}`,
+      dataAbertura: dataAbertura,
+      dataInicio: parseDate(row[colInicio]), 
+      dataFim: parseDate(row[colFim]),
+      professional: row[colProf] || 'N/D',
+      equipamento: row[colEquip] || 'Geral',
+      setor: row[colSetor] || 'Manutenção', 
+      status: 'Concluído',
+      horas: parseDurationToHours(row[colTempo]),
+      descricao: row[colAtiv] || '',
+      parada: row[colParada] || 'Não',
+      peca: row[colPeca] || '',
+      motivo: row[colMotivo] || ''
     };
   }).filter((os): os is ServiceOrder => os !== null);
 };
@@ -412,41 +356,51 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
 export const fetchCentralData = async (url: string): Promise<Movement[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  
-  // Cabeçalhos específicos da planilha de perfis conforme imagem
   const { index: headerIdx, headers } = findHeaderRow(rows, ['perfil', 'solicitante', 'quantidade']);
   if (headerIdx === -1) return [];
 
+  const idxData = findBestCol(headers, ['data', 'dia', 'lancamento']);
+  const idxSolicitante = findBestCol(headers, ['solicitante', 'quem', 'operador']);
+  const idxPerfil = findBestCol(headers, ['perfil', 'material', 'modelo']);
+  const idxQuantidade = findBestCol(headers, ['quantidade', 'qtd', 'volume']);
+  const idxSetor = findBestCol(headers, ['setor', 'area', 'destino', 'departamento']);
+  const idxMotivo = findBestCol(headers, ['motivo', 'finalidade', 'uso', 'obs']);
   const idxTurno = findBestCol(headers, ['turno']);
-  const idxData = findBestCol(headers, ['data']);
-  const idxSolicitante = findBestCol(headers, ['solicitante', 'responsavel']);
-  const idxSetor = findBestCol(headers, ['setor']);
-  const idxPerfil = findBestCol(headers, ['perfil', 'material']);
-  const idxQuantidade = findBestCol(headers, ['quantidade', 'qtd']);
-  const idxCor = findBestCol(headers, ['cor']);
-  const idxMotivo = findBestCol(headers, ['motivo']);
-  const idxLiberador = findBestCol(headers, ['pessoa que liberou', 'liberou', 'quem liberou']);
+  const idxCor = findBestCol(headers, ['cor', 'pintura', 'acabamento']);
 
-  // Explicitly typing the map return value as Movement | null to avoid type predicate errors
+  const seenFpCount: Record<string, number> = {};
+
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
     const qty = parseNumber(row[idxQuantidade]);
     if (qty <= 0) return null;
-
+    const perfil = row[idxPerfil] || 'N/D';
+    const resp = row[idxSolicitante] || 'N/D';
     const dataParsed = parseDate(row[idxData]);
-    
+
+    let finalDate: Date;
+    let isDateFallback = false;
+    if (dataParsed) {
+      finalDate = dataParsed;
+    } else {
+      const fp = `central_${perfil}_${resp}_${qty}`;
+      seenFpCount[fp] = (seenFpCount[fp] || 0) + 1;
+      finalDate = getPersistentFallbackDate(`${fp}_v${seenFpCount[fp]}`);
+      isDateFallback = true;
+    }
+
     return {
-      id: `c-${i}-${Date.now()}`,
-      data: dataParsed || new Date(),
-      codigo: row[idxPerfil] || 'N/D',
-      perfil: row[idxPerfil] || 'N/D',
-      quantidade: qty,
-      tipo: 'saida',
-      turno: row[idxTurno] || 'Geral',
-      responsavel: row[idxSolicitante] || 'N/D',
-      liberador: row[idxLiberador] || 'N/D',
-      motivo: row[idxMotivo] || 'Geral',
-      setor: row[idxSetor] || 'Outros',
-      cor: row[idxCor] || 'N/D'
+      id: `c-${i}-${finalDate.getTime()}`, 
+      data: finalDate, 
+      isDateFallback, 
+      codigo: perfil, 
+      perfil, 
+      quantidade: qty, 
+      tipo: 'saida', 
+      responsavel: resp,
+      setor: idxSetor !== -1 ? row[idxSetor] : 'OUTROS',
+      motivo: idxMotivo !== -1 ? row[idxMotivo] : 'GERAL',
+      turno: idxTurno !== -1 ? row[idxTurno] : 'Geral',
+      cor: idxCor !== -1 ? row[idxCor] : 'N/D'
     };
   }).filter((x): x is Movement => x !== null);
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, 
@@ -6,7 +5,7 @@ import {
 } from 'recharts';
 import { 
   Filter, Calendar, ChevronLeft, ChevronRight, ShoppingCart, 
-  Users, Package, TrendingDown, LayoutDashboard, Wallet, Search, ArrowRight, ArrowUpRight, ArrowDownRight, History, Layers, Box, Activity, UserCheck, BarChart3, ArrowRightLeft, ArrowUpCircle, ArrowDownCircle, RefreshCw, Clock
+  Users, Package, TrendingDown, LayoutDashboard, Wallet, Search, ArrowRight, ArrowUpRight, ArrowDownRight, History, Layers, Box, Activity, UserCheck, BarChart3, ArrowRightLeft, ArrowUpCircle, ArrowDownCircle, RefreshCw, Clock, Printer, X, Check, FileText
 } from 'lucide-react';
 import { InventoryItem, Movement } from '../types';
 import StatCard from '../components/StatCard';
@@ -57,11 +56,12 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [rankingPage, setRankingPage] = useState(1);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const itemsPerPage = 10;
 
   const inventoryMap = useMemo(() => {
     const map: Record<string, InventoryItem> = {};
-    data.forEach(item => { map[item.id] = item; });
+    data.forEach(item => { map[item.codigo] = item; });
     return map;
   }, [data]);
 
@@ -92,6 +92,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       type: 'entrada' | 'saida' | 'transferencia', 
       total: number, 
       lastDate: Date,
+      isRealDate: boolean,
       itemCounts: Record<string, number> 
     }> = {};
     
@@ -109,7 +110,22 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       const compositeKey = `${opName}|${opType}|${dayKey}`;
 
       if (!operatorActionMap[compositeKey]) {
-        operatorActionMap[compositeKey] = { name: opName, type: opType, total: 0, lastDate: m.data, itemCounts: {} };
+        operatorActionMap[compositeKey] = { 
+          name: opName, 
+          type: opType, 
+          total: 0, 
+          lastDate: m.data, 
+          isRealDate: !m.isDateFallback,
+          itemCounts: {} 
+        };
+      } else {
+        // Se já existe, atualizamos a flag isRealDate se encontrarmos um movimento com data real
+        if (!m.isDateFallback) {
+          operatorActionMap[compositeKey].isRealDate = true;
+          if (m.data.getTime() > operatorActionMap[compositeKey].lastDate.getTime()) {
+            operatorActionMap[compositeKey].lastDate = m.data;
+          }
+        }
       }
 
       if (opType === 'entrada') { inbound += qty; dayMap[dateStr].in += qty; }
@@ -141,27 +157,41 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
         Object.entries(action.itemCounts).forEach(([code, qty]) => { if (qty > maxQty) { maxQty = qty; topCode = code; } });
         const desc = inventoryMap[topCode]?.descricao || topCode;
         let typeTotal = action.type === 'entrada' ? inbound : action.type === 'saida' ? outbound : internal;
-        return { ...action, representation: typeTotal > 0 ? ((action.total / typeTotal) * 100).toFixed(1) : "0", topItem: `${desc} (${maxQty} ${inventoryMap[topCode]?.unidade || 'un'})` };
+        return { 
+          ...action, 
+          representation: typeTotal > 0 ? ((action.total / typeTotal) * 100).toFixed(1) : "0", 
+          topItem: `${desc} (${maxQty} ${inventoryMap[topCode]?.unidade || 'un'})` 
+        };
     }).sort((a, b) => b.lastDate.getTime() - a.lastDate.getTime());
 
     return { inbound, outbound, internal, total: inbound + outbound + internal, chartTimeline: Object.values(dayMap).sort((a,b) => a.ts - b.ts).slice(-30), chartGiro: abcData.slice(0, 15), abcSummary: { A: abcData.filter(x => x.class === 'A').length, B: abcData.filter(x => x.class === 'B').length, C: abcData.filter(x => x.class === 'C').length }, chartTypes: [ { name: 'Entradas', value: inbound, color: '#10b981' }, { name: 'Saídas', value: outbound, color: '#ef4444' }, { name: 'Internas', value: internal, color: '#3b82f6' } ].filter(d => d.value > 0), individualActions };
   }, [filteredMovements, inventoryMap]);
 
-  // Lógica para Almoxarifado de Peças
+  // Lógica para Almoxarifado de Peças (Análise Financeira e Consumo)
   const partsMetrics = useMemo(() => {
     // 1. Custo por Equipamento
     const costMap: Record<string, number> = {};
     filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
-      const equip = (inventoryMap[m.codigo]?.equipamento || 'Geral/Não Vinculado').trim();
-      costMap[equip] = (costMap[equip] || 0) + (m.valorTotal || 0);
+      const masterItem = inventoryMap[m.codigo];
+      const equip = (masterItem?.equipamento || 'Geral/Não Vinculado').trim();
+      const movementValue = m.valorTotal && m.valorTotal > 0 
+        ? m.valorTotal 
+        : (masterItem?.valorUnitario || 0) * m.quantidade;
+      
+      costMap[equip] = (costMap[equip] || 0) + movementValue;
     });
     const costByEquipment = Object.entries(costMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
 
     // 2. Top Fornecedores
     const supplierMap: Record<string, number> = {};
     filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
-      const forn = (m.fornecedor || 'DIVERSOS').trim();
-      supplierMap[forn] = (supplierMap[forn] || 0) + (m.valorTotal || 0);
+      const masterItem = inventoryMap[m.codigo];
+      const forn = (m.fornecedor || masterItem?.fornecedor || 'DIVERSOS').trim().toUpperCase();
+      const movementValue = m.valorTotal && m.valorTotal > 0 
+        ? m.valorTotal 
+        : (masterItem?.valorUnitario || 0) * m.quantidade;
+        
+      supplierMap[forn] = (supplierMap[forn] || 0) + movementValue;
     });
     const totalInvest = Object.values(supplierMap).reduce((a, b) => a + b, 0);
     const topSuppliers = Object.entries(supplierMap).map(([name, value]) => ({ 
@@ -199,7 +229,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
         if (qty > topItemQty) { topItemQty = qty; topItemCode = code; }
       });
       const itemDesc = inventoryMap[topItemCode]?.descricao || topItemCode;
-      const unit = inventoryMap[topItemCode]?.unidade || 'mt';
+      const unit = inventoryMap[topItemCode]?.unidade || 'un';
       return {
         name,
         qty: s.total,
@@ -208,8 +238,25 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       };
     }).sort((a, b) => b.qty - a.qty);
 
-    return { costByEquipment, topSuppliers, topExitItems, rankingResponsaveis };
+    return { 
+      costByEquipment, 
+      topSuppliers, 
+      topExitItems, 
+      rankingResponsaveis, 
+      totalInvest,
+      totalEntries: filteredMovements.filter(m => m.tipo === 'entrada').length,
+      totalExits: filteredMovements.filter(m => m.tipo === 'saida').length,
+    };
   }, [filteredMovements, inventoryMap]);
+
+  const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = "relatorio_financeiro_consumo_alumasa";
+    setTimeout(() => {
+      window.print();
+      document.title = originalTitle;
+    }, 200);
+  };
 
   if (isWarehouse) {
     const paginatedActions = wmsMetrics.individualActions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -241,13 +288,13 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
         </div>
         <div className="bg-[#1e293b] rounded-[2rem] shadow-2xl border border-slate-800 overflow-hidden">
             <div className="p-8 border-b border-slate-800 flex justify-between items-center"><div className="flex items-center gap-4"><div className="p-3 bg-indigo-500/10 rounded-2xl"><Users className="w-6 h-6 text-indigo-500" /></div><h3 className="text-sm font-black text-white uppercase tracking-widest">Log de Atividade por Operador</h3></div><div className="flex items-center gap-2 no-print"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 bg-slate-800 rounded-lg disabled:opacity-20"><ChevronLeft className="w-4 h-4 text-white" /></button><button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 bg-slate-800 rounded-lg disabled:opacity-20"><ChevronRight className="w-4 h-4 text-white" /></button></div></div>
-            <div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800"><tr><th className="px-8 py-5">COLABORADOR</th><th className="px-8 py-5">MOVIMENTAÇÃO REALIZADA</th><th className="px-8 py-5 text-center">VOLUME MOVIMENTADO</th><th className="px-8 py-5 text-center">DATA DA ÚLTIMA AÇÃO</th><th className="px-8 py-5">ITEM PRINCIPAL (NA AÇÃO)</th></tr></thead><tbody className="divide-y divide-slate-800">{paginatedActions.map((row, idx) => (<tr key={idx} className="hover:bg-slate-800/40 transition-colors"><td className="px-8 py-5 font-black text-slate-200 uppercase text-lg">{row.name}</td><td className="px-8 py-5">{getActionBadge(row.type)}</td><td className="px-8 py-5 text-center"><div className="flex flex-col items-center"><span className="font-black text-blue-400 text-lg">{row.total.toLocaleString('pt-BR')}</span><span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{row.representation}% do total de {row.type}s</span></div></td><td className="px-8 py-5 text-center"><div className="flex flex-col items-center gap-1"><div className="flex items-center gap-1.5 text-slate-300 font-bold"><Clock className="w-3 h-3 text-indigo-400" /><span>{row.lastDate.toLocaleDateString('pt-BR')}</span></div><span className="text-[9px] font-black text-slate-500 uppercase">{row.lastDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div></td><td className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase italic line-clamp-1 max-w-[300px]">{row.topItem}</td></tr>))}</tbody></table></div><div className="p-6 bg-slate-900/20 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center border-t border-slate-800">Mostrando {paginatedActions.length} registros de {wmsMetrics.individualActions.length} total • Página {currentPage} de {totalPages}</div>
+            <div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800"><tr><th className="px-8 py-5">COLABORADOR</th><th className="px-8 py-5">MOVIMENTAÇÃO REALIZADA</th><th className="px-8 py-5 text-center">VOLUME MOVIMENTADO</th><th className="px-8 py-5 text-center">DATA DA ÚLTIMA AÇÃO</th><th className="px-8 py-5">ITEM PRINCIPAL (NA AÇÃO)</th></tr></thead><tbody className="divide-y divide-slate-800">{paginatedActions.map((row, idx) => (<tr key={idx} className="hover:bg-slate-800/40 transition-colors"><td className="px-8 py-5 font-black text-slate-200 uppercase text-lg">{row.name}</td><td className="px-8 py-5">{getActionBadge(row.type)}</td><td className="px-8 py-5 text-center"><div className="flex flex-col items-center"><span className="font-black text-blue-400 text-lg">{row.total.toLocaleString('pt-BR')}</span><span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{row.representation}% do total de {row.type}s</span></div></td><td className="px-8 py-5 text-center"><div className="flex flex-col items-center gap-1">{row.isRealDate ? (<><div className="flex items-center gap-1.5 text-slate-300 font-bold"><Clock className="w-3 h-3 text-indigo-400" /><span>{row.lastDate.toLocaleDateString('pt-BR')}</span></div><span className="text-[9px] font-black text-slate-500 uppercase">{row.lastDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></>) : (<span className="text-slate-500 font-black">-</span>)}</div></td><td className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase italic line-clamp-1 max-w-[300px]">{row.topItem}</td></tr>))}</tbody></table></div><div className="p-6 bg-slate-900/20 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center border-t border-slate-800">Mostrando {paginatedActions.length} registros de {wmsMetrics.individualActions.length} total • Página {currentPage} de {totalPages}</div>
         </div>
       </div>
     );
   }
 
-  // Visual para Almoxarifado de Peças
+  // Visual para Almoxarifado de Peças (Análise Financeira e Consumo)
   const paginatedRanking = partsMetrics.rankingResponsaveis.slice((rankingPage - 1) * itemsPerPage, rankingPage * itemsPerPage);
   const rankingTotalPages = Math.ceil(partsMetrics.rankingResponsaveis.length / itemsPerPage);
 
@@ -259,7 +306,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Monitoramento de custos por equipamento e investimentos por fornecedor.</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="bg-[#1e293b] p-1.5 rounded-xl flex items-center gap-4 border border-slate-700 shadow-xl">
              <div className="flex items-center gap-2 px-3 border-r border-slate-700">
                 <Filter className="w-3.5 h-3.5 text-blue-500" />
@@ -275,11 +322,14 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
                 </select>
              </div>
           </div>
+          <button onClick={() => setShowPrintPreview(true)} className="bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 p-2.5 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase shadow-lg transition-all active:scale-95">
+             <Printer className="w-4 h-4" /> Relatório
+          </button>
         </div>
       </div>
 
       {/* LINHA 1: CUSTO E FORNECEDORES */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 no-print">
         <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
            <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20">
@@ -330,7 +380,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       </div>
 
       {/* LINHA 2: ITENS COM MAIOR VOLUME DE SAÍDA */}
-      <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
+      <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl no-print">
         <div className="flex items-center gap-4 mb-8">
           <div className="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
             <TrendingDown className="w-6 h-6 text-orange-500" />
@@ -358,7 +408,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
                  <LabelList 
                    dataKey="value" 
                    position="right" 
-                   formatter={(v: number, entry: any) => `${v.toLocaleString('pt-BR')} ${entry?.payload?.unit || 'un.'}`} 
+                   formatter={(v: any) => `${Number(v).toLocaleString('pt-BR')} un.`} 
                    style={{ fill: '#f97316', fontSize: 10, fontWeight: 'black' }} 
                    offset={10} 
                  />
@@ -369,7 +419,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       </div>
 
       {/* LINHA 3: RANKING DE RETIRADAS POR RESPONSÁVEL */}
-      <div className="bg-[#1e293b] rounded-[2rem] shadow-2xl border border-slate-800 overflow-hidden">
+      <div className="bg-[#1e293b] rounded-[2rem] shadow-2xl border border-slate-800 overflow-hidden no-print">
         <div className="p-8 border-b border-slate-800 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-indigo-500/10 rounded-2xl">
@@ -427,6 +477,137 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
           </div>
         </div>
       </div>
+
+      {/* PRINT PREVIEW MODAL */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/95 flex flex-col items-center overflow-auto print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:bg-white">
+          <div className="w-full sticky top-0 bg-slate-900 border-b border-slate-700 p-4 flex justify-between items-center shadow-2xl no-print preview-header">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-400" />
+              <span className="font-black text-xs uppercase tracking-widest text-white">Relatório Supervisor - Financeiro e Consumo</span>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl font-black text-[10px] uppercase text-white transition-all active:scale-95">Voltar</button>
+              <button onClick={handlePrint} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[10px] uppercase text-white shadow-lg active:scale-95 flex items-center gap-2"><Printer className="w-4 h-4" /> Confirmar Impressão</button>
+            </div>
+          </div>
+
+          <div className="flex-1 w-full flex justify-center py-10 print:py-0 print:block print:bg-white">
+            <div className="printable-document bg-white !text-black p-12 w-[210mm] shadow-2xl min-h-[297mm] print:shadow-none print:p-0 print:w-full">
+               <header className="mb-10 text-center border-b-[3px] border-black pb-6 text-black">
+                    <h1 className="text-6xl font-black leading-none uppercase tracking-tighter text-black">ALUMASA</h1>
+                    <span className="text-[12px] font-black uppercase tracking-[0.4em] text-black">ALUMÍNIO & PLÁSTICO</span>
+                    <div className="mt-8 space-y-1">
+                        <h2 className="text-2xl font-black uppercase tracking-tight text-black">RELATÓRIO TÉCNICO DE CONSUMO E INVESTIMENTO</h2>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-black">UNIDADE DE PEÇAS E REPOSIÇÃO INDUSTRIAL</p>
+                    </div>
+                    <div className="mt-6 flex justify-center">
+                        <div className="border border-black px-4 py-1.5 text-[9px] font-black uppercase bg-gray-50 rounded text-black">FILTROS: {selectedYear} / {selectedMonth} • EMITIDO EM: {new Date().toLocaleDateString('pt-BR')}</div>
+                    </div>
+                </header>
+
+                <section className="mb-10" style={{ pageBreakInside: 'avoid' }}>
+                   <h3 className="text-[11px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">1. INDICADORES FINANCEIROS E VOLUMÉTRICOS</h3>
+                   <table className="w-full border-collapse border border-black text-black">
+                      <tbody>
+                         <tr className="border-b border-black">
+                            <td className="p-3 w-1/2 font-black text-[10px] uppercase border-r border-black bg-gray-50 text-black">Investimento Total no Período</td>
+                            <td className="p-3 font-black text-lg text-black">R$ {partsMetrics.totalInvest.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                         </tr>
+                         <tr className="border-b border-black">
+                            <td className="p-3 w-1/2 font-black text-[10px] uppercase border-r border-black bg-gray-50 text-black">Lançamentos de Entrada (Inbound)</td>
+                            <td className="p-3 font-black text-lg text-emerald-600">{partsMetrics.totalEntries} Registros</td>
+                         </tr>
+                         <tr className="border-b border-black">
+                            <td className="p-3 w-1/2 font-black text-[10px] uppercase border-r border-black bg-gray-50 text-black">Requisições de Saída (Outbound)</td>
+                            <td className="p-3 font-black text-lg text-rose-600">{partsMetrics.totalExits} Registros</td>
+                         </tr>
+                      </tbody>
+                   </table>
+                </section>
+
+                <section className="mb-10" style={{ pageBreakInside: 'avoid' }}>
+                  <h3 className="text-[11px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">2. CUSTO DE MANUTENÇÃO POR EQUIPAMENTO (RANKING)</h3>
+                  <table className="w-full border-collapse border border-black text-black">
+                      <thead>
+                        <tr className="bg-gray-100 text-[10px] font-black uppercase text-black">
+                            <th className="border border-black px-4 py-2 text-left text-black">EQUIPAMENTO / ATIVO</th>
+                            <th className="border border-black px-4 py-2 text-right text-black">TOTAL INVESTIDO (R$)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {partsMetrics.costByEquipment.map((item, i) => (
+                           <tr key={i} className="text-[10px] font-bold text-black border-b border-black">
+                              <td className="border border-black px-4 py-2 uppercase text-black">{item.name}</td>
+                              <td className="border border-black px-4 py-2 font-black text-right text-black">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                           </tr>
+                        ))}
+                      </tbody>
+                  </table>
+                </section>
+
+                <section className="mb-10" style={{ pageBreakInside: 'avoid' }}>
+                  <h3 className="text-[11px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">3. TOP 10 ITENS COM MAIOR CONSUMO FÍSICO</h3>
+                  <table className="w-full border-collapse border border-black text-black">
+                      <thead>
+                        <tr className="bg-gray-100 text-[10px] font-black uppercase text-black">
+                            <th className="border border-black px-4 py-2 text-left text-black">DESCRIÇÃO DO ITEM</th>
+                            <th className="border border-black px-4 py-2 text-center text-black">QUANTIDADE</th>
+                            <th className="border border-black px-4 py-2 text-center text-black">UNIDADE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {partsMetrics.topExitItems.map((item, i) => (
+                           <tr key={i} className="text-[10px] font-bold text-black border-b border-black">
+                              <td className="border border-black px-4 py-2 uppercase text-black">{item.desc}</td>
+                              <td className="border border-black px-4 py-2 font-black text-center text-black">{item.value.toLocaleString('pt-BR')}</td>
+                              <td className="border border-black px-4 py-2 text-center uppercase text-black">{item.unit}</td>
+                           </tr>
+                        ))}
+                      </tbody>
+                  </table>
+                </section>
+
+                <section className="mb-10" style={{ pageBreakInside: 'avoid' }}>
+                  <h3 className="text-[11px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">4. PRODUTIVIDADE E REQUISIÇÕES POR COLABORADOR</h3>
+                  <table className="w-full border-collapse border border-black text-black">
+                      <thead>
+                        <tr className="bg-gray-100 text-[10px] font-black uppercase text-black">
+                            <th className="border border-black px-4 py-2 text-left text-black">FUNCIONÁRIO</th>
+                            <th className="border border-black px-4 py-2 text-center text-black">QTD. REQUISIÇÕES</th>
+                            <th className="border border-black px-4 py-2 text-center text-black">VOLUME TOTAL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {partsMetrics.rankingResponsaveis.slice(0, 15).map((row, i) => (
+                           <tr key={i} className="text-[10px] font-bold text-black border-b border-black">
+                              <td className="border border-black px-4 py-2 uppercase text-black">{row.name}</td>
+                              <td className="border border-black px-4 py-2 font-black text-center text-black">{row.count}</td>
+                              <td className="border border-black px-4 py-2 font-black text-center text-black">{row.qty.toLocaleString('pt-BR')}</td>
+                           </tr>
+                        ))}
+                      </tbody>
+                  </table>
+                </section>
+
+                <footer className="mt-20 pt-16 flex justify-between gap-12 text-black" style={{ pageBreakInside: 'avoid' }}>
+                   <div className="flex-1 text-center text-black">
+                      <div className="w-full border-t border-black mb-1"></div>
+                      <span className="text-[9px] font-black uppercase text-black">SUPERVISOR DO ALMOXARIFADO</span>
+                   </div>
+                   <div className="flex-1 text-center text-black">
+                      <div className="w-full border-t border-black mb-1"></div>
+                      <span className="text-[9px] font-black uppercase text-black">GERÊNCIA INDUSTRIAL</span>
+                   </div>
+                </footer>
+                
+                <div className="mt-8 pt-4 border-t border-black text-center">
+                    <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest">Documento Gerencial Alumasa - Gerado Eletronicamente em {new Date().toLocaleString('pt-BR')}</p>
+                </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

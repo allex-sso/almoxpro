@@ -1,12 +1,12 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, Legend, LineChart, Line, LabelList
 } from 'recharts';
 import { 
   TrendingUp, BarChart3, Layers, PieChart as PieIcon, Package, Activity, 
-  ArrowUpRight, ArrowDownRight, RefreshCw, ShoppingBag, ShoppingCart
+  ArrowUpRight, ArrowDownRight, RefreshCw, ShoppingBag, ShoppingCart, Filter
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { InventoryItem, Movement } from '../types';
@@ -17,7 +17,17 @@ interface WarehousePerformanceProps {
   isLoading: boolean;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+const months = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+const COLORS_MAP: Record<string, string> = {
+  'MUDAR ENDERECO': '#3b82f6',
+  'MOVER P/ PICKING': '#10b981',
+};
+
+const DEFAULT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -55,11 +65,26 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movements, isLoading }) => {
-  
+  const [selectedYear, setSelectedYear] = useState<string>('Todos');
+  const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
+
+  const years = useMemo(() => {
+    const y = new Set<string>();
+    movements.forEach(m => y.add(m.data.getFullYear().toString()));
+    return ['Todos', ...Array.from(y).sort().reverse()];
+  }, [movements]);
+
+  const filteredMovements = useMemo(() => {
+    return movements.filter(m => {
+      const yearMatch = selectedYear === 'Todos' || m.data.getFullYear().toString() === selectedYear;
+      const monthMatch = selectedMonth === 'Todos' || months[m.data.getMonth()] === selectedMonth;
+      return yearMatch && monthMatch;
+    });
+  }, [movements, selectedYear, selectedMonth]);
+
   const performanceMetrics = useMemo(() => {
-    // 1. Giro de Estoque (Turnover)
     const monthlyOuts: Record<string, number> = {};
-    movements.filter(m => m.tipo === 'saida').forEach(m => {
+    filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
         const key = m.data.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
         monthlyOuts[key] = (monthlyOuts[key] || 0) + m.quantidade;
     });
@@ -71,9 +96,6 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
         turnover: totalStockQty > 0 ? Number((outQty / totalStockQty).toFixed(2)) : 0
     })).slice(-12);
 
-    const currentTurnover = turnoverHistory.length > 0 ? turnoverHistory[turnoverHistory.length - 1].turnover : 0;
-
-    // 2. Estoque por Setor (Mapeamento direto da coluna Setor do Cadastro)
     const sectorMap: Record<string, number> = {};
     data.forEach(item => {
         const sector = (item.setor || 'N/D').toUpperCase();
@@ -83,7 +105,6 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
 
-    // 3. Top 10 Produtos com Maior Estoque
     const topStockItems = [...data]
         .sort((a, b) => b.quantidadeAtual - a.quantidadeAtual)
         .slice(0, 10)
@@ -93,9 +114,8 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
             value: item.quantidadeAtual
         }));
 
-    // 4. Consumo por SKU (Aba Saídas)
     const skuConsumptionMap: Record<string, number> = {};
-    movements.filter(m => m.tipo === 'saida').forEach(m => {
+    filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
         skuConsumptionMap[m.codigo] = (skuConsumptionMap[m.codigo] || 0) + m.quantidade;
     });
     const consumptionBySku = Object.entries(skuConsumptionMap)
@@ -110,25 +130,29 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
         .sort((a, b) => b.value - a.value)
         .slice(0, 15);
 
-    // 5. Movimentações por Tipo (Aba Interna)
     const moveTypeMap: Record<string, number> = {};
-    movements.filter(m => m.tipo === 'transferencia').forEach(m => {
-        const type = (m.movimentoTipo || 'MUDAR ENDEREÇO').toUpperCase();
+    filteredMovements.filter(m => m.tipo === 'transferencia').forEach(m => {
+        let typeRaw = (m.movimentoTipo || 'MUDAR ENDERECO').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        let type = typeRaw.includes("PICKING") ? "MOVER P/ PICKING" : "MUDAR ENDERECO";
         moveTypeMap[type] = (moveTypeMap[type] || 0) + m.quantidade;
     });
     const movesByType = Object.entries(moveTypeMap)
-        .map(([name, value]) => ({ name, value }))
+        .map(([name, value]) => ({ 
+            name, 
+            value,
+            color: COLORS_MAP[name] || DEFAULT_COLORS[0] 
+        }))
         .sort((a, b) => b.value - a.value);
 
     return {
-      currentTurnover,
+      currentTurnover: turnoverHistory.length > 0 ? turnoverHistory[turnoverHistory.length - 1].turnover : 0,
       turnoverHistory,
       stockBySector,
       topStockItems,
       consumptionBySku,
       movesByType
     };
-  }, [data, movements]);
+  }, [data, filteredMovements]);
 
   if (isLoading) return <div className="p-10 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Calculando Indicadores de Performance...</div>;
 
@@ -139,9 +163,27 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
           <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Performance</h1>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Análise volumétrica e eficiência de giro do almoxarifado.</p>
         </div>
+
+        <div className="bg-[#1e293b] p-1.5 rounded-xl flex items-center gap-6 border border-slate-700 shadow-xl">
+          <Filter className="w-3.5 h-3.5 text-blue-500 ml-2" />
+          
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Ano:</span>
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">
+              {years.map(y => <option key={y} value={y} className="bg-slate-900">{y}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Mês:</span>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">
+              <option value="Todos" className="bg-slate-900">Todos</option>
+              {months.map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Gráfico 1 - Giro de Estoque (Card + Linha) */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-1">
            <StatCard 
@@ -173,7 +215,6 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico 2 - Estoque por Setor (Barras) */}
         <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
            <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-emerald-500/10 rounded-2xl"><Layers className="w-6 h-6 text-emerald-500" /></div>
@@ -197,7 +238,6 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
            </div>
         </div>
 
-        {/* Gráfico 3 - Top 10 Produtos com Maior Estoque (Barras Horizontais) */}
         <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
            <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-amber-500/10 rounded-2xl"><Package className="w-6 h-6 text-amber-500" /></div>
@@ -223,7 +263,6 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfico 4 - Consumo por SKU (Barras) */}
         <div className="lg:col-span-2 bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl">
            <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-blue-500/10 rounded-2xl"><ShoppingCart className="w-6 h-6 text-blue-500" /></div>
@@ -247,7 +286,6 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
            </div>
         </div>
 
-        {/* Gráfico 5 - Movimentações por Tipo (Pizza) */}
         <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl flex flex-col">
            <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-purple-500/10 rounded-2xl"><RefreshCw className="w-6 h-6 text-purple-500" /></div>
@@ -256,19 +294,21 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
                  <p className="text-[9px] font-bold text-slate-500 uppercase">Volume de peças por tipo de movimentação interna.</p>
               </div>
            </div>
-           <div className="flex-1 min-h-[250px]">
+           <div className="flex-1 min-h-[250px] flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                  <PieChart>
                     <Pie 
                       data={performanceMetrics.movesByType} 
-                      innerRadius={60} 
-                      outerRadius={90} 
+                      innerRadius={70} 
+                      outerRadius={100} 
                       paddingAngle={8} 
                       dataKey="value" 
                       stroke="none"
                       cornerRadius={6}
                     >
-                       {performanceMetrics.movesByType.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                       {performanceMetrics.movesByType.map((entry, index) => (
+                         <Cell key={`cell-${index}`} fill={entry.color} />
+                       ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
                     <Legend 

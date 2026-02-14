@@ -195,6 +195,59 @@ const App: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
+  // LÓGICA DE PROCESSAMENTO DE ENDEREÇAMENTO DINÂMICO (SUPORTE A MÚLTIPLOS LOCAIS E TRANSFERÊNCIAS)
+  const processedInventory = useMemo(() => {
+    if (!activeProfile?.isWarehouse) return inventoryData;
+
+    return inventoryData.map(item => {
+      const SKU = String(item.codigo).trim();
+      
+      // Coleta todas as ações de entrada e transferência ordenadas por data
+      const skuActions = movements
+        .filter(m => String(m.codigo).trim() === SKU && (m.tipo === 'entrada' || m.tipo === 'transferencia'))
+        .sort((a, b) => a.data.getTime() - b.data.getTime());
+
+      // Rastreador de endereços ativos para o SKU
+      const currentAddresses = new Set<string>();
+      
+      // Se houver endereçamento prévio no cadastro (Estoque Atual / Coluna Endereço), iniciamos com ele
+      if (item.localizacao && item.localizacao.trim() !== '' && item.localizacao !== '-') {
+         const parts = item.localizacao.split(/[,|/]/);
+         parts.forEach(p => {
+             const addr = p.trim();
+             if (addr) currentAddresses.add(addr);
+         });
+      }
+
+      skuActions.forEach(action => {
+        if (action.tipo === 'entrada') {
+          // Na entrada, o novo endereço (coordenada) é adicionado aos locais onde o item reside
+          if (action.localizacaoDestino) {
+            currentAddresses.add(action.localizacaoDestino.trim());
+          }
+        } else if (action.tipo === 'transferencia') {
+          // Na transferência, o item SAI de um endereço específico e ENTRA em outro
+          if (action.localizacaoOrigem) {
+            currentAddresses.delete(action.localizacaoOrigem.trim());
+          }
+          if (action.localizacaoDestino) {
+            currentAddresses.add(action.localizacaoDestino.trim());
+          }
+        }
+      });
+
+      const addressList = Array.from(currentAddresses).filter(Boolean);
+      const displayAddress = addressList.length > 0 
+        ? addressList.join(', ') 
+        : (item.localizacao || '-');
+
+      return {
+        ...item,
+        localizacao: displayAddress
+      };
+    });
+  }, [inventoryData, movements, activeProfile]);
+
   const handleSelectProfile = (profileId: string) => {
     setSettings(prev => {
       const newSettings = { ...prev, activeProfileId: profileId };
@@ -214,19 +267,16 @@ const App: React.FC = () => {
     localStorage.setItem('alumasa_config_v1', JSON.stringify(newSettings));
   };
 
-  // CÁLCULO DINÂMICO DE VALORIZAÇÃO FINANCEIRA (Entradas - Saídas por Código)
   const stats: DashboardStats = useMemo(() => {
     const itemPricing: Record<string, number> = {};
     const itemBalances: Record<string, number> = {};
     
-    // 1. Processar todas as movimentações para reconstruir saldo e capturar último preço
     movements.forEach(m => {
         const code = m.codigo;
         if (!code || code === 'N/D') return;
 
         if (m.tipo === 'entrada') {
             itemBalances[code] = (itemBalances[code] || 0) + m.quantidade;
-            // Captura o valor unitário da entrada (sempre o último registrado para valorização)
             if (m.valorUnitario && m.valorUnitario > 0) {
                 itemPricing[code] = m.valorUnitario;
             }
@@ -235,7 +285,6 @@ const App: React.FC = () => {
         }
     });
 
-    // 2. Calcular valor total cruzando Saldo Atual x Último Preço
     let totalValue = 0;
     Object.keys(itemBalances).forEach(code => {
         const balance = itemBalances[code];
@@ -245,7 +294,6 @@ const App: React.FC = () => {
         }
     });
 
-    // Fallback caso a lógica de movimentos não retorne valor (usa o que estiver no cadastro se houver)
     if (totalValue === 0) {
         totalValue = inventoryData.reduce((acc, item) => acc + (item.valorTotal || 0), 0);
     }
@@ -265,15 +313,15 @@ const App: React.FC = () => {
   const renderPage = () => {
     switch (currentPage) {
       case Page.DASHBOARD:
-        return <Dashboard data={inventoryData} stats={stats} movements={movements} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
+        return <Dashboard data={processedInventory} stats={stats} movements={movements} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
       case Page.INVENTORY:
-        return <Inventory data={inventoryData} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
+        return <Inventory data={processedInventory} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
       case Page.CONSUMPTION:
-        return <Consumption data={inventoryData} movements={movements} isWarehouse={activeProfile?.isWarehouse} />;
+        return <Consumption data={processedInventory} movements={movements} isWarehouse={activeProfile?.isWarehouse} />;
       case Page.ALERTS:
-        return <AlertPage data={inventoryData} movements={movements} />;
+        return <AlertPage data={processedInventory} movements={movements} />;
       case Page.SERVICE_ORDERS:
-        return <ServiceOrdersPage osData={osData} inventoryData={inventoryData} isLoading={loading} />;
+        return <ServiceOrdersPage osData={osData} inventoryData={processedInventory} isLoading={loading} />;
       case Page.PREVENTIVES:
         return <PreventivePage data={preventiveData} isLoading={loading} />;
       case Page.CENTRAL_DASHBOARD:
@@ -289,11 +337,11 @@ const App: React.FC = () => {
       case Page.WAREHOUSE_ADDRESSES:
         return <WarehouseAddresses addresses={addressData} isLoading={loading} />;
       case Page.WAREHOUSE_PERFORMANCE:
-        return <WarehousePerformance data={inventoryData} movements={movements} isLoading={loading} />;
+        return <WarehousePerformance data={processedInventory} movements={movements} isLoading={loading} />;
       case Page.SETTINGS:
         return <SettingsPage settings={settings} onUpdateSettings={handleUpdateSettings} isMasterAccount={activeProfile?.id === MASTER_PROFILE_ID} />;
       default:
-        return <Dashboard data={inventoryData} stats={stats} movements={movements} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
+        return <Dashboard data={processedInventory} stats={stats} movements={movements} isLoading={loading} isWarehouse={activeProfile?.isWarehouse} />;
     }
   };
 

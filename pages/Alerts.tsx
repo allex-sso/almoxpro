@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   AlertTriangle, Printer, ChevronLeft, ChevronRight, X, Check, 
   FileText, Calendar, Package, TrendingUp, Info, History, 
-  Search, Edit3, Archive, AlertCircle, Clock, ArrowUpCircle
+  Search, Edit3, Archive, AlertCircle, Clock, ArrowUpCircle, Filter
 } from 'lucide-react';
 import { InventoryItem, Movement } from '../types';
 
@@ -12,7 +12,14 @@ interface AlertsProps {
   movements?: Movement[];
 }
 
+const months = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
 const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
+  const [selectedYear, setSelectedYear] = useState<string>('Todos');
+  const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -23,6 +30,12 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
 
   const itemsPerPage = 10;
 
+  const years = useMemo(() => {
+    const y = new Set<string>();
+    movements.forEach(m => y.add(m.data.getFullYear().toString()));
+    return ['Todos', ...Array.from(y).sort().reverse()];
+  }, [movements]);
+
   // Salvar observações automaticamente ao digitar
   const handleObsChange = (id: string, value: string) => {
     const newObs = { ...observations, [id]: value };
@@ -30,8 +43,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
     localStorage.setItem('alumasa_alerts_obs', JSON.stringify(newObs));
   };
 
-  // 1. REPOSIÇÃO NECESSÁRIA (Dados da Tabela Principal)
-  // Regra: Saldo <= Mínimo. Ordenado por Tempo de Entrega (Lead Time) Descendente.
   const reposicaoNecessaria = useMemo(() => {
     return data
       .filter(item => item.quantidadeAtual <= item.quantidadeMinima && item.quantidadeMinima > 0)
@@ -45,10 +56,9 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
         leadTime: item.tempoEntrega || 0,
         situacao: item.quantidadeAtual === 0 ? 'RUPTURA' : 'REPOR'
       }))
-      .sort((a, b) => b.leadTime - a.leadTime); // Itens com maior lead time vêm primeiro
+      .sort((a, b) => b.leadTime - a.leadTime);
   }, [data]);
 
-  // 2. POSSÍVEL EXCESSO DE ESTOQUE
   const excessoSaldos = useMemo(() => {
     return data.filter(item => {
       const movementCount = movements.filter(m => m.codigo === item.codigo && m.tipo === 'saida').length;
@@ -56,7 +66,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
     }).slice(0, 10);
   }, [data, movements]);
 
-  // 3. ITENS SEM MOVIMENTAÇÃO
   const itensParados = useMemo(() => {
     const movedCodes = new Set(movements.map(m => m.codigo));
     return data.filter(item => !movedCodes.has(item.codigo)).slice(0, 10);
@@ -80,16 +89,34 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
-      
-      {/* TÍTULO DA PÁGINA */}
-      <div className="no-print">
-        <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Reposição de Estoque</h1>
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-          Ranking de reposição priorizado por <span className="text-blue-400">Lead Time</span> e <span className="text-rose-400">Ruptura</span>.
-        </p>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 no-print">
+        <div>
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Reposição de Estoque</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+            Ranking de reposição priorizado por <span className="text-blue-400">Lead Time</span> e <span className="text-rose-400">Ruptura</span>.
+          </p>
+        </div>
+
+        <div className="bg-[#1e293b] p-1.5 rounded-xl flex items-center gap-6 border border-slate-700 shadow-xl">
+          <Filter className="w-3.5 h-3.5 text-blue-500 ml-2" />
+          
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Ano:</span>
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">
+              {years.map(y => <option key={y} value={y} className="bg-slate-900">{y}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Mês:</span>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-transparent text-[10px] font-black text-white outline-none cursor-pointer">
+              <option value="Todos" className="bg-slate-900">Todos</option>
+              {months.map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* CARD PRINCIPAL: REPOSIÇÃO NECESSÁRIA */}
       <div className="bg-[#1e293b] rounded-[2rem] border border-slate-800 shadow-2xl overflow-hidden no-print">
          <div className="p-8 bg-gradient-to-r from-blue-500/5 to-transparent flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
@@ -103,10 +130,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
             </div>
 
             <div className="flex items-center gap-6">
-               <div className="hidden lg:flex items-center gap-2 px-4 py-2 bg-slate-900/50 rounded-xl border border-slate-800">
-                  <Info className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Ordenado por Prazo de Entrega</span>
-               </div>
                <button 
                   onClick={() => setShowPrintPreview(true)}
                   disabled={selectedAlerts.size === 0}
@@ -179,7 +202,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
             </table>
          </div>
 
-         {/* PAGINAÇÃO */}
          <div className="p-6 bg-slate-900/20 border-t border-slate-800 flex justify-between items-center no-print">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
             <div className="flex gap-2">
@@ -189,10 +211,7 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
          </div>
       </div>
 
-      {/* SEÇÃO INFERIOR: EXCESSO E SEM MOVIMENTAÇÃO */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
-         
-         {/* POSSÍVEL EXCESSO */}
          <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-xl">
             <div className="flex items-center gap-4 mb-2">
                <div className="p-2.5 bg-orange-500/10 rounded-xl">
@@ -201,7 +220,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
                <h3 className="text-sm font-black text-white uppercase tracking-tight">Possível Excesso de Estoque</h3>
             </div>
             <p className="text-[9px] font-bold text-slate-500 uppercase mb-8 ml-12">Muitos itens (acima de 50) e baixa saída (abaixo de 2).</p>
-            
             <div className="space-y-4">
                {excessoSaldos.map(item => (
                  <div key={item.id} className="flex justify-between items-center py-3 border-b border-slate-800/50 group">
@@ -216,7 +234,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
             </div>
          </div>
 
-         {/* SEM MOVIMENTAÇÃO */}
          <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-xl">
             <div className="flex items-center gap-4 mb-2">
                <div className="p-2.5 bg-slate-500/10 rounded-xl">
@@ -225,7 +242,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
                <h3 className="text-sm font-black text-white uppercase tracking-tight">Itens Sem Movimentação</h3>
             </div>
             <p className="text-[9px] font-bold text-slate-500 uppercase mb-8 ml-12">Sem entradas ou saídas recentes registrados.</p>
-            
             <div className="space-y-4">
                {itensParados.map(item => (
                  <div key={item.id} className="flex justify-between items-center py-3 border-b border-slate-800/50 group">
@@ -238,7 +254,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
          </div>
       </div>
 
-      {/* OVERLAY DE IMPRESSÃO (REQUISIÇÃO) */}
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] bg-slate-900/95 flex flex-col items-center overflow-auto print-mode-wrapper animate-in fade-in duration-300">
            <div className="w-full sticky top-0 bg-slate-900 border-b border-slate-700 p-4 flex justify-between items-center shadow-2xl no-print preview-toolbar">
@@ -266,12 +281,10 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
                         </div>
                     </div>
                 </header>
-
                 <div className="mb-6 p-4 border border-black bg-gray-50 flex items-center gap-2">
                    <AlertCircle className="w-5 h-5" />
                    <p className="text-[10px] font-black uppercase italic">Nota: Itens listados por ordem de urgência logística (Tempo de Entrega).</p>
                 </div>
-
                 <table className="w-full border-collapse border border-black mb-12">
                    <thead>
                      <tr className="bg-gray-100">
@@ -294,7 +307,6 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
                      ))}
                    </tbody>
                 </table>
-
                 <footer className="mt-20 pt-16 flex justify-between gap-12 text-black">
                    <div className="flex-1 text-center border-t border-black pt-2"><span className="text-[9px] font-black uppercase">SOLICITANTE / PCP</span></div>
                    <div className="flex-1 text-center border-t border-black pt-2"><span className="text-[9px] font-black uppercase">SUPRIMENTOS / COMPRAS</span></div>

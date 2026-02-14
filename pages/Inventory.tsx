@@ -71,6 +71,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
       return (item.codigo || '').toLowerCase().includes(term) ||
         (item.descricao || '').toLowerCase().includes(term) ||
         (item.setor || '').toLowerCase().includes(term) ||
+        (item.localizacao || '').toLowerCase().includes(term) ||
         (item.situacao || '').toLowerCase().includes(term);
     });
   }, [data, searchTerm, categoryFilter]);
@@ -167,10 +168,10 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
                 <th className="px-6 py-5">DESCRIÇÃO</th>
                 {isWarehouse ? (
                   <>
+                    <th className="px-6 py-5">ENDEREÇO</th>
                     <th className="px-6 py-5 text-center">ESTOQUE</th>
                     <th className="px-6 py-5 text-center">PICKING</th>
                     <th className="px-6 py-5 text-center">SALDO TOTAL</th>
-                    <th className="px-6 py-5 text-center">MÍNIMO</th>
                     <th className="px-6 py-5 text-center">SITUAÇÃO</th>
                   </>
                 ) : (
@@ -205,10 +206,14 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
                   
                   {isWarehouse ? (
                     <>
+                      <td className="px-6 py-5">
+                         <span className="text-slate-400 font-bold text-[10px] uppercase leading-tight block max-w-[200px]">
+                            {item.localizacao || '-'}
+                         </span>
+                      </td>
                       <td className="px-6 py-5 text-center font-bold text-slate-400">{item.quantidadeEstoque.toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center font-bold text-blue-400">{item.quantidadePicking.toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center font-black text-white">{item.quantidadeAtual.toLocaleString('pt-BR')}</td>
-                      <td className="px-6 py-5 text-center font-bold text-slate-500">{item.quantidadeMinima.toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center flex justify-center" onClick={(e) => e.stopPropagation()}>
                         {getStatusBadge(item.situacao || 'OK')}
                       </td>
