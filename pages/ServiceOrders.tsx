@@ -63,6 +63,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [selectedSector, setSelectedSector] = useState<string>('Todos');
   const [selectedEquipmentForModal, setSelectedEquipmentForModal] = useState<string | null>(null);
+  const [selectedRequesterForModal, setSelectedRequesterForModal] = useState<string | null>(null);
   const [selectedPartForReasons, setSelectedPartForReasons] = useState<string | null>(null);
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -96,7 +97,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   }, [data]);
 
   const filteredData = useMemo(() => {
-    return data.filter(os => {
+    const filtered = data.filter(os => {
       const osYear = os.dataAbertura.getFullYear().toString();
       const osMonth = monthsList[os.dataAbertura.getMonth()];
       
@@ -106,6 +107,17 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       
       return matchesYear && matchesMonth && matchesSector;
     });
+
+    // Deduplicate by OS number to avoid counting the same OS multiple times
+    const uniqueMap = new Map<string, ServiceOrder>();
+    filtered.forEach(os => {
+      // If OS already exists, we could potentially merge or keep the most complete one.
+      // For now, keeping the first occurrence as requested by "not counting repeated".
+      if (!uniqueMap.has(os.numero)) {
+        uniqueMap.set(os.numero, os);
+      }
+    });
+    return Array.from(uniqueMap.values());
   }, [data, selectedYear, selectedMonth, selectedSector]);
 
   const stats = useMemo(() => {
@@ -201,6 +213,52 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [filteredData]);
+
+  const requesterDistribution = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredData.forEach(os => {
+      const req = os.requester || 'N/D';
+      if (req !== 'N/D') {
+        map[req] = (map[req] || 0) + 1;
+      }
+    });
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredData]);
+
+  const requesterModalData = useMemo(() => {
+    if (!selectedRequesterForModal) return null;
+    
+    const requesterOs = filteredData.filter(os => os.requester === selectedRequesterForModal);
+    const total = requesterOs.length;
+    
+    const openedAfterStart = requesterOs.filter(os => {
+      if (os.dataAbertura && os.dataInicio) {
+        return os.dataAbertura.getTime() > os.dataInicio.getTime();
+      }
+      return false;
+    });
+
+    const detailedOs = openedAfterStart.map(os => {
+      const delayMs = os.dataAbertura.getTime() - os.dataInicio!.getTime();
+      const delayHours = delayMs / 3600000;
+      return {
+        numero: os.numero,
+        dataAbertura: os.dataAbertura,
+        dataInicio: os.dataInicio,
+        delayHours,
+        equipamento: os.equipamento
+      };
+    });
+
+    return {
+      name: selectedRequesterForModal,
+      total,
+      afterStartCount: openedAfterStart.length,
+      detailedOs
+    };
+  }, [selectedRequesterForModal, filteredData]);
 
   const totalSectorOS = useMemo(() => 
     sectorDistribution.reduce((acc, curr) => acc + curr.value, 0)
@@ -477,6 +535,34 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             )}
           </div>
         </div>
+
+        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+          <div className="flex items-center mb-6"><Users className="w-5 h-5 text-amber-500 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">OS por Requisitante</h3></div>
+          <div className="h-72">
+            {requesterDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={requesterDistribution} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
+                  <YAxis type="number" hide />
+                  <Bar 
+                    dataKey="value" 
+                    name="Quantidade" 
+                    fill="#f59e0b" 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={40}
+                    className="cursor-pointer"
+                    onClick={(data) => { if (data && data.name) setSelectedRequesterForModal(data.name); }}
+                  >
+                    <LabelList dataKey="value" position="top" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#f59e0b', fontSize: '12px', fontWeight: 'bold' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-8 no-print">
@@ -667,7 +753,13 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
               <button onClick={() => setSelectedEquipmentForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-8 flex-1 overflow-y-auto">
-              <div className="h-96">
+              <div 
+                style={{ 
+                  height: equipmentPartsData.length > 10 
+                    ? `${equipmentPartsData.length * 40}px` 
+                    : '384px' 
+                }}
+              >
                 {equipmentPartsData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={equipmentPartsData} layout="vertical" margin={{ right: 80 }}>
@@ -690,29 +782,138 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       )}
 
+      {selectedRequesterForModal && requesterModalData && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
+          <div className="bg-[#1e293b] w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-700 flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-amber-500/10 rounded-2xl"><Users className="w-6 h-6 text-amber-400" /></div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Análise de Requisitante</h2>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{requesterModalData.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedRequesterForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
+            </div>
+            
+            <div className="p-8 flex-1 overflow-y-auto space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total de OS Abertas</p>
+                  <p className="text-3xl font-black text-white">{requesterModalData.total}</p>
+                </div>
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1">Abertas após Início da Manutenção</p>
+                  <p className="text-3xl font-black text-rose-400">{requesterModalData.afterStartCount}</p>
+                </div>
+              </div>
+
+              {requesterModalData.detailedOs.length > 0 ? (
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Detalhamento de Atrasos na Abertura
+                  </h3>
+                  <div className="overflow-hidden rounded-xl border border-slate-700">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        <tr>
+                          <th className="px-4 py-3">OS</th>
+                          <th className="px-4 py-3">Equipamento</th>
+                          <th className="px-4 py-3">Início Manut.</th>
+                          <th className="px-4 py-3">Data Abertura</th>
+                          <th className="px-4 py-3 text-right">Atraso</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700 bg-slate-800/20">
+                        {requesterModalData.detailedOs.map((os, idx) => (
+                          <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
+                            <td className="px-4 py-3 font-bold text-blue-400">{os.numero}</td>
+                            <td className="px-4 py-3 text-slate-300 uppercase">{os.equipamento}</td>
+                            <td className="px-4 py-3 text-slate-400">{os.dataInicio?.toLocaleString('pt-BR')}</td>
+                            <td className="px-4 py-3 text-slate-400">{os.dataAbertura.toLocaleString('pt-BR')}</td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="px-2 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded font-black">
+                                {formatDetailedTime(os.delayHours)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <Check className="w-12 h-12 text-emerald-500 mx-auto mb-4 opacity-20" />
+                  <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Nenhuma OS aberta com atraso identificada</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
+              <button onClick={() => setSelectedRequesterForModal(null)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedPartForReasons && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200 no-print">
-          <div className="bg-[#1e293b] w-full max-w-md rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden">
-            <div className="p-8 border-b border-slate-700 flex justify-between items-start">
-              <div className="flex items-center gap-4"><div className="p-3 bg-blue-500/10 rounded-2xl"><MessageCircle className="w-6 h-6 text-blue-400" /></div><div><h2 className="text-xl font-black text-white tracking-tight uppercase">Motivos de Troca</h2><p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedPartForReasons}</p></div></div>
-              <button onClick={() => setSelectedPartForReasons(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+          <div className="bg-[#1e293b] w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col">
+            <div className="p-10 border-b border-slate-700 flex justify-between items-start">
+              <div className="flex items-center gap-5">
+                <div className="p-4 bg-blue-500/10 rounded-2xl">
+                  <MessageCircle className="w-8 h-8 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Motivos de Troca</h2>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{selectedPartForReasons}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedPartForReasons(null)} 
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
-            <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto text-white">
+            
+            <div className="p-10 flex-1 overflow-y-auto max-h-[60vh] space-y-6">
               {partReasons.length > 0 ? (
                 partReasons.map((item, idx) => (
-                  <div key={idx} className="flex gap-4 group">
-                    <div className="relative mt-1"><div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div><div className="absolute top-0 left-[-4px] w-3.5 h-3.5 bg-blue-500 rounded-full blur-[2px] opacity-40"></div></div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start"><p className="text-white text-sm font-bold italic pr-4">{item.reason}</p><span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[10px] font-black whitespace-nowrap">{item.count}x</span></div>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Última ocorrência: {item.lastDate}</p>
+                  <div key={idx} className="flex items-center justify-between group">
+                    <div className="flex items-center gap-5">
+                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+                      <div>
+                        <p className="text-lg font-black text-white italic leading-tight">{item.reason}</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                          Última Ocorrência: {item.lastDate}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <span className="text-xs font-black text-blue-400">{item.count}x</span>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-slate-500 text-center italic text-sm">Nenhum motivo detalhado encontrado.</p>
+                <div className="py-12 text-center">
+                  <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4 opacity-20" />
+                  <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Nenhum motivo detalhado encontrado</p>
+                </div>
               )}
             </div>
-            <div className="p-6 bg-slate-900/50 border-t border-slate-700"><button onClick={() => setSelectedPartForReasons(null)} className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-600">Fechar Detalhes</button></div>
+
+            <div className="p-8 bg-slate-900/50 border-t border-slate-700">
+              <button 
+                onClick={() => setSelectedPartForReasons(null)} 
+                className="w-full py-5 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all active:scale-[0.98] shadow-xl border border-slate-700"
+              >
+                Fechar Detalhes
+              </button>
+            </div>
           </div>
         </div>
       )}

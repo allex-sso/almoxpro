@@ -98,6 +98,7 @@ export interface ServiceOrder {
   parada?: string;
   peca?: string;
   motivo?: string;
+  requester?: string;
 }
 
 export interface PreventiveEntry {

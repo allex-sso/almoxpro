@@ -29,26 +29,33 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
     setCurrentPage(1);
   }, [searchTerm, selectedWeek]);
 
-  const montadores1T = ['RENATO', 'CHARLES', 'MATEUS', 'TIAGO', 'ANTONIA'];
-  const montadores2T = ['JAILSON', 'EMERSON', 'JOEDSON', 'MARCILIO', 'ISRAEL'];
-  const allMontadores = [...montadores1T, ...montadores2T];
+  // Listas de nomes para categorização
+  const montadores1T = useMemo(() => ['RENATO', 'CHARLES', 'MATEUS', 'TIAGO', 'ANTONIA'], []);
+  const montadores2T = useMemo(() => ['JAILSON', 'EMERSON', 'JOEDSON', 'MARCILIO', 'ISRAEL'], []);
+  const allMontadores = useMemo(() => [...montadores1T, ...montadores2T], [montadores1T, montadores2T]);
 
-  const embalagem1T = ['ADRIANA/RANNY'];
-  const embalagem2T = ['DANILO/ANGELICA'];
-  const allEmbalagem = [...embalagem1T, ...embalagem2T];
+  const embalagem1T = useMemo(() => ['ADRIANA/RANNY', 'ADRIANA', 'RANNY'], []);
+  const embalagem2T = useMemo(() => ['DANILO/ANGELICA', 'DANILO', 'ANGELICA'], []);
+  const allEmbalagem = useMemo(() => [...embalagem1T, ...embalagem2T], [embalagem1T, embalagem2T]);
 
   const weekOptions = useMemo(() => {
     const weeks = new Set<string>();
     data.forEach(m => {
-      if (m.semana) weeks.add(m.semana);
+      if (m.semana && m.semana.trim() !== '') weeks.add(m.semana);
     });
-    const sorted = Array.from(weeks).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    const baseWeeks = sorted.length > 0 ? sorted : ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
-    return ['Todos', ...baseWeeks];
+    const sorted = Array.from(weeks).sort((a, b) => {
+        if (a === "TOTAL MÊS") return 1;
+        if (b === "TOTAL MÊS") return -1;
+        return a.localeCompare(b, undefined, { numeric: true });
+    });
+    return ['Todos', ...sorted];
   }, [data]);
 
   const periodFilteredData = useMemo(() => {
-    if (selectedWeek === 'Todos') return data;
+    // Se "Todos" estiver selecionado, evitamos somar o "TOTAL MÊS" junto com as semanas para não duplicar
+    if (selectedWeek === 'Todos') {
+      return data.filter(m => m.semana !== "TOTAL MÊS");
+    }
     return data.filter(m => m.semana === selectedWeek);
   }, [data, selectedWeek]);
 
@@ -63,9 +70,10 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
     const packagingStats: Record<string, number> = {};
 
     periodFilteredData.forEach(entry => {
-      const name = entry.tipologia.toUpperCase();
-      const value = entry.produzido;
-      
+      const name = (entry.tipologia || '').toUpperCase();
+      const value = entry.produzido || 0;
+      if (value <= 0) return;
+
       const isMontagem = allMontadores.some(m => name.includes(m));
       const isEmbalagem = allEmbalagem.some(e => name.includes(e));
 
@@ -73,14 +81,17 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
         totalMontagem += value;
         assemblerStats[name] = (assemblerStats[name] || 0) + value;
         if (name.includes('ANTONIA')) banquetasTotal += value;
+        
         if (montadores1T.some(m => name.includes(m))) t1Total += value;
         else t2Total += value;
       } else if (isEmbalagem) {
         totalEmbalagem += value;
         packagingStats[name] = (packagingStats[name] || 0) + value;
+        
         if (embalagem1T.some(e => name.includes(e))) t1Total += value;
         else t2Total += value;
       }
+      // Typologies and unknown entries are now excluded
     });
 
     return {
@@ -93,28 +104,37 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
         value,
         participation: totalMontagem > 0 ? ((value / totalMontagem) * 100).toFixed(1) : "0"
       })).sort((a, b) => b.value - a.value),
-      chartPackaging: Object.entries(packagingStats).map(([name, value]) => ({ 
-        name, 
-        value, 
-        meta: 1000, 
-        percent: Math.min((value / 1000) * 100, 100).toFixed(1),
-        turno: embalagem1T.some(e => name.includes(e)) ? '1º Turno' : '2º Turno'
-      })).sort((a,b) => b.turno.localeCompare(a.turno)),
+      chartPackaging: Object.entries(packagingStats).map(([name, value]) => {
+        // Meta dinâmica: se for o mês todo, a meta é maior
+        const targetMeta = selectedWeek === "TOTAL MÊS" || selectedWeek === "Todos" ? 5000 : 1250;
+        return { 
+          name, 
+          value, 
+          meta: targetMeta, 
+          percent: Math.min((value / targetMeta) * 100, 100).toFixed(1),
+          turno: embalagem1T.some(e => name.includes(e)) ? '1º Turno' : '2º Turno'
+        };
+      }).sort((a,b) => b.turno.localeCompare(a.turno)),
       shiftDistributionData: [
         { name: '1º Turno (Montagem + Embalagem)', value: t1Total, color: '#10b981' },
         { name: '2º Turno (Montagem + Embalagem)', value: t2Total, color: '#f59e0b' }
       ].filter(d => d.value > 0)
     };
-  }, [periodFilteredData]);
+  }, [periodFilteredData, selectedWeek]);
 
   const filteredTableData = useMemo(() => {
     return periodFilteredData
-      .filter(entry => entry.semana && entry.semana.trim() !== '')
-      .filter(entry => entry.turno !== 'Geral')
-      .filter(entry => 
-        entry.tipologia.toLowerCase().includes(searchTerm.toLowerCase())
-      ).sort((a, b) => b.produzido - a.produzido);
-  }, [periodFilteredData, searchTerm]);
+      .filter(entry => {
+        const name = (entry.tipologia || '').toUpperCase();
+        const isMontagem = allMontadores.some(m => name.includes(m));
+        const isEmbalagem = allEmbalagem.some(e => name.includes(e));
+        
+        // Only keep if it's a team or an assembler (exclude typologies like 5D, 6D, etc.)
+        const isTeamOrAssembler = isMontagem || isEmbalagem;
+        
+        return isTeamOrAssembler && entry.tipologia.toLowerCase().includes(searchTerm.toLowerCase());
+      }).sort((a, b) => b.produzido - a.produzido);
+  }, [periodFilteredData, searchTerm, allMontadores, allEmbalagem]);
 
   const totalPages = Math.ceil(filteredTableData.length / itemsPerPage);
   const paginatedData = filteredTableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -200,16 +220,20 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
                 <Users className="w-4 h-4 text-blue-500" /> Ranking de Montadores ({selectedWeek})
               </h3>
               <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metrics.chartAssemblers} layout="vertical" margin={{ left: 20, right: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.1} />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 9, fontWeight: 'bold', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                    <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
-                      <LabelList dataKey="value" position="right" formatter={(v: number) => v.toLocaleString('pt-BR')} style={{ fontSize: 10, fontWeight: 'black', fill: '#3b82f6' }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {metrics.chartAssemblers.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metrics.chartAssemblers} layout="vertical" margin={{ left: 20, right: 60 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.1} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 9, fontWeight: 'bold', fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                      <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
+                        <LabelList dataKey="value" position="right" formatter={(v: number) => v.toLocaleString('pt-BR')} style={{ fontSize: 10, fontWeight: 'black', fill: '#3b82f6' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-500 italic">Sem dados de montagem no período.</div>
+                )}
               </div>
             </div>
 
@@ -218,24 +242,28 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
                 <Box className="w-4 h-4 text-orange-500" /> Produção de Embalagem por Equipe
               </h3>
               <div className="space-y-10">
-                {metrics.chartPackaging.map((item, idx) => (
-                  <div key={idx} className="space-y-3">
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <p className="text-sm font-black text-slate-800 dark:text-white uppercase">{item.name}</p>
-                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{item.turno}</p>
+                {metrics.chartPackaging.length > 0 ? (
+                  metrics.chartPackaging.map((item, idx) => (
+                    <div key={idx} className="space-y-3">
+                      <div className="flex justify-between items-end">
+                        <div>
+                          <p className="text-sm font-black text-slate-800 dark:text-white uppercase">{item.name}</p>
+                          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{item.turno}</p>
+                        </div>
+                        <p className="text-xl font-black text-emerald-500">{item.value.toLocaleString('pt-BR')}</p>
                       </div>
-                      <p className="text-xl font-black text-emerald-500">{item.value.toLocaleString('pt-BR')}</p>
+                      <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${item.percent}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>Eficiência: {item.percent}%</span>
+                        <span>Vol. Acumulado</span>
+                      </div>
                     </div>
-                    <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
-                      <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${item.percent}%` }} />
-                    </div>
-                    <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                      <span>Eficiência: {item.percent}%</span>
-                      <span>Vol. Acumulado</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="py-20 text-center text-slate-500 italic">Sem dados de embalagem.</div>
+                )}
               </div>
             </div>
 
@@ -307,12 +335,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
                     <td className="px-6 py-4 font-bold text-slate-800 dark:text-white uppercase">{entry.tipologia}</td>
                     <td className="px-6 py-4 text-center">
                       <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg font-black text-[10px] uppercase">
-                        {entry.semana}
+                        {entry.semana || 'GERAL'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-lg font-black">
-                        {entry.produzido.toLocaleString('pt-BR')}
+                        {(entry.produzido || 0).toLocaleString('pt-BR')}
                       </span>
                     </td>
                   </tr>
@@ -323,7 +351,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
           {filteredTableData.length > 0 && (
             <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800">
               <span className="text-sm text-gray-700 dark:text-gray-400">
-                Página {currentPage} de {totalPages}
+                Página {currentPage} de {totalPages} • Total: {filteredTableData.length}
               </span>
               <div className="inline-flex gap-2">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50">
@@ -456,7 +484,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
 
               <section className="mb-8 w-full">
                 <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">5. DETALHAMENTO ANALÍTICO (LISTAGEM DE PRODUÇÃO)</h3>
-                <table className="w-full text-[8px] border-collapse border border-black">
+                <table className="w-full text-[8px] border-collapse border border-black text-black">
                   <thead style={{ display: 'table-header-group' }}>
                     <tr className="bg-gray-100">
                       <th className="border border-black p-2 text-left font-black uppercase text-black">Equipe / Tipologia</th>
@@ -468,8 +496,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ data, isLoadi
                     {filteredTableData.map((item, idx) => (
                       <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
                         <td className="border-r border-black p-1.5 font-bold text-black uppercase">{item.tipologia}</td>
-                        <td className="border-r border-black p-1.5 text-center font-black text-black">{item.semana}</td>
-                        <td className="p-1.5 text-right font-black text-black">{item.produzido.toLocaleString('pt-BR')}</td>
+                        <td className="border-r border-black p-1.5 text-center font-black text-black">{item.semana || 'GERAL'}</td>
+                        <td className="p-1.5 text-right font-black text-black">{(item.produzido || 0).toLocaleString('pt-BR')}</td>
                       </tr>
                     ))}
                   </tbody>

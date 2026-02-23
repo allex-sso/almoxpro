@@ -1,4 +1,3 @@
-
 import { InventoryItem, Movement, ServiceOrder, ProductionEntry, PreventiveEntry, AddressItem } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
@@ -16,16 +15,21 @@ const parseNumber = (value: string | number): number => {
   if (typeof value === 'number') return value;
   let str = value.toString().trim().replace(/R\$/gi, '').replace(/\s/g, '').replace(/[^\d,.-]/g, '');
   if (!str || str === '-' || str === '.') return 0;
+  
   const hasComma = str.includes(',');
   const hasDot = str.includes('.');
+  
   if (hasComma && hasDot) {
     if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
     else str = str.replace(/,/g, '');
-  } else if (hasComma) str = str.replace(',', '.');
-  else if (hasDot) {
+  } else if (hasComma) {
+    str = str.replace(',', '.');
+  } else if (hasDot) {
     const parts = str.split('.');
-    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) str = str.replace(/\./g, '');
+    if (parts.length === 2 && parts[1].length === 3) str = str.replace(/\./g, '');
+    else if (parts.length > 2) str = str.replace(/\./g, '');
   }
+  
   const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
 };
@@ -113,15 +117,16 @@ const fetchCSV = async (url: string): Promise<string[][]> => {
   } catch (error) { return []; }
 };
 
-const findHeaderRow = (rows: string[][], keywords: string[]): { index: number, headers: string[] } => {
+const findHeaderRow = (rows: string[][], keywords: string[], minMatches: number = 1): { index: number, headers: string[] } => {
   for (let i = 0; i < Math.min(rows.length, 100); i++) { 
     const rowNormalized = rows[i].map(c => normalizeStr(c));
     let matches = 0;
     keywords.forEach(k => { 
         const kNorm = normalizeStr(k);
-        if (rowNormalized.some(h => h === kNorm || h.includes(kNorm))) matches++; 
+        // Mudança crítica: usar match mais estrito para evitar falsos positivos
+        if (rowNormalized.some(h => h === kNorm || h === kNorm + "s" || h.startsWith(kNorm + " "))) matches++; 
     });
-    if (matches >= 2) return { index: i, headers: rowNormalized };
+    if (matches >= minMatches) return { index: i, headers: rowNormalized };
   }
   return { index: -1, headers: [] };
 };
@@ -218,7 +223,6 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
   const idxEndDestino = findBestCol(headers, ['endereço destino', 'endereço', 'destino', 'localizacao', 'localização']);
   const idxMovType = findBestCol(headers, ['tipo movimentação', 'tipo mov', 'tipo']);
   
-  // NOVAS COLUNAS FINANCEIRAS NAS MOVIMENTAÇÕES
   const idxForn = findBestCol(headers, ['fornecedor', 'origem material']);
   const idxValUni = findBestCol(headers, ['valor unitario', 'preco unitario', 'custo unit', 'vlr unit']);
   const idxValTot = findBestCol(headers, ['valor total', 'total', 'vlr total']);
@@ -294,21 +298,143 @@ export const fetchPreventiveData = async (url: string): Promise<PreventiveEntry[
 export const fetchProductionData = async (url: string): Promise<ProductionEntry[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['dia', 'produzido']);
+
+  const entries: ProductionEntry[] = [];
+  
+  // 1. TENTATIVA DE PARSE COMO TABELA PLANA (Engenharia de Processos / Tipologias)
+  // Exigimos 3 correspondências para evitar que o Grid Scanner capture falsos positivos
+  const flatKeywords = ['dia', 'tipologia', 'produzido', 'meta dia', 'mesa', 'horas trabalhadas'];
+  const { index: headerIdx, headers } = findHeaderRow(rows, flatKeywords, 3);
+  
   if (headerIdx !== -1) {
-    return rows.slice(headerIdx + 1).map((row, i): ProductionEntry | null => {
-      const dataParsed = parseDate(row[findBestCol(headers, ['dia', 'data'])]);
-      if (!dataParsed) return null;
+    const colData = findBestCol(headers, ['dia', 'data']);
+    const colTipo = findBestCol(headers, ['tipologia', 'equipe']);
+    const colMeta = findBestCol(headers, ['meta dia', 'meta']);
+    const colMesa = findBestCol(headers, ['mesa', 'posto']);
+    const colHoras = findBestCol(headers, ['horas trabalhadas', 'horas', 'tempo']);
+    const colProd = findBestCol(headers, ['produzido', 'producao', 'total']);
+    const colPerc = findBestCol(headers, ['percentual', 'eficiencia', '%']);
+    const colTurno = findBestCol(headers, ['turno']);
+
+    const flatEntries = rows.slice(headerIdx + 1).map((row, i): ProductionEntry | null => {
+      if (row.length < 3) return null;
+      const dataParsed = parseDate(row[colData]);
+      const produzido = parseNumber(row[colProd]);
+      // Filtro para garantir que não processemos linhas em branco no final da tabela
+      if (!dataParsed || (produzido === 0 && !row[colTipo])) return null;
+
       return {
-        id: `prod-${i}`, data: dataParsed, tipologia: row[findBestCol(headers, ['tipologia'])] || 'N/D',
-        metaDia: parseNumber(row[findBestCol(headers, ['meta'])]), pecasHoraAlvo: 0, 
-        mesa: row[findBestCol(headers, ['mesa'])] || 'N/D', horasTrabalhadas: parseDurationToHours(row[findBestCol(headers, ['horas'])]),
-        produzido: parseNumber(row[findBestCol(headers, ['produzido'])]), percentual: parseNumber(row[findBestCol(headers, ['percentual'])]),
-        turno: row[findBestCol(headers, ['turno'])] || 'Geral', semana: row[findBestCol(headers, ['semana'])] || ''
+        id: `prod-flat-${i}-${dataParsed.getTime()}`,
+        data: dataParsed,
+        tipologia: (row[colTipo] || 'N/D').toUpperCase(),
+        metaDia: parseNumber(row[colMeta]),
+        pecasHoraAlvo: 0,
+        mesa: row[colMesa] || 'N/D',
+        horasTrabalhadas: parseDurationToHours(row[colHoras]),
+        produzido: produzido,
+        percentual: parseNumber(row[colPerc]),
+        turno: row[colTurno] || 'Geral',
+        semana: '',
+        setor: 'Engenharia de Processos'
       };
     }).filter((p): p is ProductionEntry => p !== null);
+
+    if (flatEntries.length > 0) return flatEntries;
   }
-  return [];
+
+  // 2. EXTRAÇÃO POR COORDENADAS EXATAS (Para Embalagem e Ranking Semanal)
+  // Semana 1: Adriana/Ranny (J15), Danilo/Angelica (J16) - index [14][9], [15][9]
+  // Semana 2: Adriana/Ranny (V15), Danilo/Angelica (V16) - index [14][21], [15][21]
+  // Semana 3: Adriana/Ranny (J35), Danilo/Angelica (J36) - index [34][9], [35][9]
+  // Semana 4: Adriana/Ranny (V35), Danilo/Angelica (V36) - index [34][21], [35][21]
+
+  const addExactEntry = (rowIdx: number, colIdx: number, team: string, week: string, turn: string) => {
+    if (rows[rowIdx] && rows[rowIdx][colIdx]) {
+      const val = parseNumber(rows[rowIdx][colIdx]);
+      if (val > 0) {
+        entries.push({
+          id: `prod-exact-${week}-${team}`, data: new Date(), tipologia: team,
+          metaDia: 0, pecasHoraAlvo: 0, mesa: "N/D", horasTrabalhadas: 0,
+          produzido: val, percentual: 0, turno: turn, semana: week
+        });
+      }
+    }
+  };
+
+  addExactEntry(14, 9, 'ADRIANA/RANNY', 'SEMANA 1', '1º Turno');
+  addExactEntry(15, 9, 'DANILO/ANGELICA', 'SEMANA 1', '2º Turno');
+  addExactEntry(14, 21, 'ADRIANA/RANNY', 'SEMANA 2', '1º Turno');
+  addExactEntry(15, 21, 'DANILO/ANGELICA', 'SEMANA 2', '2º Turno');
+  addExactEntry(34, 9, 'ADRIANA/RANNY', 'SEMANA 3', '1º Turno');
+  addExactEntry(35, 9, 'DANILO/ANGELICA', 'SEMANA 3', '2º Turno');
+  addExactEntry(34, 21, 'ADRIANA/RANNY', 'SEMANA 4', '1º Turno');
+  addExactEntry(35, 21, 'DANILO/ANGELICA', 'SEMANA 4', '2º Turno');
+
+  // 3. SCANNER DE SUMÁRIO (Garante totais 5.068 e 4.101 no rodapé da planilha)
+  for (let r = 40; r < Math.min(rows.length, 65); r++) {
+    for (let c = 0; c < (rows[r]?.length || 0); c++) {
+      const cellVal = normalizeStr(rows[r][c]).toUpperCase();
+      if (cellVal.includes('TOTAL EMBALDAS') || cellVal.includes('TOTAL EMBALADAS')) {
+        const val = parseNumber(rows[r][c + 1] || rows[r][c + 2]);
+        if (val > 0) {
+          const isT1 = cellVal.includes('1') || cellVal.includes('1º');
+          entries.push({
+            id: `summary-emb-${isT1 ? 't1' : 't2'}`, data: new Date(), 
+            tipologia: isT1 ? 'ADRIANA/RANNY' : 'DANILO/ANGELICA',
+            metaDia: 0, pecasHoraAlvo: 0, mesa: "N/D", horasTrabalhadas: 0,
+            produzido: val, percentual: 0, turno: isT1 ? "1º Turno" : "2º Turno", 
+            semana: "TOTAL MÊS"
+          });
+        }
+      }
+      
+      const assemblers = ['RENATO', 'CHARLES', 'MATEUS', 'TIAGO', 'ANTONIA', 'JAILSON', 'EMERSON', 'JOEDSON', 'ISRAEL', 'MARCILIO'];
+      const matchedAss = assemblers.find(a => cellVal === a || cellVal.includes(a));
+      if (matchedAss && r >= 40) {
+        const val = parseNumber(rows[r][c + 1]);
+        if (val > 0) entries.push({
+          id: `summary-ass-${matchedAss}`, data: new Date(), tipologia: matchedAss,
+          metaDia: 0, pecasHoraAlvo: 0, mesa: "N/D", horasTrabalhadas: 0,
+          produzido: val, percentual: 0, turno: "Geral", semana: "TOTAL MÊS"
+        });
+      }
+    }
+  }
+
+  // 4. SCANNER DINÂMICO DE GRADE (Para Montadores nas semanas)
+  const assemblersList = ['RENATO', 'CHARLES', 'MATEUS', 'TIAGO', 'ANTONIA', 'JAILSON', 'EMERSON', 'JOEDSON', 'ISRAEL', 'MARCILIO'];
+  
+  for (let r = 0; r < Math.min(rows.length, 45); r++) {
+    for (let c = 0; c < (rows[r]?.length || 0); c++) {
+      const cellValue = normalizeStr(rows[r][c]).toUpperCase();
+      if (!cellValue) continue;
+
+      const matchedAss = assemblersList.find(a => cellValue === a || cellValue.includes(a));
+      
+      if (matchedAss) {
+        // O total semanal está na 8ª coluna após o nome (Col J para Col B, Col V para Col N)
+        const totalVal = parseNumber(rows[r][c + 8]);
+        if (totalVal > 0) {
+          let semana = r < 21 ? (c < 12 ? "SEMANA 1" : "SEMANA 2") : (c < 12 ? "SEMANA 3" : "SEMANA 4");
+          entries.push({
+            id: `ass-${r}-${c}-${matchedAss}-${semana}`, 
+            data: new Date(), 
+            tipologia: matchedAss,
+            metaDia: 0, 
+            pecasHoraAlvo: 0, 
+            mesa: "N/D", 
+            horasTrabalhadas: 0,
+            produzido: totalVal, 
+            percentual: 0, 
+            turno: "Geral", 
+            semana: semana
+          });
+        }
+      }
+    }
+  }
+
+  return entries;
 };
 
 export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> => {
@@ -329,6 +455,7 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
   const colAtiv = findBestCol(headers, ['atividade', 'servico', 'descricao']);
   const colTempo = findBestCol(headers, ['tempo', 'horas', 'duracao']);
   const colSetor = findBestCol(headers, ['setor', 'area']);
+  const colRequester = findBestCol(headers, ['requisitante', 'solicitante', 'quem abriu', 'aberto por']);
 
   return rows.slice(headerIdx + 1).map((row, i): ServiceOrder | null => {
     const dataAbertura = parseDate(row[colAbertura]);
@@ -338,8 +465,8 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
       id: `os-${i}`, 
       numero: row[colOS] || `OS-${i}`,
       dataAbertura: dataAbertura,
-      dataInicio: parseDate(row[colInicio]), 
-      dataFim: parseDate(row[colFim]),
+      dataInicio: parseDate(row[colInicio]) ?? undefined, 
+      dataFim: parseDate(row[colFim]) ?? undefined,
       professional: row[colProf] || 'N/D',
       equipamento: row[colEquip] || 'Geral',
       setor: row[colSetor] || 'Manutenção', 
@@ -348,7 +475,8 @@ export const fetchServiceOrders = async (url: string): Promise<ServiceOrder[]> =
       descricao: row[colAtiv] || '',
       parada: row[colParada] || 'Não',
       peca: row[colPeca] || '',
-      motivo: row[colMotivo] || ''
+      motivo: row[colMotivo] || '',
+      requester: row[colRequester] || 'N/D'
     };
   }).filter((os): os is ServiceOrder => os !== null);
 };
