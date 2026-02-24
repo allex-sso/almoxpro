@@ -10,6 +10,7 @@ import { InventoryItem, Movement } from '../types';
 interface AlertsProps {
   data: InventoryItem[];
   movements?: Movement[];
+  isWarehouse?: boolean;
 }
 
 const months = [
@@ -17,7 +18,7 @@ const months = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
+const Alerts: React.FC<AlertsProps> = ({ data, movements = [], isWarehouse = false }) => {
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
   const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set());
@@ -70,6 +71,48 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
     const movedCodes = new Set(movements.map(m => m.codigo));
     return data.filter(item => !movedCodes.has(item.codigo)).slice(0, 10);
   }, [data, movements]);
+
+  const validadeAlerts = useMemo(() => {
+    const today = new Date();
+    const alerts: any[] = [];
+    
+    // Pegamos apenas as entradas que possuem validade preenchida
+    movements
+      .filter(m => m.tipo === 'entrada' && m.validade && m.validade.trim() !== '')
+      .forEach(m => {
+        const dateParts = m.validade!.split('/');
+        let expiryDate: Date | null = null;
+        
+        if (dateParts.length === 3) {
+          expiryDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+        } else {
+          // Tenta parse genérico
+          const d = new Date(m.validade!);
+          if (!isNaN(d.getTime())) expiryDate = d;
+        }
+
+        if (expiryDate) {
+          const diffTime = expiryDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          // Consideramos alertas se já venceu ou vence em até 60 dias
+          if (diffDays <= 60) {
+            const item = data.find(i => i.codigo === m.codigo);
+            alerts.push({
+              id: m.id,
+              codigo: m.codigo,
+              desc: item?.descricao || m.codigo,
+              validade: m.validade,
+              diasRestantes: diffDays,
+              lote: m.loteInterno || m.loteFornecedor || '-',
+              status: diffDays < 0 ? 'VENCIDO' : diffDays <= 15 ? 'CRÍTICO' : 'ATENÇÃO'
+            });
+          }
+        }
+      });
+
+    return alerts.sort((a, b) => a.diasRestantes - b.diasRestantes).slice(0, 15);
+  }, [movements, data]);
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedAlerts);
@@ -253,6 +296,69 @@ const Alerts: React.FC<AlertsProps> = ({ data, movements = [] }) => {
             </div>
          </div>
       </div>
+
+      {isWarehouse && (
+        <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-xl no-print">
+           <div className="flex items-center gap-4 mb-2">
+              <div className="p-2.5 bg-rose-500/10 rounded-xl">
+                 <Calendar className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                 <h3 className="text-sm font-black text-white uppercase tracking-tight">Controle de Validade (Vencimentos)</h3>
+                 <p className="text-[9px] font-bold text-slate-500 uppercase">Itens com prazo de validade expirado ou próximo do vencimento (60 dias).</p>
+              </div>
+           </div>
+           
+           <div className="mt-8 overflow-x-auto">
+              <table className="w-full text-left">
+                 <thead className="text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
+                    <tr>
+                       <th className="px-4 py-3">ITEM</th>
+                       <th className="px-4 py-3">LOTE</th>
+                       <th className="px-4 py-3 text-center">VALIDADE</th>
+                       <th className="px-4 py-3 text-center">STATUS</th>
+                       <th className="px-4 py-3 text-right">PRAZO</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-800/50">
+                    {validadeAlerts.map((alert, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                         <td className="px-4 py-4">
+                            <div className="flex flex-col">
+                               <span className="text-[11px] font-black text-white uppercase">{alert.desc}</span>
+                               <span className="text-[9px] font-bold text-slate-500 font-mono">{alert.codigo}</span>
+                            </div>
+                         </td>
+                         <td className="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase">{alert.lote}</td>
+                         <td className="px-4 py-4 text-center text-[10px] font-black text-slate-300">{alert.validade}</td>
+                         <td className="px-4 py-4 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                               alert.status === 'VENCIDO' ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' :
+                               alert.status === 'CRÍTICO' ? 'bg-orange-500/20 text-orange-500 border border-orange-500/30' :
+                               'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                            }`}>
+                               {alert.status}
+                            </span>
+                         </td>
+                         <td className="px-4 py-4 text-right">
+                            <span className={`text-[10px] font-black ${alert.diasRestantes < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                               {alert.diasRestantes < 0 ? `${Math.abs(alert.diasRestantes)}d Vencido` : `${alert.diasRestantes} dias`}
+                            </span>
+                         </td>
+                      </tr>
+                    ))}
+                    {validadeAlerts.length === 0 && (
+                      <tr>
+                         <td colSpan={5} className="py-12 text-center text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                            Nenhum item próximo do vencimento identificado
+                         </td>
+                      </tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+      )}
 
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] bg-slate-900/95 flex flex-col items-center overflow-auto print-mode-wrapper animate-in fade-in duration-300">

@@ -319,7 +319,7 @@ const App: React.FC = () => {
       case Page.CONSUMPTION:
         return <Consumption data={processedInventory} movements={movements} isWarehouse={activeProfile?.isWarehouse} />;
       case Page.ALERTS:
-        return <AlertPage data={processedInventory} movements={movements} />;
+        return <AlertPage data={processedInventory} movements={movements} isWarehouse={activeProfile?.isWarehouse} />;
       case Page.SERVICE_ORDERS:
         return <ServiceOrdersPage osData={osData} inventoryData={processedInventory} isLoading={loading} />;
       case Page.PREVENTIVES:

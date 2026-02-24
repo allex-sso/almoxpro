@@ -226,6 +226,9 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
   const idxForn = findBestCol(headers, ['fornecedor', 'origem material']);
   const idxValUni = findBestCol(headers, ['valor unitario', 'preco unitario', 'custo unit', 'vlr unit']);
   const idxValTot = findBestCol(headers, ['valor total', 'total', 'vlr total']);
+  const idxValidade = findBestCol(headers, ['validade', 'vencimento', 'prazo']);
+  const idxLoteInterno = findBestCol(headers, ['lote interno', 'lote int']);
+  const idxLoteForn = findBestCol(headers, ['lote fornecedor', 'lote forn']);
 
   const seenFpCount: Record<string, number> = {};
 
@@ -257,7 +260,10 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
       movimentoTipo: idxMovType !== -1 ? row[idxMovType] : '',
       fornecedor: idxForn !== -1 ? row[idxForn] : '',
       valorUnitario: idxValUni !== -1 ? parseNumber(row[idxValUni]) : 0,
-      valorTotal: idxValTot !== -1 ? parseNumber(row[idxValTot]) : 0
+      valorTotal: idxValTot !== -1 ? parseNumber(row[idxValTot]) : 0,
+      validade: idxValidade !== -1 ? row[idxValidade] : '',
+      loteInterno: idxLoteInterno !== -1 ? row[idxLoteInterno] : '',
+      loteFornecedor: idxLoteForn !== -1 ? row[idxLoteForn] : ''
     };
   }).filter((m): m is Movement => m !== null && m.quantidade > 0);
 };
