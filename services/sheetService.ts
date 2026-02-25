@@ -219,8 +219,9 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
   const idxQtd = findBestCol(headers, ['quantidade recebida', 'quantidade retirada', 'quantidade movimentada', 'quantidade', 'qtd']);
   const idxResp = findBestCol(headers, ['colaborador', 'responsavel', 'solicitante', 'quem', 'profissional', 'operador']);
   const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'destino', 'ativo']);
-  const idxEndOrigem = findBestCol(headers, ['endereço origem', 'origem']);
-  const idxEndDestino = findBestCol(headers, ['endereço destino', 'endereço', 'destino', 'localizacao', 'localização']);
+  const idxEndOrigem = findBestCol(headers, ['endereço origem', 'origem', 'localizacao origem']);
+  const idxEndDestino = findBestCol(headers, ['endereço destino', 'destino', 'localizacao destino', 'endereço']);
+  const idxLocalizacao = findBestCol(headers, ['localização', 'localizacao', 'tipo endereço']);
   const idxMovType = findBestCol(headers, ['tipo movimentação', 'tipo mov', 'tipo']);
   
   const idxForn = findBestCol(headers, ['fornecedor', 'origem material']);
@@ -257,6 +258,7 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
       responsavel: resp, equipamento: String(row[idxEquip] || ''),
       localizacaoOrigem: idxEndOrigem !== -1 ? row[idxEndOrigem] : '',
       localizacaoDestino: idxEndDestino !== -1 ? row[idxEndDestino] : '',
+      localizacao: idxLocalizacao !== -1 ? row[idxLocalizacao] : '',
       movimentoTipo: idxMovType !== -1 ? row[idxMovType] : '',
       fornecedor: idxForn !== -1 ? row[idxForn] : '',
       valorUnitario: idxValUni !== -1 ? parseNumber(row[idxValUni]) : 0,
@@ -273,12 +275,20 @@ export const fetchAddressData = async (url: string): Promise<AddressItem[]> => {
   if (rows.length === 0) return [];
   const { index: headerIdx, headers } = findHeaderRow(rows, ['endereco', 'quantidade atual']);
   if (headerIdx === -1) return [];
-  const idxEnd = findBestCol(headers, ['endereco', 'cod']);
-  const idxQtd = findBestCol(headers, ['quantidade atual', 'saldo', 'atual']);
+  const idxEnd = findBestCol(headers, ['endereco', 'cod', 'local']);
+  const idxQtdIni = findBestCol(headers, ['quantidade inicial', 'inicial', 'saldo inicial']);
+  const idxQtdAtu = findBestCol(headers, ['quantidade atual', 'saldo', 'atual', 'estoque']);
+  const idxTipo = findBestCol(headers, ['tipo', 'localizacao', 'categoria', 'area', 'setor', 'grupo', 'classe', 'picking', 'estoque']);
   return rows.slice(headerIdx + 1).map((row, i) => ({
-    id: `addr-${i}`, endereco: row[idxEnd] || 'N/D', rua: row[findBestCol(headers, ['rua'])] || '',
-    predio: row[findBestCol(headers, ['predio'])] || '', andar: row[findBestCol(headers, ['andar'])] || '',
-    sala: row[findBestCol(headers, ['sala'])] || '', quantidadeInicial: 0, quantidadeAtual: parseNumber(row[idxQtd])
+    id: `addr-${i}`, 
+    endereco: row[idxEnd] || 'N/D', 
+    rua: row[findBestCol(headers, ['rua'])] || '',
+    predio: row[findBestCol(headers, ['predio'])] || '', 
+    andar: row[findBestCol(headers, ['andar'])] || '',
+    sala: row[findBestCol(headers, ['sala'])] || '', 
+    quantidadeInicial: idxQtdIni !== -1 ? parseNumber(row[idxQtdIni]) : 0, 
+    quantidadeAtual: parseNumber(row[idxQtdAtu]),
+    tipo: idxTipo !== -1 ? row[idxTipo] : ''
   })).filter(a => a.endereco !== 'N/D');
 };
 

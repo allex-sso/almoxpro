@@ -164,7 +164,25 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
         };
     }).sort((a, b) => b.lastDate.getTime() - a.lastDate.getTime());
 
-    return { inbound, outbound, internal, total: inbound + outbound + internal, chartTimeline: Object.values(dayMap).sort((a,b) => a.ts - b.ts).slice(-30), chartGiro: abcData.slice(0, 15), abcSummary: { A: abcData.filter(x => x.class === 'A').length, B: abcData.filter(x => x.class === 'B').length, C: abcData.filter(x => x.class === 'C').length }, chartTypes: [ { name: 'Entradas', value: inbound, color: '#10b981' }, { name: 'Saídas', value: outbound, color: '#ef4444' }, { name: 'Internas', value: internal, color: '#3b82f6' } ].filter(d => d.value > 0), individualActions };
+    return { 
+      inbound, 
+      outbound, 
+      internal, 
+      total: inbound + internal, 
+      chartTimeline: Object.values(dayMap).sort((a,b) => a.ts - b.ts).slice(-30), 
+      chartGiro: abcData.slice(0, 15), 
+      abcSummary: { 
+        A: abcData.filter(x => x.class === 'A').length, 
+        B: abcData.filter(x => x.class === 'B').length, 
+        C: abcData.filter(x => x.class === 'C').length 
+      }, 
+      chartTypes: [ 
+        { name: 'Entradas', value: inbound, color: '#10b981' }, 
+        { name: 'Saídas', value: outbound, color: '#ef4444' }, 
+        { name: 'Internas', value: internal, color: '#3b82f6' } 
+      ].filter(d => d.value > 0), 
+      individualActions 
+    };
   }, [filteredMovements, inventoryMap]);
 
   // Lógica para Almoxarifado de Peças (Análise Financeira e Consumo)

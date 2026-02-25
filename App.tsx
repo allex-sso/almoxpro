@@ -196,6 +196,14 @@ const App: React.FC = () => {
   }, [fetchData]);
 
   // LÓGICA DE PROCESSAMENTO DE ENDEREÇAMENTO DINÂMICO (SUPORTE A MÚLTIPLOS LOCAIS E TRANSFERÊNCIAS)
+  const addressBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    addressData.forEach(a => {
+      balances[a.endereco.trim()] = a.quantidadeAtual || 0;
+    });
+    return balances;
+  }, [addressData]);
+
   const processedInventory = useMemo(() => {
     if (!activeProfile?.isWarehouse) return inventoryData;
 
@@ -221,22 +229,27 @@ const App: React.FC = () => {
 
       skuActions.forEach(action => {
         if (action.tipo === 'entrada') {
-          // Na entrada, o novo endereço (coordenada) é adicionado aos locais onde o item reside
           if (action.localizacaoDestino) {
             currentAddresses.add(action.localizacaoDestino.trim());
           }
         } else if (action.tipo === 'transferencia') {
-          // Na transferência, o item SAI de um endereço específico e ENTRA em outro
-          if (action.localizacaoOrigem) {
-            currentAddresses.delete(action.localizacaoOrigem.trim());
-          }
+          // Na transferência, adicionamos o destino. 
+          // Não removemos a origem agressivamente para suportar transferências parciais.
+          // A filtragem por saldo (abaixo) cuidará de remover endereços vazios.
           if (action.localizacaoDestino) {
             currentAddresses.add(action.localizacaoDestino.trim());
+          }
+          if (action.localizacaoOrigem) {
+            currentAddresses.add(action.localizacaoOrigem.trim());
           }
         }
       });
 
-      const addressList = Array.from(currentAddresses).filter(Boolean);
+      // FILTRAGEM: Só manter endereços que tenham saldo positivo no mapa global de endereços
+      // Isso garante que o item apareça no mapa enquanto o endereço tiver peças.
+      const addressList = Array.from(currentAddresses)
+        .filter(addr => (addressBalances[addr] || 0) > 0);
+
       const displayAddress = addressList.length > 0 
         ? addressList.join(', ') 
         : (item.localizacao || '-');
@@ -246,7 +259,7 @@ const App: React.FC = () => {
         localizacao: displayAddress
       };
     });
-  }, [inventoryData, movements, activeProfile]);
+  }, [inventoryData, movements, addressBalances, activeProfile]);
 
   const handleSelectProfile = (profileId: string) => {
     setSettings(prev => {
@@ -335,7 +348,7 @@ const App: React.FC = () => {
       case Page.PRODUCTION_TYPOLOGY:
         return <ProductionTypology data={productionData} isLoading={loading} />;
       case Page.WAREHOUSE_ADDRESSES:
-        return <WarehouseAddresses addresses={addressData} isLoading={loading} />;
+        return <WarehouseAddresses addresses={addressData} inventoryData={processedInventory} movements={movements} isLoading={loading} />;
       case Page.WAREHOUSE_PERFORMANCE:
         return <WarehousePerformance data={processedInventory} movements={movements} isLoading={loading} />;
       case Page.SETTINGS:

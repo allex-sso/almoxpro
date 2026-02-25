@@ -33,6 +33,7 @@ export interface AddressItem {
   sala: string;
   quantidadeInicial: number;
   quantidadeAtual: number;
+  tipo?: string;
 }
 
 export interface Movement {
@@ -56,6 +57,7 @@ export interface Movement {
   op?: string; // Ordem de Produção (Almoxarifado Geral)
   localizacaoOrigem?: string;
   localizacaoDestino?: string;
+  localizacao?: string; // Captura "Localização" (Estoque/Picking) de Entradas
   movimentoTipo?: string; // Ex: Mover p/ Picking
   loteInterno?: string;
   loteFornecedor?: string;

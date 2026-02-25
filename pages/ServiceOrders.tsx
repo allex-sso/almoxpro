@@ -536,7 +536,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           </div>
         </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 lg:col-span-2">
           <div className="flex items-center mb-6"><Users className="w-5 h-5 text-amber-500 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">OS por Requisitante</h3></div>
           <div className="h-72">
             {requesterDistribution.length > 0 ? (

@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { MapPin, Search, Printer, Check, X, Tag, Package, Box, Info, Map as MapIcon, ChevronLeft, ChevronRight, Filter, Layers, ChevronDown, Maximize2, QrCode, Barcode as BarcodeIcon } from 'lucide-react';
-import { AddressItem } from '../types';
+import { AddressItem, InventoryItem, Movement } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 
 interface WarehouseAddressesProps {
   addresses: AddressItem[];
+  inventoryData?: InventoryItem[];
+  movements?: Movement[];
   isLoading: boolean;
 }
 
@@ -47,7 +49,7 @@ const BarcodeComponent: React.FC<{ value: string, format: string, height: number
   return <svg ref={svgRef} className="max-w-full"></svg>;
 };
 
-const WarehouseAddresses: React.FC<WarehouseAddressesProps> = ({ addresses, isLoading }) => {
+const WarehouseAddresses: React.FC<WarehouseAddressesProps> = ({ addresses, inventoryData = [], movements = [], isLoading }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [occupationFilter, setOccupationFilter] = useState<OccupationLevel>('Todos');
   const [selectedAddresses, setSelectedAddresses] = useState<Set<string>>(new Set());
@@ -56,7 +58,47 @@ const WarehouseAddresses: React.FC<WarehouseAddressesProps> = ({ addresses, isLo
   const [printCodeType, setPrintCodeType] = useState<'qrcode' | 'barcode'>('qrcode');
   const [barcodeFormat, setBarcodeFormat] = useState('CODE128');
   const [currentPage, setCurrentPage] = useState(1);
+  const [hoveredAddress, setHoveredAddress] = useState<string | null>(null);
   const itemsPerPage = 32;
+
+  // Mapa de Endereço -> Tipo (Estoque/Picking) baseado nos movimentos de entrada e transferências
+  const addressTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    
+    // 1. Processar Entradas (Base)
+    movements
+      .filter(m => m.tipo === 'entrada' && m.localizacao && m.localizacaoDestino)
+      .forEach(m => {
+        if (m.localizacaoDestino) {
+          map[m.localizacaoDestino.trim()] = m.localizacao || '';
+        }
+      });
+
+    // 2. Processar Transferências (Propagação/Mudança)
+    // Ordenar por data para garantir a cronologia correta
+    const transfers = movements
+      .filter(m => m.tipo === 'transferencia')
+      .sort((a, b) => a.data.getTime() - b.data.getTime());
+
+    transfers.forEach(m => {
+      const dest = m.localizacaoDestino?.trim();
+      const orig = m.localizacaoOrigem?.trim();
+      const type = m.movimentoTipo?.toLowerCase() || '';
+
+      if (dest) {
+        if (type.includes('picking')) {
+          map[dest] = 'Picking';
+        } else if (type.includes('mudar') || type.includes('endereco')) {
+          // Se for "Mudar endereço", herda a localização da origem se disponível
+          if (orig && map[orig]) {
+            map[dest] = map[orig];
+          }
+        }
+      }
+    });
+
+    return map;
+  }, [movements]);
 
   const getOccupationStatus = (qty: number): OccupationLevel => {
     if (qty <= 0) return 'Vazio';
@@ -193,12 +235,50 @@ const WarehouseAddresses: React.FC<WarehouseAddressesProps> = ({ addresses, isLo
         {paginatedData.map(a => {
           const status = getOccupationStatus(a.quantidadeAtual);
           const colorClass = getStatusColor(status);
+          
+          // Encontrar itens vinculados a este endereço
+          const itemsInAddress = inventoryData.filter(item => {
+            if (!item.localizacao) return false;
+            const locs = item.localizacao.split(/[,|/]/).map(l => l.trim());
+            return locs.includes(a.endereco.trim());
+          });
+
           return (
             <div 
               key={a.id}
               className={`relative p-5 rounded-3xl border-2 transition-all group flex flex-col items-center justify-center gap-3 cursor-pointer ${selectedAddresses.has(a.id) ? 'bg-primary/10 border-primary shadow-xl shadow-primary/10' : 'bg-white dark:bg-dark-card border-slate-100 dark:border-slate-800 hover:border-slate-300 shadow-sm'}`}
               onClick={() => toggleSelection(a.id)}
+              onMouseEnter={() => setHoveredAddress(a.id)}
+              onMouseLeave={() => setHoveredAddress(null)}
             >
+               {/* Tooltip Customizado */}
+               {hoveredAddress === a.id && a.quantidadeAtual > 0 && itemsInAddress.length > 0 && (
+                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 w-64 bg-[#1e293b] border border-slate-700 rounded-2xl p-4 shadow-2xl z-[100] animate-in zoom-in-95 duration-200 pointer-events-none">
+                    <div className="space-y-3">
+                       {itemsInAddress.map((item, idx) => (
+                         <div key={item.id} className={idx > 0 ? 'pt-3 border-t border-slate-700/50' : ''}>
+                            <h4 className="text-[11px] font-black text-white uppercase leading-tight">{item.descricao}</h4>
+                            <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">CÓDIGO: {item.codigo}</p>
+                            <div className="mt-3 pt-3 border-t border-slate-700/50 flex justify-between items-center">
+                               <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${colorClass}`}></div>
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Saldo Atual:</span>
+                               </div>
+                               <div className="flex flex-col items-end">
+                                  <span className="text-xs font-black text-white">{item.quantidadeAtual.toLocaleString('pt-BR')}</span>
+                                  {addressTypeMap[a.endereco.trim()] && (
+                                    <span className="text-[8px] font-bold text-slate-500 uppercase">{addressTypeMap[a.endereco.trim()]}</span>
+                                  )}
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                    {/* Seta do Tooltip */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-8 border-transparent border-t-[#1e293b]"></div>
+                 </div>
+               )}
+
                <button 
                   onClick={(e) => { e.stopPropagation(); handlePrintIndividual(a.id); }}
                   className="absolute top-3 right-3 p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-blue-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 dark:border-slate-700"
@@ -211,8 +291,19 @@ const WarehouseAddresses: React.FC<WarehouseAddressesProps> = ({ addresses, isLo
                  </div>
                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-dark-card ${colorClass} shadow-sm animate-pulse`} title={`Ocupação: ${status}`}></div>
                </div>
-               <div className="flex flex-col items-center">
-                 <span className="text-[12px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-center line-clamp-1">{a.endereco}</span>
+                <div className="flex flex-col items-center">
+                  {a.quantidadeAtual > 0 && addressTypeMap[a.endereco.trim()] && (
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mb-1 uppercase border ${
+                      addressTypeMap[a.endereco.trim()].toLowerCase().includes('picking') 
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                        : addressTypeMap[a.endereco.trim()].toLowerCase().includes('estoque')
+                        ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                        : 'bg-slate-500/10 text-slate-500 border-slate-500/20'
+                    }`}>
+                      {addressTypeMap[a.endereco.trim()]}
+                    </span>
+                  )}
+                  <span className="text-[12px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-center line-clamp-1">{a.endereco}</span>
                  <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center mt-1">
                     <span>RUA {a.rua}</span>
                     <span className="opacity-60">PRÉDIO {a.predio}</span>
