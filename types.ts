@@ -34,6 +34,7 @@ export interface AddressItem {
   quantidadeInicial: number;
   quantidadeAtual: number;
   tipo?: string;
+  codigoCadastrado?: string;
 }
 
 export interface Movement {

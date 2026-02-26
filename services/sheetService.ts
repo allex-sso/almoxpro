@@ -279,6 +279,7 @@ export const fetchAddressData = async (url: string): Promise<AddressItem[]> => {
   const idxQtdIni = findBestCol(headers, ['quantidade inicial', 'inicial', 'saldo inicial']);
   const idxQtdAtu = findBestCol(headers, ['quantidade atual', 'saldo', 'atual', 'estoque']);
   const idxTipo = findBestCol(headers, ['tipo', 'localizacao', 'categoria', 'area', 'setor', 'grupo', 'classe', 'picking', 'estoque']);
+  const idxCodCad = findBestCol(headers, ['codigo cadastrado', 'item cadastrado', 'cod cadastrado', 'peca cadastrada']);
   return rows.slice(headerIdx + 1).map((row, i) => ({
     id: `addr-${i}`, 
     endereco: row[idxEnd] || 'N/D', 
@@ -288,7 +289,8 @@ export const fetchAddressData = async (url: string): Promise<AddressItem[]> => {
     sala: row[findBestCol(headers, ['sala'])] || '', 
     quantidadeInicial: idxQtdIni !== -1 ? parseNumber(row[idxQtdIni]) : 0, 
     quantidadeAtual: parseNumber(row[idxQtdAtu]),
-    tipo: idxTipo !== -1 ? row[idxTipo] : ''
+    tipo: idxTipo !== -1 ? row[idxTipo] : '',
+    codigoCadastrado: idxCodCad !== -1 ? String(row[idxCodCad] || '').trim() : ''
   })).filter(a => a.endereco !== 'N/D');
 };
 
