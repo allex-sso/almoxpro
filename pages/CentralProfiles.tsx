@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Search, Palette, Box, Download, Filter, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Palette, Box, Download, Filter, Info, X, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { Movement } from '../types';
 
 interface CentralProfilesProps {
@@ -60,6 +60,15 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
 
   // Paginação
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  
+  const totalModels = useMemo(() => {
+    return filteredData.length;
+  }, [filteredData]);
+
+  const totalQuantity = useMemo(() => {
+    return filteredData.reduce((acc, d) => acc + d.quantidade, 0);
+  }, [filteredData]);
+
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredData.slice(start, start + itemsPerPage);
@@ -87,9 +96,20 @@ const CentralProfiles: React.FC<CentralProfilesProps> = ({ movements, isLoading 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Consolidado de Perfis</h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Estoque agrupado por modelo e cor.</p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-primary/10 rounded-2xl">
+            <Layers className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-white font-sans tracking-tight">Consolidado de Perfis</h1>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Estoque agrupado por modelo e cor.</p>
+              <div className="h-3 w-px bg-slate-200 dark:bg-slate-700"></div>
+              <span className="text-[10px] font-black text-primary uppercase tracking-widest">{totalModels} Modelos</span>
+              <div className="h-3 w-px bg-slate-200 dark:bg-slate-700"></div>
+              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{totalQuantity.toLocaleString('pt-BR')} Peças</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

@@ -123,7 +123,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
           <input 
             type="text"
-            placeholder="Buscar código, descrição, setor..."
+            placeholder={isWarehouse ? "Buscar código, descrição..." : "Buscar código, descrição, setor..."}
             className="w-full pl-12 pr-4 py-3 rounded-2xl bg-[#0f172a] border border-slate-700 text-sm font-bold outline-none text-white focus:ring-2 focus:ring-blue-500 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -168,10 +168,10 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
                 <th className="px-6 py-5">DESCRIÇÃO</th>
                 {isWarehouse ? (
                   <>
-                    <th className="px-6 py-5">RUA</th>
                     <th className="px-6 py-5">ENDEREÇO</th>
                     <th className="px-6 py-5 text-center">ESTOQUE</th>
                     <th className="px-6 py-5 text-center">PICKING</th>
+                    <th className="px-6 py-5 text-center">SALDO TOTAL</th>
                     <th className="px-6 py-5 text-center">SITUAÇÃO</th>
                   </>
                 ) : (
@@ -207,17 +207,13 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
                   {isWarehouse ? (
                     <>
                       <td className="px-6 py-5">
-                         <span className="text-slate-400 font-bold text-[10px] uppercase leading-tight">
-                            {item.rua || '-'}
-                         </span>
-                      </td>
-                      <td className="px-6 py-5">
                          <span className="text-slate-400 font-bold text-[10px] uppercase leading-tight block max-w-[200px]">
                             {item.localizacao || '-'}
                          </span>
                       </td>
                       <td className="px-6 py-5 text-center font-bold text-slate-400">{item.quantidadeEstoque.toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center font-bold text-blue-400">{item.quantidadePicking.toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-5 text-center font-bold text-emerald-400">{(item.quantidadeEstoque + item.quantidadePicking).toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center flex justify-center" onClick={(e) => e.stopPropagation()}>
                         {getStatusBadge(item.situacao || 'OK')}
                       </td>
