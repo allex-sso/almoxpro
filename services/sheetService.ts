@@ -175,6 +175,8 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
   const idxQtdPicking = findBestCol(headers, ['quantidade em picking', 'picking']);
   const idxQtdTotal = findBestCol(headers, ['quantidade total', 'saldo total', 'estoque total', 'saldo']);
   const idxMin = findBestCol(headers, ['quantidade minima', 'minimo']);
+  const idxMax = findBestCol(headers, ['quantidade maxima', 'maximo']);
+  const idxTempo = findBestCol(headers, ['tempo de entrega', 'tempo entrega', 'prazo entrega']);
   const idxSit = findBestCol(headers, ['situacao', 'status']);
   const idxCat = findBestCol(headers, ['categoria', 'tipo']);
   const idxMedida = findBestCol(headers, ['medida', 'unidade']);
@@ -199,6 +201,8 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
         quantidadePicking: qtyPicking,
         quantidadeAtual: qtyTotal,
         quantidadeMinima: parseNumber(row[idxMin]),
+        quantidadeMaxima: idxMax !== -1 ? parseNumber(row[idxMax]) : 0,
+        tempoEntrega: idxTempo !== -1 ? parseNumber(row[idxTempo]) : 0,
         valorUnitario: unitPrice, valorTotal: totalPrice, 
         categoria: row[idxCat] || 'Geral', unidade: row[idxMedida] || 'un',
         situacao: row[idxSit] || 'OK', equipamento: row[idxEquip] || 'Geral',
@@ -211,18 +215,20 @@ export const fetchInventoryData = async (url: string): Promise<InventoryItem[]> 
 export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 'transferencia'): Promise<Movement[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['peça', 'equipamento', 'codigo', 'data', 'quantidade', 'colaborador']);
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['colaborador', 'data', 'codigo', 'quantidade']);
   if (headerIdx === -1) return [];
   
   const idxData = findBestCol(headers, ['data/hora', 'data lançamento', 'data mov', 'data', 'dia', 'abertura', 'lancamento']);
   const idxCodigo = findBestCol(headers, ['peça', 'peca', 'item', 'codigo', 'cod']);
   const idxQtd = findBestCol(headers, ['quantidade recebida', 'quantidade retirada', 'quantidade movimentada', 'quantidade', 'qtd']);
   const idxResp = findBestCol(headers, ['colaborador', 'responsavel', 'solicitante', 'quem', 'profissional', 'operador']);
-  const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'destino', 'ativo']);
+  const idxEquip = findBestCol(headers, ['equipamento', 'maquina', 'destino', 'ativo', 'op']);
   const idxEndOrigem = findBestCol(headers, ['endereço origem', 'origem', 'localizacao origem']);
-  const idxEndDestino = findBestCol(headers, ['endereço destino', 'destino', 'localizacao destino', 'endereço']);
+  const idxEndDestino = findBestCol(headers, ['endereço destino', 'destino', 'localizacao destino']);
+  const idxEndGeneric = findBestCol(headers, ['endereço', 'localização', 'local']);
   const idxLocalizacao = findBestCol(headers, ['localização', 'localizacao', 'tipo endereço']);
   const idxMovType = findBestCol(headers, ['tipo movimentação', 'tipo mov', 'tipo']);
+  const idxSetor = findBestCol(headers, ['setor', 'area', 'departamento']);
   
   const idxForn = findBestCol(headers, ['fornecedor', 'origem material']);
   const idxValUni = findBestCol(headers, ['valor unitario', 'preco unitario', 'custo unit', 'vlr unit']);
@@ -230,11 +236,13 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
   const idxValidade = findBestCol(headers, ['validade', 'vencimento', 'prazo']);
   const idxLoteInterno = findBestCol(headers, ['lote interno', 'lote int']);
   const idxLoteForn = findBestCol(headers, ['lote fornecedor', 'lote forn']);
+  const idxNotaFiscal = findBestCol(headers, ['nota fiscal', 'nf', 'documento']);
+  const idxDivergencia = findBestCol(headers, ['divergencia', 'divergência']);
 
   const seenFpCount: Record<string, number> = {};
 
   return rows.slice(headerIdx + 1).map((row, i): Movement | null => {
-    const codigo = formatCodigo(row[idxCodigo] || row[idxEquip]);
+    const codigo = formatCodigo(row[idxCodigo]);
     if (!codigo) return null;
     const qty = parseNumber(row[idxQtd]);
     const resp = row[idxResp] || 'N/D';
@@ -251,21 +259,33 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
       finalDate = getPersistentFallbackDate(`${fpBase}_v${seenFpCount[fpBase]}`);
       isDateFallback = true;
     }
+
+    let locOrigem = idxEndOrigem !== -1 ? row[idxEndOrigem] : '';
+    let locDestino = idxEndDestino !== -1 ? row[idxEndDestino] : '';
+
+    if (type === 'entrada' && idxEndGeneric !== -1) {
+      locDestino = row[idxEndGeneric];
+    } else if (type === 'saida' && idxEndGeneric !== -1) {
+      locOrigem = row[idxEndGeneric];
+    }
     
     return {
       id: `${type}-${i}-${finalDate.getTime()}`,
       tipo: type, data: finalDate, isDateFallback, codigo, quantidade: qty,
       responsavel: resp, equipamento: String(row[idxEquip] || ''),
-      localizacaoOrigem: idxEndOrigem !== -1 ? row[idxEndOrigem] : '',
-      localizacaoDestino: idxEndDestino !== -1 ? row[idxEndDestino] : '',
+      localizacaoOrigem: locOrigem,
+      localizacaoDestino: locDestino,
       localizacao: idxLocalizacao !== -1 ? row[idxLocalizacao] : '',
       movimentoTipo: idxMovType !== -1 ? row[idxMovType] : '',
       fornecedor: idxForn !== -1 ? row[idxForn] : '',
+      setor: idxSetor !== -1 ? row[idxSetor] : '',
       valorUnitario: idxValUni !== -1 ? parseNumber(row[idxValUni]) : 0,
       valorTotal: idxValTot !== -1 ? parseNumber(row[idxValTot]) : 0,
       validade: idxValidade !== -1 ? row[idxValidade] : '',
       loteInterno: idxLoteInterno !== -1 ? row[idxLoteInterno] : '',
-      loteFornecedor: idxLoteForn !== -1 ? row[idxLoteForn] : ''
+      loteFornecedor: idxLoteForn !== -1 ? row[idxLoteForn] : '',
+      notaFiscal: idxNotaFiscal !== -1 ? row[idxNotaFiscal] : '',
+      divergencia: idxDivergencia !== -1 ? row[idxDivergencia] : ''
     };
   }).filter((m): m is Movement => m !== null && m.quantidade > 0);
 };
@@ -273,7 +293,7 @@ export const fetchMovements = async (url: string, type: 'entrada' | 'saida' | 't
 export const fetchAddressData = async (url: string): Promise<AddressItem[]> => {
   const rows = await fetchCSV(url);
   if (rows.length === 0) return [];
-  const { index: headerIdx, headers } = findHeaderRow(rows, ['endereco', 'quantidade atual']);
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['endereco', 'quantidade atual', 'localizacao']);
   if (headerIdx === -1) return [];
   const idxEnd = findBestCol(headers, ['endereco', 'cod', 'local']);
   const idxQtdIni = findBestCol(headers, ['quantidade inicial', 'inicial', 'saldo inicial']);
@@ -288,7 +308,7 @@ export const fetchAddressData = async (url: string): Promise<AddressItem[]> => {
     andar: row[findBestCol(headers, ['andar'])] || '',
     sala: row[findBestCol(headers, ['sala'])] || '', 
     quantidadeInicial: idxQtdIni !== -1 ? parseNumber(row[idxQtdIni]) : 0, 
-    quantidadeAtual: parseNumber(row[idxQtdAtu]),
+    quantidadeAtual: idxQtdAtu !== -1 ? parseNumber(row[idxQtdAtu]) : 0,
     tipo: idxTipo !== -1 ? row[idxTipo] : '',
     codigoCadastrado: idxCodCad !== -1 ? String(row[idxCodCad] || '').trim() : ''
   })).filter(a => a.endereco !== 'N/D');

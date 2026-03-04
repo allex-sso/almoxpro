@@ -102,6 +102,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
     if (s.includes('OK')) return <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> OK</span>;
     if (s.includes('ESGOTADO')) return <span className="px-3 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="w-3 h-3" /> ESGOTADO</span>;
     if (s.includes('PEDIDO') || s.includes('ATENCAO')) return <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><PackageSearch className="w-3 h-3" /> REALIZAR PEDIDO</span>;
+    if (s.includes('EXCEDIDA')) return <span className="px-3 py-1 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Info className="w-3 h-3" /> QTD EXCEDIDA</span>;
     return <span className="px-3 py-1 bg-slate-500/10 text-slate-500 border border-slate-500/20 rounded-full text-[10px] font-black uppercase tracking-widest">{status}</span>;
   };
 
@@ -213,7 +214,7 @@ const Inventory: React.FC<InventoryProps> = ({ data, isLoading = false, isWareho
                       </td>
                       <td className="px-6 py-5 text-center font-bold text-slate-400">{item.quantidadeEstoque.toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center font-bold text-blue-400">{item.quantidadePicking.toLocaleString('pt-BR')}</td>
-                      <td className="px-6 py-5 text-center font-bold text-emerald-400">{(item.quantidadeEstoque + item.quantidadePicking).toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-5 text-center font-bold text-emerald-400">{item.quantidadeAtual.toLocaleString('pt-BR')}</td>
                       <td className="px-6 py-5 text-center flex justify-center" onClick={(e) => e.stopPropagation()}>
                         {getStatusBadge(item.situacao || 'OK')}
                       </td>

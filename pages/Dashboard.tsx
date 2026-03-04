@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
       const situacao = (item.situacao || 'OK').toUpperCase();
       if (situacao.includes('ESGOTADO') || situacao.includes('PEDIDO') || situacao.includes('CRITICO') || situacao.includes('REPOR') || situacao.includes('RUPTURA')) {
         map.critico++;
-      } else if (situacao.includes('ATENCAO') || situacao.includes('ALERTA') || situacao.includes('MINIMO')) {
+      } else if (situacao.includes('ATENCAO') || situacao.includes('ALERTA') || situacao.includes('MINIMO') || situacao.includes('EXCEDIDA')) {
         map.atencao++;
       } else {
         map.saudavel++;

@@ -130,19 +130,25 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
         .sort((a, b) => b.value - a.value)
         .slice(0, 15);
 
-    const moveTypeMap: Record<string, number> = {};
-    filteredMovements.filter(m => m.tipo === 'transferencia').forEach(m => {
-        let typeRaw = (m.movimentoTipo || 'MUDAR ENDERECO').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        let type = typeRaw.includes("PICKING") ? "MOVER P/ PICKING" : "MUDAR ENDERECO";
-        moveTypeMap[type] = (moveTypeMap[type] || 0) + m.quantidade;
+    const divergenceMap: Record<string, number> = {
+      'SEM DIVERGÊNCIA': 0,
+      'DIVERGENTE': 0
+    };
+    filteredMovements.filter(m => m.tipo === 'entrada').forEach(m => {
+      const div = (m.divergencia || '').toUpperCase();
+      if (div.includes('SIM') || div.includes('DIVERGENTE') || (div !== 'NÃO' && div !== 'NAO' && div !== 'OK' && div !== '')) {
+        divergenceMap['DIVERGENTE']++;
+      } else {
+        divergenceMap['SEM DIVERGÊNCIA']++;
+      }
     });
-    const movesByType = Object.entries(moveTypeMap)
-        .map(([name, value]) => ({ 
-            name, 
-            value,
-            color: COLORS_MAP[name] || DEFAULT_COLORS[0] 
-        }))
-        .sort((a, b) => b.value - a.value);
+    const receivingAccuracy = Object.entries(divergenceMap)
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        color: name === 'SEM DIVERGÊNCIA' ? '#10b981' : '#ef4444'
+      }))
+      .filter(item => item.value > 0);
 
     return {
       currentTurnover: turnoverHistory.length > 0 ? turnoverHistory[turnoverHistory.length - 1].turnover : 0,
@@ -150,7 +156,7 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
       stockBySector,
       topStockItems,
       consumptionBySku,
-      movesByType
+      receivingAccuracy
     };
   }, [data, filteredMovements]);
 
@@ -288,37 +294,43 @@ const WarehousePerformance: React.FC<WarehousePerformanceProps> = ({ data, movem
 
         <div className="bg-[#1e293b] rounded-[2rem] p-8 border border-slate-800 shadow-2xl flex flex-col">
            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-purple-500/10 rounded-2xl"><RefreshCw className="w-6 h-6 text-purple-500" /></div>
+              <div className="p-3 bg-rose-500/10 rounded-2xl"><Activity className="w-6 h-6 text-rose-500" /></div>
               <div>
-                 <h3 className="text-sm font-black text-white uppercase tracking-tight">Mix de Atividade WMS</h3>
-                 <p className="text-[9px] font-bold text-slate-500 uppercase">Volume de peças por tipo de movimentação interna.</p>
+                 <h3 className="text-sm font-black text-white uppercase tracking-tight">Acuracidade de Recebimento</h3>
+                 <p className="text-[9px] font-bold text-slate-500 uppercase">Status de divergências em notas fiscais de entrada.</p>
               </div>
            </div>
            <div className="flex-1 min-h-[250px] flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                 <PieChart>
-                    <Pie 
-                      data={performanceMetrics.movesByType} 
-                      innerRadius={70} 
-                      outerRadius={100} 
-                      paddingAngle={8} 
-                      dataKey="value" 
-                      stroke="none"
-                      cornerRadius={6}
-                    >
-                       {performanceMetrics.movesByType.map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill={entry.color} />
-                       ))}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      align="center" 
-                      iconType="circle" 
-                      wrapperStyle={{ fontSize: '9px', fontWeight: 'black', textTransform: 'uppercase', paddingTop: '20px' }} 
-                    />
-                 </PieChart>
-              </ResponsiveContainer>
+              {performanceMetrics.receivingAccuracy.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                      <Pie 
+                        data={performanceMetrics.receivingAccuracy} 
+                        innerRadius={70} 
+                        outerRadius={100} 
+                        paddingAngle={8} 
+                        dataKey="value" 
+                        stroke="none"
+                        cornerRadius={6}
+                      >
+                         {performanceMetrics.receivingAccuracy.map((entry, index) => (
+                           <Cell key={`cell-${index}`} fill={entry.color} />
+                         ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        align="center" 
+                        iconType="circle" 
+                        wrapperStyle={{ fontSize: '9px', fontWeight: 'black', textTransform: 'uppercase', paddingTop: '20px' }} 
+                      />
+                   </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center">
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Sem dados de entrada no período</p>
+                </div>
+              )}
            </div>
         </div>
       </div>
