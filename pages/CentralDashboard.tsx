@@ -228,12 +228,12 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         <StatCard title="MÉDIA DE ITENS P/ SAÍDA" value={metrics.mediaPorSaida} icon={Activity} color="blue" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 no-print">
+      <div className="flex flex-col gap-6 no-print">
         <div className="bg-[#1e293b] rounded-3xl p-6 border border-slate-800 shadow-xl">
            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
              <Building className="w-4 h-4 text-blue-500" /> QUANTIDADE POR SETOR
            </h3>
-           <div className="h-[320px]">
+           <div className="h-[400px]">
              <ResponsiveContainer width="100%" height="100%">
                <BarChart data={metrics.chartSectors} layout="vertical" margin={{ left: 40, right: 60 }}>
                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.1} />
@@ -251,7 +251,7 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
              <TrendingUp className="w-4 h-4 text-emerald-500" /> CONSUMO POR MOTIVO
            </h3>
-           <div className="h-[320px]">
+           <div className="h-[450px]">
              <ResponsiveContainer width="100%" height="100%">
                <ComposedChart data={metrics.chartReasons}>
                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.1} />
