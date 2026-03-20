@@ -533,6 +533,7 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
   const idxMotivo = findBestCol(headers, ['motivo', 'finalidade', 'uso', 'obs']);
   const idxTurno = findBestCol(headers, ['turno']);
   const idxCor = findBestCol(headers, ['cor', 'pintura', 'acabamento']);
+  const idxPesoTotal = findBestCol(headers, ['peso total', 'peso', 'kg']);
 
   const seenFpCount: Record<string, number> = {};
 
@@ -566,7 +567,8 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
       setor: idxSetor !== -1 ? row[idxSetor] : 'OUTROS',
       motivo: idxMotivo !== -1 ? row[idxMotivo] : 'GERAL',
       turno: idxTurno !== -1 ? row[idxTurno] : 'Geral',
-      cor: idxCor !== -1 ? row[idxCor] : 'N/D'
+      cor: idxCor !== -1 ? row[idxCor] : 'N/D',
+      pesoTotal: idxPesoTotal !== -1 ? parseNumber(row[idxPesoTotal]) : 0
     };
   }).filter((x): x is Movement => x !== null);
 };

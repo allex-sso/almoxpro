@@ -87,7 +87,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
         value, 
         percent: totalBarras > 0 ? ((value / totalBarras) * 100).toFixed(1) : "0" 
       }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 15);
 
     const chartReasons = Object.entries(motivoMap)
         .map(([name, value]) => ({
@@ -95,7 +96,8 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
             value,
             percentual: totalBarras > 0 ? Number(((value / totalBarras) * 100).toFixed(1)) : 0
         }))
-        .sort((a, b) => b.value - a.value);
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 15);
 
     const rankingData = Object.entries(rankingMap)
       .map(([name, s]) => ({
@@ -118,44 +120,60 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
     };
   }, [filteredData]);
 
+  const formatWeight = (weight: number) => {
+    if (weight < 1) {
+      return `${Math.round(weight * 1000)}g`;
+    }
+    if (weight >= 1000) {
+      return `${(weight / 1000).toFixed(3)}t`;
+    }
+    return `${weight.toFixed(3)}kg`;
+  };
+
   const sectorModalData = useMemo(() => {
     if (!selectedSectorForModal) return null;
     const sectorMovements = filteredData.filter(m => (m.setor || 'OUTROS').toUpperCase() === selectedSectorForModal);
     const totalBars = sectorMovements.reduce((acc, m) => acc + m.quantidade, 0);
-    const reasonMap: Record<string, { total: number, count: number }> = {};
+    const totalWeight = sectorMovements.reduce((acc, m) => acc + (m.pesoTotal || 0), 0);
+    const reasonMap: Record<string, { total: number, count: number, weight: number }> = {};
     sectorMovements.forEach(m => {
       const reason = (m.motivo || 'GERAL').toUpperCase();
-      if (!reasonMap[reason]) reasonMap[reason] = { total: 0, count: 0 };
+      if (!reasonMap[reason]) reasonMap[reason] = { total: 0, count: 0, weight: 0 };
       reasonMap[reason].total += m.quantidade;
       reasonMap[reason].count += 1;
+      reasonMap[reason].weight += (m.pesoTotal || 0);
     });
     const reasons = Object.entries(reasonMap).map(([name, s]) => ({
       name,
       total: s.total,
       count: s.count,
+      weight: s.weight,
       percent: totalBars > 0 ? ((s.total / totalBars) * 100).toFixed(1) : "0"
     })).sort((a, b) => b.total - a.total);
-    return { name: selectedSectorForModal, totalBars, reasons };
+    return { name: selectedSectorForModal, totalBars, totalWeight, reasons };
   }, [selectedSectorForModal, filteredData]);
 
   const requesterModalData = useMemo(() => {
     if (!selectedRequesterForModal) return null;
     const requesterMovements = filteredData.filter(m => (m.responsavel || 'N/D') === selectedRequesterForModal);
     const totalBars = requesterMovements.reduce((acc, m) => acc + m.quantidade, 0);
-    const reasonMap: Record<string, { total: number, count: number }> = {};
+    const totalWeight = requesterMovements.reduce((acc, m) => acc + (m.pesoTotal || 0), 0);
+    const reasonMap: Record<string, { total: number, count: number, weight: number }> = {};
     requesterMovements.forEach(m => {
       const reason = (m.motivo || 'GERAL').toUpperCase();
-      if (!reasonMap[reason]) reasonMap[reason] = { total: 0, count: 0 };
+      if (!reasonMap[reason]) reasonMap[reason] = { total: 0, count: 0, weight: 0 };
       reasonMap[reason].total += m.quantidade;
       reasonMap[reason].count += 1;
+      reasonMap[reason].weight += (m.pesoTotal || 0);
     });
     const reasons = Object.entries(reasonMap).map(([name, s]) => ({
       name,
       total: s.total,
       count: s.count,
+      weight: s.weight,
       percent: totalBars > 0 ? ((s.total / totalBars) * 100).toFixed(1) : "0"
     })).sort((a, b) => b.total - a.total);
-    return { name: selectedRequesterForModal, totalBars, reasons };
+    return { name: selectedRequesterForModal, totalBars, totalWeight, reasons };
   }, [selectedRequesterForModal, filteredData]);
 
   const paginatedRanking = metrics.rankingData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -225,7 +243,14 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
            </div>
         </div>
         <StatCard title="SOLICITANTES ATIVOS" value={metrics.solicitantesAtivos} icon={UserCheck} color="purple" />
-        <StatCard title="MÉDIA DE ITENS P/ SAÍDA" value={metrics.mediaPorSaida} icon={Activity} color="blue" />
+        <StatCard 
+          title="MÉDIA DE ITENS P/ SAÍDA" 
+          value={metrics.mediaPorSaida} 
+          icon={Activity} 
+          color="blue" 
+          trend="Qtd. p/ Requisição"
+          trendUp={true}
+        />
       </div>
 
       <div className="flex flex-col gap-6 no-print">
@@ -315,17 +340,32 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       {selectedSectorForModal && sectorModalData && (
         <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
           <div className="bg-[#1e293b] w-full max-w-lg rounded-3xl shadow-2xl border border-slate-700 overflow-hidden">
-            <div className="p-6 border-b border-slate-700 flex justify-between items-center">
-              <h2 className="text-xl font-black text-white uppercase">{sectorModalData.name} - Motivos</h2>
-              <button onClick={() => setSelectedSectorForModal(null)} className="p-2 text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
+            <div className="p-6 border-b border-slate-700 flex justify-between items-start">
+              <div>
+                <h2 className="text-xl font-black text-white uppercase">{sectorModalData.name} - Motivos</h2>
+                <div className="flex gap-4 mt-1">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total: <span className="text-blue-400">{sectorModalData.totalBars.toLocaleString('pt-BR')}</span> barras</p>
+                  {sectorModalData.totalWeight > 0 && (
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Peso: <span className="text-amber-500">{formatWeight(sectorModalData.totalWeight)}</span></p>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setSelectedSectorForModal(null)} className="p-2 text-slate-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
             </div>
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
               {sectorModalData.reasons.map((r, i) => (
-                <div key={i} className="flex justify-between items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                <div key={i} className="flex justify-between items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700 hover:bg-slate-800 transition-colors">
                   <span className="text-sm font-bold text-white uppercase">{r.name}</span>
                   <div className="text-right">
                     <p className="text-lg font-black text-blue-400">{r.total.toLocaleString('pt-BR')}</p>
-                    <p className="text-[10px] font-bold text-slate-500">{r.percent}%</p>
+                    <div className="flex flex-col items-end">
+                      <p className="text-[10px] font-bold text-slate-500">{r.percent}%</p>
+                      {r.weight > 0 && (
+                        <p className="text-[10px] font-black text-amber-500 uppercase tracking-tighter mt-1">
+                          {formatWeight(r.weight)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -337,17 +377,32 @@ const CentralDashboard: React.FC<CentralDashboardProps> = ({ data, isLoading }) 
       {selectedRequesterForModal && requesterModalData && (
         <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
           <div className="bg-[#1e293b] w-full max-w-lg rounded-3xl shadow-2xl border border-slate-700 overflow-hidden">
-            <div className="p-6 border-b border-slate-700 flex justify-between items-center">
-              <h2 className="text-xl font-black text-white uppercase">{requesterModalData.name} - Detalhes</h2>
-              <button onClick={() => setSelectedRequesterForModal(null)} className="p-2 text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
+            <div className="p-6 border-b border-slate-700 flex justify-between items-start">
+              <div>
+                <h2 className="text-xl font-black text-white uppercase">{requesterModalData.name} - Detalhes</h2>
+                <div className="flex gap-4 mt-1">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total: <span className="text-emerald-400">{requesterModalData.totalBars.toLocaleString('pt-BR')}</span> barras</p>
+                  {requesterModalData.totalWeight > 0 && (
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Peso: <span className="text-amber-500">{formatWeight(requesterModalData.totalWeight)}</span></p>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setSelectedRequesterForModal(null)} className="p-2 text-slate-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
             </div>
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
               {requesterModalData.reasons.map((r, i) => (
-                <div key={i} className="flex justify-between items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                <div key={i} className="flex justify-between items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700 hover:bg-slate-800 transition-colors">
                   <span className="text-sm font-bold text-white uppercase">{r.name}</span>
                   <div className="text-right">
                     <p className="text-lg font-black text-emerald-400">{r.total.toLocaleString('pt-BR')}</p>
-                    <p className="text-[10px] font-bold text-slate-500">{r.percent}%</p>
+                    <div className="flex flex-col items-end">
+                      <p className="text-[10px] font-bold text-slate-500">{r.percent}%</p>
+                      {r.weight > 0 && (
+                        <p className="text-[10px] font-black text-amber-500 uppercase tracking-tighter mt-1">
+                          {formatWeight(r.weight)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

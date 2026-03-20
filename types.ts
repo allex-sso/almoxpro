@@ -55,6 +55,7 @@ export interface Movement {
   perfil?: string;
   cor?: string;
   turno?: string;
+  pesoTotal?: number;
   op?: string; // Ordem de Produção (Almoxarifado Geral)
   localizacaoOrigem?: string;
   localizacaoDestino?: string;

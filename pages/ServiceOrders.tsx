@@ -271,12 +271,21 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       if (os.parada === 'Sim') {
         const eq = os.equipamento || 'Geral';
         
-        // Prioridade 1: Diferença entre Fim e Abertura
-        if (os.dataFim && os.dataAbertura) {
-          const diff = (os.dataFim.getTime() - os.dataAbertura.getTime()) / 3600000;
-          if (diff > 0 && diff < 8760) {
-             map[eq] = (map[eq] || 0) + diff;
-             return;
+        // Prioridade 1: Diferença entre Fim e Abertura (ou Início se anterior à abertura)
+        if (os.dataFim) {
+          let startTime = os.dataAbertura;
+          
+          // Regra: Se o início da manutenção for anterior à abertura, usa o início (Início < Abertura)
+          if (os.dataInicio && os.dataAbertura && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
+            startTime = os.dataInicio;
+          }
+
+          if (startTime) {
+            const diff = (os.dataFim.getTime() - startTime.getTime()) / 3600000;
+            if (diff > 0 && diff < 8760) {
+               map[eq] = (map[eq] || 0) + diff;
+               return;
+            }
           }
         }
 
