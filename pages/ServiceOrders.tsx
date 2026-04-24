@@ -271,27 +271,24 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       if (os.parada === 'Sim') {
         const eq = os.equipamento || 'Geral';
         
-        // Prioridade 1: Diferença entre Fim e Abertura (ou Início se anterior à abertura)
-        if (os.dataFim) {
+        // Regra de Ouro: Tempo parado é do Fim da Manutenção menos o Início (ou Abertura)
+        if (os.dataFim && os.dataAbertura) {
           let startTime = os.dataAbertura;
           
-          // Regra: Se o início da manutenção for anterior à abertura, usa o início (Início < Abertura)
-          if (os.dataInicio && os.dataAbertura && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
+          // Caso o inicio da manutenção tenha começado antes da abertura da OS, 
+          // o tempo de parada do equipamento deve ser considerado apenas o tempo entre o inicio e fim da manutenção
+          if (os.dataInicio && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
             startTime = os.dataInicio;
           }
 
-          if (startTime) {
-            const diff = (os.dataFim.getTime() - startTime.getTime()) / 3600000;
-            if (diff > 0 && diff < 8760) {
-               map[eq] = (map[eq] || 0) + diff;
-               return;
-            }
-          }
-        }
+          const diffInMs = os.dataFim.getTime() - startTime.getTime();
+          const diffInHours = diffInMs / 3600000;
 
-        // Fallback: Usa o tempo da coluna "Horas" (estimativa PCM)
-        if (os.horas > 0) {
-          map[eq] = (map[eq] || 0) + os.horas;
+          // Validação de sanidade: Ignore tempos negativos ou superiores a 1 mês (provável erro de lançamento)
+          // Usamos 744h como limite (31 dias)
+          if (diffInHours > 0 && diffInHours < 744) {
+             map[eq] = (map[eq] || 0) + diffInHours;
+          }
         }
       }
     });
