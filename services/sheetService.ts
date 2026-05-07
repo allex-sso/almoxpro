@@ -1,4 +1,4 @@
-import { InventoryItem, Movement, ServiceOrder, ProductionEntry, PreventiveEntry, AddressItem } from '../types';
+import { InventoryItem, Movement, ServiceOrder, ProductionEntry, PreventiveEntry, AddressItem, ExpedicaoPedido } from '../types';
 
 const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
 
@@ -571,4 +571,41 @@ export const fetchCentralData = async (url: string): Promise<Movement[]> => {
       pesoTotal: idxPesoTotal !== -1 ? parseNumber(row[idxPesoTotal]) : 0
     };
   }).filter((x): x is Movement => x !== null);
+};
+
+export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]> => {
+  const rows = await fetchCSV(url);
+  if (rows.length === 0) return [];
+  const { index: headerIdx, headers } = findHeaderRow(rows, ['pedido', 'cliente', 'valor'], 2);
+  if (headerIdx === -1) return [];
+
+  const idxPedido = findBestCol(headers, ['pedido', 'os', 'numero']);
+  const idxCliente = findBestCol(headers, ['cliente', 'razao social', 'nome']);
+  const idxValor = findBestCol(headers, ['valor', 'total', 'faturamento']);
+  const idxPeso = findBestCol(headers, ['peso', 'kg', 'massa']);
+  const idxStatus = findBestCol(headers, ['status', 'situacao']);
+  const idxCor = findBestCol(headers, ['cor', 'pintura', 'acabamento']);
+  const idxDataSol = findBestCol(headers, ['data solicitacao', 'lancamento', 'solicitacao']);
+  const idxDataEnt = findBestCol(headers, ['data entrega', 'entrega', 'previsto']);
+  const idxDataLib = findBestCol(headers, ['data liberacao', 'liberacao', 'liberado']);
+  const idxDataEmb = findBestCol(headers, ['data embarque', 'embarque', 'saida']);
+
+  return rows.slice(headerIdx + 1).map((row, i): ExpedicaoPedido | null => {
+    const pedido = row[idxPedido] || '';
+    if (!pedido) return null;
+
+    return {
+      id: `exp-${i}`,
+      pedido,
+      cliente: row[idxCliente] || 'N/D',
+      valor: parseNumber(row[idxValor]),
+      peso: parseNumber(row[idxPeso]),
+      status: (row[idxStatus] || 'OUTROS').toUpperCase(),
+      cor: row[idxCor] || 'N/D',
+      dataSolicitacao: parseDate(row[idxDataSol]),
+      dataEntrega: parseDate(row[idxDataEnt]),
+      dataLiberacao: parseDate(row[idxDataLib]),
+      dataEmbarque: parseDate(row[idxDataEmb]),
+    };
+  }).filter((x): x is ExpedicaoPedido => x !== null);
 };

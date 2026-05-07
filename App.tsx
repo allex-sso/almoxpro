@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, RefreshCw, LogOut } from 'lucide-react';
-import { AppSettings, InventoryItem, Movement, Page, SectorProfile, ProductionEntry, ServiceOrder, PreventiveEntry, AddressItem, DashboardStats } from './types';
-import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData, fetchProductionData, fetchPreventiveData, fetchAddressData } from './services/sheetService';
+import { AppSettings, InventoryItem, Movement, Page, SectorProfile, ProductionEntry, ServiceOrder, PreventiveEntry, AddressItem, DashboardStats, ExpedicaoPedido } from './types';
+import { fetchInventoryData, fetchMovements, fetchServiceOrders, fetchCentralData, fetchProductionData, fetchPreventiveData, fetchAddressData, fetchExpedicaoData } from './services/sheetService';
 import Sidebar from './components/Sidebar';
 
 // Pages
@@ -20,12 +20,14 @@ import ProductionDashboard from './pages/ProductionDashboard';
 import ProductionTypology from './pages/ProductionTypology';
 import WarehouseAddresses from './pages/WarehouseAddresses';
 import WarehousePerformance from './pages/WarehousePerformance';
+import ExpedicaoPerfil from './pages/ExpedicaoPerfil';
 
 const MASTER_PROFILE_ID = 'almox-pecas';
 const CENTRAL_PROFILE_ID = 'almox-central';
 const PRODUCTION_PROFILE_ID = 'prod-escadas';
 const MAINTENANCE_PROFILE_ID = 'manutencao';
 const WAREHOUSE_PROFILE_ID = 'almox-geral';
+const EXPEDICAO_PROFILE_ID = 'expedicao-perfil';
 
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
   try {
@@ -108,14 +110,27 @@ const getDefaultProfiles = (): SectorProfile[] => {
           url: getEnvVar('VITE_PROD_ENGENHARIA_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSucvGIz4K57zAeWyXCOTgsKDGtVCLk7LLruUXxyaa8Zdx3NeyjXCPpMR_5fqNme2LQLXLHG4-YWqvz/pub?gid=1991174007&single=true&output=csv')
         }
       ]
+    },
+    {
+      id: EXPEDICAO_PROFILE_ID,
+      name: 'Expedição de Perfil',
+      accessKey: '60',
+      inventoryUrl: '',
+      inUrl: '',
+      outUrl: '',
+      osUrl: '',
+      isExpedicao: true,
+      sources: [
+        {
+          label: 'Pedidos - Perfil',
+          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTbTtiL5MpuJvHeA9svPYntxMH-T4ztiYg6JuX26A4LyAhHEFKnfiGovaGxry7oI1IwP1lJUqDp7GER/pub?gid=91167431&single=true&output=csv'
+        }
+      ]
     }
   ];
 };
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>(Page.DASHBOARD);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
   const [settings, setSettings] = useState<AppSettings>(() => {
     const defaultProfiles = getDefaultProfiles();
     try {
@@ -148,12 +163,22 @@ const App: React.FC = () => {
     return { profiles: defaultProfiles, activeProfileId: null, refreshRate: 0 };
   });
 
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
+      if (settings.activeProfileId === EXPEDICAO_PROFILE_ID) return Page.EXPEDICAO_GENERAL;
+      if (settings.activeProfileId === CENTRAL_PROFILE_ID) return Page.CENTRAL_DASHBOARD;
+      if (settings.activeProfileId === PRODUCTION_PROFILE_ID) return Page.PRODUCTION_DASHBOARD;
+      if (settings.activeProfileId === MAINTENANCE_PROFILE_ID) return Page.SERVICE_ORDERS;
+      return Page.DASHBOARD;
+  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [osData, setOsData] = useState<ServiceOrder[]>([]);
   const [productionData, setProductionData] = useState<ProductionEntry[]>([]);
   const [preventiveData, setPreventiveData] = useState<PreventiveEntry[]>([]);
   const [addressData, setAddressData] = useState<AddressItem[]>([]);
+  const [expedicaoData, setExpedicaoData] = useState<ExpedicaoPedido[]>([]);
   const [loading, setLoading] = useState(false);
 
   const activeProfile = useMemo(() => 
@@ -175,6 +200,7 @@ const App: React.FC = () => {
         activeProfile.addressUrl ? fetchAddressData(activeProfile.addressUrl) : Promise.resolve([]),
         activeProfile.isProduction ? Promise.all((activeProfile.sources || []).map(s => fetchProductionData(s.url))).then(res => res.flat()) : Promise.resolve([]),
         activeProfile.isCentral ? Promise.all((activeProfile.sources || []).map(s => fetchCentralData(s.url))).then(res => res.flat()) : Promise.resolve([]),
+        activeProfile.isExpedicao ? Promise.all((activeProfile.sources || []).map(s => fetchExpedicaoData(s.url))).then(res => res.flat()) : Promise.resolve([]),
       ]);
 
       setInventoryData(results[0]);
@@ -184,6 +210,7 @@ const App: React.FC = () => {
       setPreventiveData(results[5]);
       setAddressData(results[6]);
       setProductionData(results[7] as ProductionEntry[]);
+      setExpedicaoData(results[9] as ExpedicaoPedido[]);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -267,7 +294,13 @@ const App: React.FC = () => {
       localStorage.setItem('alumasa_config_v1', JSON.stringify(newSettings));
       return newSettings;
     });
-    setCurrentPage(Page.DASHBOARD);
+    setCurrentPage(
+      profileId === EXPEDICAO_PROFILE_ID ? Page.EXPEDICAO_GENERAL :
+      profileId === CENTRAL_PROFILE_ID ? Page.CENTRAL_DASHBOARD : 
+      profileId === PRODUCTION_PROFILE_ID ? Page.PRODUCTION_DASHBOARD :
+      profileId === MAINTENANCE_PROFILE_ID ? Page.SERVICE_ORDERS :
+      Page.DASHBOARD
+    );
   };
 
   const handleLogout = () => {
@@ -351,6 +384,18 @@ const App: React.FC = () => {
         return <WarehouseAddresses addresses={addressData} inventoryData={processedInventory} movements={movements} isLoading={loading} />;
       case Page.WAREHOUSE_PERFORMANCE:
         return <WarehousePerformance data={processedInventory} movements={movements} isLoading={loading} />;
+      case Page.EXPEDICAO_GENERAL:
+        return <ExpedicaoPerfil data={expedicaoData} isLoading={loading} initialTab={0} />;
+      case Page.EXPEDICAO_STATUS:
+        return <ExpedicaoPerfil data={expedicaoData} isLoading={loading} initialTab={1} />;
+      case Page.EXPEDICAO_PERFORMANCE:
+        return <ExpedicaoPerfil data={expedicaoData} isLoading={loading} initialTab={2} />;
+      case Page.EXPEDICAO_LOGISTICS:
+        return <ExpedicaoPerfil data={expedicaoData} isLoading={loading} initialTab={3} />;
+      case Page.EXPEDICAO_FINANCIAL:
+        return <ExpedicaoPerfil data={expedicaoData} isLoading={loading} initialTab={4} />;
+      case Page.EXPEDICAO_CLIENTS:
+        return <ExpedicaoPerfil data={expedicaoData} isLoading={loading} initialTab={5} />;
       case Page.SETTINGS:
         return <SettingsPage settings={settings} onUpdateSettings={handleUpdateSettings} isMasterAccount={activeProfile?.id === MASTER_PROFILE_ID} />;
       default:
@@ -369,6 +414,7 @@ const App: React.FC = () => {
         isProduction={activeProfile?.isProduction}
         isMaintenance={activeProfile?.isMaintenance}
         isWarehouse={activeProfile?.isWarehouse}
+        isExpedicao={activeProfile?.isExpedicao}
         isMaster={activeProfile?.id === MASTER_PROFILE_ID}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

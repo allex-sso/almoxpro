@@ -87,6 +87,20 @@ export interface ProductionEntry {
   valC?: number;
 }
 
+export interface ExpedicaoPedido {
+  id: string;
+  pedido: string;
+  cliente: string;
+  valor: number;
+  peso: number;
+  status: string;
+  cor: string;
+  dataSolicitacao: Date | null;
+  dataEntrega: Date | null;
+  dataLiberacao: Date | null;
+  dataEmbarque: Date | null;
+}
+
 export interface ServiceOrder {
   id: string;
   numero: string;
@@ -139,6 +153,7 @@ export interface SectorProfile {
   isProduction?: boolean;
   isMaintenance?: boolean;
   isWarehouse?: boolean; // Nova Flag para Almoxarifado Geral
+  isExpedicao?: boolean;
   sources?: CentralSource[];
 }
 
@@ -170,5 +185,11 @@ export enum Page {
   PRODUCTION_TYPOLOGY = 'production_typology',
   WAREHOUSE_ADDRESSES = 'warehouse_addresses',
   WAREHOUSE_MOVEMENTS = 'warehouse_movements',
-  WAREHOUSE_PERFORMANCE = 'warehouse_performance'
+  WAREHOUSE_PERFORMANCE = 'warehouse_performance',
+  EXPEDICAO_GENERAL = 'expedicao_general',
+  EXPEDICAO_STATUS = 'expedicao_status',
+  EXPEDICAO_PERFORMANCE = 'expedicao_performance',
+  EXPEDICAO_LOGISTICS = 'expedicao_logistics',
+  EXPEDICAO_FINANCIAL = 'expedicao_financial',
+  EXPEDICAO_CLIENTS = 'expedicao_clients'
 }

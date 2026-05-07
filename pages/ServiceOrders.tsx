@@ -273,6 +273,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         
         // Regra de Ouro: Tempo parado é do Fim da Manutenção menos o Início (ou Abertura)
         if (os.dataFim && os.dataAbertura) {
+          // Se a OS foi aberta após o término do serviço, não contamos como tempo de máquina parada
+          if (os.dataAbertura.getTime() > os.dataFim.getTime()) {
+             return;
+          }
+
           let startTime = os.dataAbertura;
           
           // Caso o inicio da manutenção tenha começado antes da abertura da OS, 

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List, Settings2, ShieldCheck, MapPin, History, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingDown, ClipboardList, AlertTriangle, Settings, Layers, Factory, List, Settings2, ShieldCheck, MapPin, History, BarChart3, Truck, Clock, DollarSign, Users } from 'lucide-react';
 import { Page } from '../types';
 
 interface SidebarProps {
@@ -12,15 +12,23 @@ interface SidebarProps {
   isProduction?: boolean;
   isMaintenance?: boolean;
   isWarehouse?: boolean;
+  isExpedicao?: boolean;
   isMaster?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isProduction, isMaintenance, isWarehouse, isMaster }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, toggleOpen, isCentral, isProduction, isMaintenance, isWarehouse, isExpedicao, isMaster }) => {
   const menuItems = [];
   
   if (isCentral) {
     menuItems.push({ id: Page.CENTRAL_DASHBOARD, label: 'Indicadores de Perfil', icon: LayoutDashboard });
     menuItems.push({ id: Page.CENTRAL_PERFIL, label: 'Perfis', icon: Layers });
+  } else if (isExpedicao) {
+    menuItems.push({ id: Page.EXPEDICAO_GENERAL, label: 'Visão Geral', icon: LayoutDashboard });
+    menuItems.push({ id: Page.EXPEDICAO_STATUS, label: 'Expedição', icon: Truck });
+    menuItems.push({ id: Page.EXPEDICAO_PERFORMANCE, label: 'Performance', icon: Clock });
+    menuItems.push({ id: Page.EXPEDICAO_LOGISTICS, label: 'Logística', icon: Package });
+    menuItems.push({ id: Page.EXPEDICAO_FINANCIAL, label: 'Financeiro', icon: DollarSign });
+    menuItems.push({ id: Page.EXPEDICAO_CLIENTS, label: 'Clientes', icon: Users });
   } else if (isProduction) {
     menuItems.push({ id: Page.PRODUCTION_DASHBOARD, label: 'Painel de Produção', icon: Factory });
     menuItems.push({ id: Page.PRODUCTION_TYPOLOGY, label: 'Análise de Tipologias', icon: Settings2 });
