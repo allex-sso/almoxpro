@@ -987,10 +987,10 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
               </div>
 
               <div className="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-wider mb-6">Tempo Médio (Dias) por Cliente</h3>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-wider mb-6">Peso por Cliente (Top 10)</h3>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metrics.avgLeadTimeByClient} layout="vertical">
+                    <BarChart data={metrics.topClientsByWeight} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.1} />
                       <XAxis type="number" hide />
                       <YAxis dataKey="name" type="category" fontSize={10} width={100} axisLine={false} tickLine={false} />
@@ -1000,14 +1000,14 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                             return (
                               <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700 p-3 rounded-xl shadow-2xl shadow-black/50">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{payload[0].payload.name}</p>
-                                <p className="text-lg font-black text-white">{Number(payload[0].value).toFixed(1)} <span className="text-xs text-slate-400 font-medium ml-1">Dias</span></p>
+                                <p className="text-lg font-black text-white">{formatWeight(Number(payload[0].value))}</p>
                               </div>
                             );
                           }
                           return null;
                         }}
                       />
-                      <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="value" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1129,10 +1129,6 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                     <tr className="border-b border-black">
                       <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Peso Médio por Pedido</td>
                       <td className="p-3 font-black text-black">{formatWeight(metrics.avgWeight)}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Lead Time Médio (Expedição / Embarque)</td>
-                      <td className="p-3 font-black text-black">{metrics.avgLeadTime.toFixed(1)} dias</td>
                     </tr>
                     <tr className="border-b border-black">
                       <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Percentual de Pedidos Liberados</td>
