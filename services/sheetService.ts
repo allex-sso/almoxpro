@@ -591,12 +591,16 @@ export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]
   const idxDataEmb = findBestCol(headers, ['data embarque', 'embarque', 'saida']);
 
   return rows.slice(headerIdx + 1).map((row, i): ExpedicaoPedido | null => {
-    const pedido = row[idxPedido] || '';
-    if (!pedido) return null;
+    const pedido = row[idxPedido]?.trim() || '';
+    const cliente = row[idxCliente]?.trim() || '';
+    
+    // Inclusivity: If we have either a pedido number or a client name, it's a record.
+    // Also check if there's any value at all to avoid entirely empty spreadsheet rows.
+    if (!pedido && !cliente && row.every(c => !c.trim())) return null;
 
     return {
       id: `exp-${i}`,
-      pedido,
+      pedido: pedido || 'S/N',
       cliente: row[idxCliente] || 'N/D',
       valor: parseNumber(row[idxValor]),
       peso: parseNumber(row[idxPeso]),

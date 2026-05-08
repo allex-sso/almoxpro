@@ -145,11 +145,20 @@ const App: React.FC = () => {
             savedProfiles.push(defProf);
           } else {
              const idx = savedProfiles.findIndex((p: SectorProfile) => p.id === defProf.id);
-             if (defProf.id === WAREHOUSE_PROFILE_ID || defProf.id === MASTER_PROFILE_ID || defProf.id === MAINTENANCE_PROFILE_ID) {
-                savedProfiles[idx] = { ...savedProfiles[idx], ...defProf };
-             } else {
-                savedProfiles[idx] = { ...defProf, ...savedProfiles[idx], isWarehouse: defProf.isWarehouse };
-             }
+             // Ensure structural fields are always updated from defaults if missing in saved profile
+             savedProfiles[idx] = { 
+               ...defProf, 
+               ...savedProfiles[idx], 
+               isWarehouse: defProf.isWarehouse,
+               isProduction: defProf.isProduction,
+               isCentral: defProf.isCentral,
+               isMaintenance: defProf.isMaintenance,
+               isExpedicao: defProf.isExpedicao,
+               // Specifically ensure sources are merged or taken from default if saved is empty
+               sources: (savedProfiles[idx].sources && savedProfiles[idx].sources.length > 0) 
+                 ? savedProfiles[idx].sources 
+                 : defProf.sources
+             };
           }
         });
 
