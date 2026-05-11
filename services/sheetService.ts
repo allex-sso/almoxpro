@@ -581,7 +581,7 @@ export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]
 
   const idxPedido = findBestCol(headers, ['pedido', 'os', 'numero']);
   const idxCliente = findBestCol(headers, ['cliente', 'razao social', 'nome']);
-  const idxValor = findBestCol(headers, ['valor', 'total', 'faturamento']);
+  const idxValor = findBestCol(headers, ['valor', 'total', 'vlr']);
   const idxPeso = findBestCol(headers, ['peso', 'kg', 'massa']);
   const idxStatus = findBestCol(headers, ['status', 'situacao']);
   const idxCor = findBestCol(headers, ['cor', 'pintura', 'acabamento']);
@@ -589,6 +589,7 @@ export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]
   const idxDataEnt = findBestCol(headers, ['data entrega', 'entrega', 'previsto']);
   const idxDataLib = findBestCol(headers, ['data liberacao', 'liberacao', 'liberado']);
   const idxDataEmb = findBestCol(headers, ['data embarque', 'embarque', 'saida']);
+  const idxDataFat = findBestCol(headers, ['faturamento', 'data faturamento']);
 
   return rows.slice(headerIdx + 1).map((row, i): ExpedicaoPedido | null => {
     const pedido = row[idxPedido]?.trim() || '';
@@ -610,6 +611,7 @@ export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]
       dataEntrega: parseDate(row[idxDataEnt]),
       dataLiberacao: parseDate(row[idxDataLib]),
       dataEmbarque: parseDate(row[idxDataEmb]),
+      dataFaturamento: parseDate(row[idxDataFat]),
     };
   }).filter((x): x is ExpedicaoPedido => x !== null);
 };

@@ -73,27 +73,29 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
     }, 100);
   };
 
+  const CUTOFF_DATE = useMemo(() => new Date(2026, 4, 1), []);
+
   const years = useMemo(() => {
     const y = new Set<string>();
     data.forEach(m => {
-      const date = m.dataEmbarque || m.dataSolicitacao || m.dataEntrega || m.dataLiberacao;
-      if (date) y.add(date.getFullYear().toString());
+      const date = m.dataFaturamento || m.dataEmbarque || m.dataSolicitacao || m.dataEntrega || m.dataLiberacao;
+      if (date && date >= CUTOFF_DATE) y.add(date.getFullYear().toString());
     });
     return ['Todos', ...Array.from(y).sort().reverse()];
-  }, [data]);
+  }, [data, CUTOFF_DATE]);
 
   const filteredData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
     return data.filter(m => {
       // Robust year/month matching
-      const date = m.dataEmbarque || m.dataSolicitacao || m.dataEntrega || m.dataLiberacao;
+      const date = m.dataFaturamento || m.dataEmbarque || m.dataSolicitacao || m.dataEntrega || m.dataLiberacao;
       
+      // Cutoff filter: only data from 01/05/2026 onwards
+      if (!date || date < CUTOFF_DATE) return false;
+
       // If "Todos" is selected for both, return everything immediately
       if (selectedYear === 'Todos' && selectedMonth === 'Todos') return true;
-      
-      // If no date, only include if both are "Todos" (already checked above) or if we want to be inclusive
-      if (!date) return false;
       
       const itemYear = date.getFullYear().toString();
       const itemMonth = months[date.getMonth()];
@@ -103,7 +105,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       
       return yearMatch && monthMatch;
     });
-  }, [data, selectedYear, selectedMonth]);
+  }, [data, selectedYear, selectedMonth, CUTOFF_DATE]);
 
   // Helper formatting functions
   const formatCurrency = (val: number) => 
@@ -160,7 +162,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
     const dailyVolumeByIso: Record<string, number> = {};
 
     filteredData.forEach(item => {
-      const mainDate = item.dataEmbarque || item.dataSolicitacao || item.dataEntrega || item.dataLiberacao;
+      const mainDate = item.dataFaturamento || item.dataEmbarque || item.dataSolicitacao || item.dataEntrega || item.dataLiberacao;
       const isoDate = mainDate ? mainDate.toISOString().split('T')[0] : 'N/D';
       
       if (isoDate === 'N/D' || isoDate <= todayStr) {
@@ -643,7 +645,8 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                       <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest"><div className="flex items-center gap-1"><Hash className="w-3 h-3" /> Pedido</div></th>
                       <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
                       <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Cor</th>
-                      <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Data Entr.</th>
+                      <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Data Fat.</th>
+                      <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Data Entr.</th>
                       <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Peso</th>
                       <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
                       <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
@@ -659,6 +662,9 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                           </td>
                           <td className="px-4 py-4 text-center text-[10px] font-black text-slate-500 uppercase">
                             {item.cor}
+                          </td>
+                          <td className="px-4 py-4 text-center text-[10px] font-bold text-primary whitespace-nowrap">
+                            {item.dataFaturamento?.toLocaleDateString('pt-BR') || '-'}
                           </td>
                           <td className="px-4 py-4 text-center text-[10px] font-bold text-slate-500 whitespace-nowrap">
                             {item.dataEntrega?.toLocaleDateString('pt-BR')}
@@ -1102,12 +1108,12 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                 <p className="text-xl font-bold mb-4 uppercase text-black italic">Alumínio & Plástico</p>
                 <div className="py-2">
                   <h2 className="text-2xl font-black uppercase tracking-wider text-black">RELATÓRIO DE EXPEDIÇÃO DE PERFIL</h2>
-                  <p className="text-xs font-bold text-black uppercase">Período: {selectedMonth} / {selectedYear}</p>
+                  <p className="text-xs font-bold text-black uppercase">Período (Faturamento): {selectedMonth} / {selectedYear}</p>
                 </div>
               </header>
 
               <section className="mb-8 w-full no-break-inside">
-                <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">1. INDICADORES DE PERFORMANCE</h3>
+                <h3 className="text-xs font-black uppercase mb-1 bg-black text-white p-2 border border-black">1. INDICADORES DE PERFORMANCE (BASEADO EM FATURAMENTO)</h3>
                 <table className="w-full text-sm border-collapse border border-black">
                   <tbody>
                     <tr className="border-b border-black">
@@ -1199,6 +1205,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                     <tr className="bg-gray-100 text-black">
                       <th className="border border-black p-2 text-left font-black uppercase">Cliente</th>
                       <th className="border border-black p-2 text-center font-black uppercase">Pedido</th>
+                      <th className="border border-black p-2 text-center font-black uppercase">Faturamento</th>
                       <th className="border border-black p-2 text-center font-black uppercase">Cor</th>
                       <th className="border border-black p-2 text-right font-black uppercase">Valor</th>
                       <th className="border border-black p-2 text-right font-black uppercase">Peso</th>
@@ -1210,6 +1217,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                       <tr key={idx} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
                         <td className="border-r border-black p-1.5 font-bold uppercase truncate max-w-[150px]">{item.cliente}</td>
                         <td className="border-r border-black p-1.5 text-center font-black">{item.pedido}</td>
+                        <td className="border-r border-black p-1.5 text-center font-bold text-[8px]">{item.dataFaturamento?.toLocaleDateString('pt-BR') || '-'}</td>
                         <td className="border-r border-black p-1.5 text-center font-black uppercase text-[8px]">{item.cor}</td>
                         <td className="border-r border-black p-1.5 text-right font-black">{formatCurrency(item.valor)}</td>
                         <td className="border-r border-black p-1.5 text-right font-black">{formatWeight(item.peso)}</td>
