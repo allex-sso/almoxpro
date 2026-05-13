@@ -561,7 +561,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                           <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{formatWeight(metrics.weightNatural)} / {formatWeight(metrics.target.natural)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-black text-blue-500">
+                          <p className={`text-lg font-black ${metrics.weightNatural >= metrics.target.natural ? 'text-emerald-500' : 'text-blue-500'}`}>
                             {((metrics.weightNatural / metrics.target.natural) * 100).toFixed(1)}%
                           </p>
                         </div>
@@ -570,7 +570,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min(100, (metrics.weightNatural / metrics.target.natural) * 100)}%` }}
-                          className="h-full bg-blue-500 rounded-full"
+                          className={`h-full rounded-full ${metrics.weightNatural >= metrics.target.natural ? 'bg-emerald-500' : 'bg-blue-500'}`}
                         />
                       </div>
                     </div>
@@ -583,7 +583,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                           <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{formatWeight(metrics.weightPintado)} / {formatWeight(metrics.target.pintado)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-black text-rose-500">
+                          <p className={`text-lg font-black ${metrics.weightPintado >= metrics.target.pintado ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {((metrics.weightPintado / metrics.target.pintado) * 100).toFixed(1)}%
                           </p>
                         </div>
@@ -592,7 +592,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min(100, (metrics.weightPintado / metrics.target.pintado) * 100)}%` }}
-                          className="h-full bg-rose-500 rounded-full"
+                          className={`h-full rounded-full ${metrics.weightPintado >= metrics.target.pintado ? 'bg-emerald-500' : 'bg-rose-500'}`}
                         />
                       </div>
                     </div>
