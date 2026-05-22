@@ -11,7 +11,7 @@ import {
   TrendingUp, Package, DollarSign, Clock, Users, Activity, 
   CheckCircle2, AlertCircle, Clock3, Download, Filter, Printer, X,
   Truck, BarChart3, LayoutDashboard, PieChart as PieChartIcon, Target,
-  Search, ChevronLeft, ChevronRight, Hash
+  Search, ChevronLeft, ChevronRight, Hash, Coins
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -120,6 +120,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
   // Calculated Metrics
   const metrics = useMemo(() => {
     const totalOrders = filteredData.length;
+    // O Valor Faturado (totalRevenue) engloba o valor de todos os pedidos na coluna F (Valor do Pedido), independente do status
     const totalRevenue = filteredData.reduce((acc, curr) => acc + curr.valor, 0);
     const totalWeight = filteredData.reduce((acc, curr) => acc + curr.peso, 0);
     const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -214,9 +215,31 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
     const releasedOrders = filteredData.filter(item => item.status === 'LIBERADO').length;
     const releasedPercent = totalOrders > 0 ? (releasedOrders / totalOrders) * 100 : 0;
     const waitingCollection = filteredData.filter(item => item.status === 'AGUARDANDO COLETA').length;
-    const cancelledCount = filteredData.filter(item => item.status === 'CANCELADO').length;
-    const backlogCount = filteredData.filter(item => item.status !== 'LIBERADO').length;
-    const financialBacklog = filteredData.filter(item => item.status !== 'LIBERADO').reduce((acc, curr) => acc + curr.valor, 0);
+    const cancelledCount = filteredData.filter(item => {
+      const st = item.status?.trim().toUpperCase();
+      return st === 'CANCELADO' || st === 'SALDO CANCELADO';
+    }).length;
+    const backlogCount = filteredData.filter(item => {
+      const st = item.status?.trim().toUpperCase();
+      return st !== 'LIBERADO' && st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
+    }).length;
+    const financialBacklog = filteredData
+      .filter(item => {
+        const st = item.status?.trim().toUpperCase();
+        return st !== 'LIBERADO' && st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
+      })
+      .reduce((acc, curr) => {
+        const st = curr.status?.trim().toUpperCase();
+        const isPartial = st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL' || st === 'SALDO RESTANTE';
+        return acc + (isPartial ? (curr.saldoRestante || 0) : curr.valor);
+      }, 0);
+    // O Faturamento Parcial (totalPartialFaturamento) engloba a soma dos saldos de faturamento parcial da coluna G (Faturado Parcial) se o status estiver como "Faturado Parcial" (ou "Faturamento Parcial")
+    const totalPartialFaturamento = filteredData
+      .filter(item => {
+        const st = item.status?.trim().toUpperCase();
+        return st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL';
+      })
+      .reduce((acc, curr) => acc + (curr.saldoRestante || 0), 0);
 
     // Group by Client
     const clientStats: Record<string, { orders: number, value: number, weight: number, leadTimeSum: number, leadTimeCount: number }> = {};
@@ -308,6 +331,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       statusChartData, statusWeightChartData, statusValueChartData,
       avgLeadTime, leadEvolutionChartData, volumeEvolutionChartData,
       releasedPercent, releasedOrders, waitingCollection, cancelledCount, backlogCount, financialBacklog,
+      totalPartialFaturamento,
       topClientsByWeight, topClientsByValue, topClientsByOrders,
       avgTicketByClient, avgLeadTimeByClient,
       weightByColorChartData, top5Heaviest, lateOrders,
@@ -358,11 +382,11 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <KpiCard title="Total de Pedidos" value={formatNumber(metrics.totalOrders)} icon={Package} color="blue" />
-              <KpiCard title="Valor Faturado" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
+              <KpiCard title="Valor Total" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
+              <KpiCard title="Faturamento Parcial" value={formatCurrency(metrics.totalPartialFaturamento)} icon={Coins} color="emerald" />
               <KpiCard title="Peso Expedido" value={formatWeight(metrics.totalWeight)} icon={Truck} color="amber" />
               <KpiCard title="Ticket Médio" value={formatCurrency(metrics.avgTicket)} icon={Activity} color="indigo" />
               <KpiCard title="Peso Médio/Pedido" value={formatWeight(metrics.avgWeight)} icon={TrendingUp} color="rose" />
-              <KpiCard title="Peds. Cancelados" value={formatNumber(metrics.cancelledCount)} icon={X} color="rose" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -472,7 +496,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                 secondaryText={`${formatNumber(metrics.releasedOrders)} Pedidos`}
               />
               <KpiCard title="Aguardando Coleta" value={formatNumber(metrics.waitingCollection)} icon={Clock3} color="amber" secondaryText="Total de pedidos" />
-              <KpiCard title="Pedidos Cancelados" value={formatNumber(metrics.cancelledCount)} icon={X} color="rose" secondaryText="Status Cancelado" />
+              <KpiCard title="Faturamento Parcial" value={formatCurrency(metrics.totalPartialFaturamento)} icon={Coins} color="emerald" secondaryText="Saldo Restante" />
               <KpiCard title="Backlog (Não Liberados)" value={formatNumber(metrics.backlogCount)} icon={AlertCircle} color="rose" secondaryText="Pendentes" />
             </div>
 
@@ -840,7 +864,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <KpiCard title="Total Faturado" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
+               <KpiCard title="Valor Total" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
                <KpiCard title="Backlog Financeiro" value={formatCurrency(metrics.financialBacklog)} icon={AlertCircle} color="rose" secondaryText="Pedidos em aberto" />
             </div>
 
@@ -1149,8 +1173,8 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                       <td className="p-3 font-black text-black">{formatNumber(metrics.lateOrders)} pedidos</td>
                     </tr>
                     <tr>
-                      <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Pedidos Cancelados</td>
-                      <td className="p-3 font-black text-black">{formatNumber(metrics.cancelledCount)} unidades</td>
+                      <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Faturamento Parcial (Saldo Restante)</td>
+                      <td className="p-3 font-black text-black">{formatCurrency(metrics.totalPartialFaturamento)}</td>
                     </tr>
                   </tbody>
                 </table>

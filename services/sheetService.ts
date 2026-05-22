@@ -590,6 +590,7 @@ export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]
   const idxDataLib = findBestCol(headers, ['data liberacao', 'liberacao', 'liberado']);
   const idxDataEmb = findBestCol(headers, ['data embarque', 'embarque', 'saida']);
   const idxDataFat = findBestCol(headers, ['faturamento', 'data faturamento']);
+  const idxSaldoRestante = findBestCol(headers, ['saldo restante', 'saldo', 'restante', 'faturado parcial', 'faturamento parcial']);
 
   return rows.slice(headerIdx + 1).map((row, i): ExpedicaoPedido | null => {
     const pedido = row[idxPedido]?.trim() || '';
@@ -599,19 +600,33 @@ export const fetchExpedicaoData = async (url: string): Promise<ExpedicaoPedido[]
     // Also check if there's any value at all to avoid entirely empty spreadsheet rows.
     if (!pedido && !cliente && row.every(c => !c.trim())) return null;
 
+    let statusStr = (row[idxStatus] || 'OUTROS').trim().toUpperCase();
+    if (statusStr === 'SALDO RESTANTE') {
+      statusStr = 'FATURAMENTO PARCIAL';
+    }
+    const isPartial = statusStr === 'FATURADO PARCIAL' || statusStr === 'FATURAMENTO PARCIAL';
+    const isTotal = statusStr === 'FATURADO TOTAL';
+    const saldoRestanteVal = idxSaldoRestante !== -1 ? parseNumber(row[idxSaldoRestante]) : undefined;
+    
+    let valor = parseNumber(row[idxValor]);
+    if (valor === 0 && isTotal && idxSaldoRestante !== -1) {
+      valor = parseNumber(row[idxSaldoRestante]);
+    }
+
     return {
       id: `exp-${i}`,
       pedido: pedido || 'S/N',
       cliente: row[idxCliente] || 'N/D',
-      valor: parseNumber(row[idxValor]),
+      valor,
       peso: parseNumber(row[idxPeso]),
-      status: (row[idxStatus] || 'OUTROS').toUpperCase(),
+      status: statusStr,
       cor: row[idxCor] || 'N/D',
       dataSolicitacao: parseDate(row[idxDataSol]),
       dataEntrega: parseDate(row[idxDataEnt]),
       dataLiberacao: parseDate(row[idxDataLib]),
       dataEmbarque: parseDate(row[idxDataEmb]),
       dataFaturamento: parseDate(row[idxDataFat]),
+      saldoRestante: saldoRestanteVal,
     };
   }).filter((x): x is ExpedicaoPedido => x !== null);
 };

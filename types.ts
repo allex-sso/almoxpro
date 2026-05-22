@@ -100,6 +100,7 @@ export interface ExpedicaoPedido {
   dataLiberacao: Date | null;
   dataEmbarque: Date | null;
   dataFaturamento: Date | null;
+  saldoRestante?: number;
 }
 
 export interface ServiceOrder {
