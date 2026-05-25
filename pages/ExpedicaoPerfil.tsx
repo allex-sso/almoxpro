@@ -223,16 +223,6 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       const st = item.status?.trim().toUpperCase();
       return st !== 'LIBERADO' && st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
     }).length;
-    const financialBacklog = filteredData
-      .filter(item => {
-        const st = item.status?.trim().toUpperCase();
-        return st !== 'LIBERADO' && st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
-      })
-      .reduce((acc, curr) => {
-        const st = curr.status?.trim().toUpperCase();
-        const isPartial = st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL' || st === 'SALDO RESTANTE';
-        return acc + (isPartial ? (curr.saldoRestante || 0) : curr.valor);
-      }, 0);
     // O Faturamento Parcial (totalPartialFaturamento) engloba a soma dos saldos de faturamento parcial da coluna G (Faturado Parcial) se o status estiver como "Faturado Parcial" (ou "Faturamento Parcial")
     const totalPartialFaturamento = filteredData
       .filter(item => {
@@ -240,6 +230,22 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
         return st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL';
       })
       .reduce((acc, curr) => acc + (curr.saldoRestante || 0), 0);
+
+    // Backlog Financeiro: Valor Total - Faturamento Parcial (as requested: totalRevenue - totalPartialFaturamento)
+    const financialBacklog = totalRevenue - totalPartialFaturamento;
+
+    // Backlog Financeiro de não liberados: specifically for the backlog row on general report (does not include released/LIBERADO)
+    const unreleasedFinancialBacklog = filteredData
+      .filter(item => {
+        const st = item.status?.trim().toUpperCase();
+        return st !== 'LIBERADO' && st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
+      })
+      .reduce((acc, curr) => {
+        const st = curr.status?.trim().toUpperCase();
+        const isPartial = st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL' || st === 'SALDO RESTANTE';
+        const remaining = isPartial ? curr.valor - (curr.saldoRestante || 0) : curr.valor;
+        return acc + (remaining > 0 ? remaining : 0);
+      }, 0);
 
     // Group by Client
     const clientStats: Record<string, { orders: number, value: number, weight: number, leadTimeSum: number, leadTimeCount: number }> = {};
@@ -331,7 +337,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       statusChartData, statusWeightChartData, statusValueChartData,
       avgLeadTime, leadEvolutionChartData, volumeEvolutionChartData,
       releasedPercent, releasedOrders, waitingCollection, cancelledCount, backlogCount, financialBacklog,
-      totalPartialFaturamento,
+      unreleasedFinancialBacklog, totalPartialFaturamento,
       topClientsByWeight, topClientsByValue, topClientsByOrders,
       avgTicketByClient, avgLeadTimeByClient,
       weightByColorChartData, top5Heaviest, lateOrders,
@@ -1166,7 +1172,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                     </tr>
                     <tr className="border-b border-black">
                       <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Backlog Atual (Não Liberados)</td>
-                      <td className="p-3 font-black text-black">{formatNumber(metrics.backlogCount)} pedidos ({formatCurrency(metrics.financialBacklog)})</td>
+                      <td className="p-3 font-black text-black">{formatNumber(metrics.backlogCount)} pedidos ({formatCurrency(metrics.unreleasedFinancialBacklog)})</td>
                     </tr>
                     <tr className="border-b border-black">
                       <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Pedidos em Atraso (Data Entrega)</td>
