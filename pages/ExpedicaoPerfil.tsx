@@ -120,8 +120,47 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
   // Calculated Metrics
   const metrics = useMemo(() => {
     const totalOrders = filteredData.length;
-    // O Valor Faturado (totalRevenue) engloba o valor de todos os pedidos na coluna F (Valor do Pedido), independente do status
-    const totalRevenue = filteredData.reduce((acc, curr) => acc + curr.valor, 0);
+
+    // Filter specifically for items whose dataEntrega (Column E / DATA DE ENTREGA) matches the year and month filters
+    const deliveryFilteredData = data.filter(m => {
+      const date = m.dataEntrega;
+      
+      // Cutoff filter: only data from 01/05/2026 onwards
+      if (!date || date < CUTOFF_DATE) return false;
+
+      // If "Todos" is selected for both, return everything immediately
+      if (selectedYear === 'Todos' && selectedMonth === 'Todos') return true;
+      
+      const itemYear = date.getFullYear().toString();
+      const itemMonth = months[date.getMonth()];
+      
+      const yearMatch = selectedYear === 'Todos' || itemYear === selectedYear;
+      const monthMatch = selectedMonth === 'Todos' || itemMonth === selectedMonth;
+      
+      return yearMatch && monthMatch;
+    });
+
+    // Filter specifically for items whose dataFaturamento (Column J / FATURAMENTO) matches the year and month filters
+    const financialFilteredData = data.filter(m => {
+      const date = m.dataFaturamento;
+      
+      // Cutoff filter: only data from 01/05/2026 onwards
+      if (!date || date < CUTOFF_DATE) return false;
+
+      // If "Todos" is selected for both, return everything immediately
+      if (selectedYear === 'Todos' && selectedMonth === 'Todos') return true;
+      
+      const itemYear = date.getFullYear().toString();
+      const itemMonth = months[date.getMonth()];
+      
+      const yearMatch = selectedYear === 'Todos' || itemYear === selectedYear;
+      const monthMatch = selectedMonth === 'Todos' || itemMonth === selectedMonth;
+      
+      return yearMatch && monthMatch;
+    });
+
+    // O Valor Faturado (totalRevenue) engloba o valor de todos os pedidos na coluna F (Valor do Pedido) usando a coluna E (Data de Entrega) como referência de data
+    const totalRevenue = deliveryFilteredData.reduce((acc, curr) => acc + curr.valor, 0);
     const totalWeight = filteredData.reduce((acc, curr) => acc + curr.peso, 0);
     const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const avgWeight = totalOrders > 0 ? totalWeight / totalOrders : 0;
@@ -135,6 +174,10 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       const st = item.status || 'OUTROS';
       statusCounts[st] = (statusCounts[st] || 0) + 1;
       statusWeights[st] = (statusWeights[st] || 0) + item.peso;
+    });
+
+    deliveryFilteredData.forEach(item => {
+      const st = item.status || 'OUTROS';
       statusValues[st] = (statusValues[st] || 0) + item.valor;
     });
 
@@ -223,8 +266,8 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       const st = item.status?.trim().toUpperCase();
       return st !== 'LIBERADO' && st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
     }).length;
-    // O Faturamento Parcial (totalPartialFaturamento) engloba a soma dos saldos de faturamento parcial da coluna G (Faturado Parcial) se o status estiver como "Faturado Parcial" (ou "Faturamento Parcial")
-    const totalPartialFaturamento = filteredData
+    // O Faturamento Parcial (totalPartialFaturamento) engloba a soma dos saldos de faturamento parcial da coluna G (Faturado Parcial) se o status estiver como "Faturado Parcial" (ou "Faturamento Parcial") usando apenasColuna J como data referência
+    const totalPartialFaturamento = financialFilteredData
       .filter(item => {
         const st = item.status?.trim().toUpperCase();
         return st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL';
@@ -254,7 +297,6 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
         clientStats[item.cliente] = { orders: 0, value: 0, weight: 0, leadTimeSum: 0, leadTimeCount: 0 };
       }
       clientStats[item.cliente].orders += 1;
-      clientStats[item.cliente].value += item.valor;
       clientStats[item.cliente].weight += item.peso;
       
       if (item.dataEmbarque && item.dataSolicitacao) {
@@ -264,6 +306,14 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
           clientStats[item.cliente].leadTimeCount += 1;
         }
       }
+    });
+
+    // Populate financial values strictly based on dataset matching column E (Data de Entrega)
+    deliveryFilteredData.forEach(item => {
+      if (!clientStats[item.cliente]) {
+        clientStats[item.cliente] = { orders: 0, value: 0, weight: 0, leadTimeSum: 0, leadTimeCount: 0 };
+      }
+      clientStats[item.cliente].value += item.valor;
     });
 
     const topClientsByWeight = Object.keys(clientStats)
