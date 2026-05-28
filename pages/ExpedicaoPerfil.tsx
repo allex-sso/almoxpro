@@ -121,25 +121,6 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
   const metrics = useMemo(() => {
     const totalOrders = filteredData.length;
 
-    // Filter specifically for items whose dataEntrega (Column E / DATA DE ENTREGA) matches the year and month filters
-    const deliveryFilteredData = data.filter(m => {
-      const date = m.dataEntrega;
-      
-      // Cutoff filter: only data from 01/05/2026 onwards
-      if (!date || date < CUTOFF_DATE) return false;
-
-      // If "Todos" is selected for both, return everything immediately
-      if (selectedYear === 'Todos' && selectedMonth === 'Todos') return true;
-      
-      const itemYear = date.getFullYear().toString();
-      const itemMonth = months[date.getMonth()];
-      
-      const yearMatch = selectedYear === 'Todos' || itemYear === selectedYear;
-      const monthMatch = selectedMonth === 'Todos' || itemMonth === selectedMonth;
-      
-      return yearMatch && monthMatch;
-    });
-
     // Filter specifically for items whose dataFaturamento (Column J / FATURAMENTO) matches the year and month filters
     const financialFilteredData = data.filter(m => {
       const date = m.dataFaturamento;
@@ -159,8 +140,8 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       return yearMatch && monthMatch;
     });
 
-    // O Valor Faturado (totalRevenue) engloba o valor de todos os pedidos na coluna F (Valor do Pedido) usando a coluna E (Data de Entrega) como referência de data
-    const totalRevenue = deliveryFilteredData.reduce((acc, curr) => acc + curr.valor, 0);
+    // O Faturamento Total (totalRevenue) engloba os valores da coluna G (Saldo Restante) tendo como referência a coluna J (Faturamento)
+    const totalRevenue = financialFilteredData.reduce((acc, curr) => acc + (curr.saldoRestante || 0), 0);
     const totalWeight = filteredData.reduce((acc, curr) => acc + curr.peso, 0);
     const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const avgWeight = totalOrders > 0 ? totalWeight / totalOrders : 0;
@@ -170,15 +151,40 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
     const statusWeights: Record<string, number> = {};
     const statusValues: Record<string, number> = {};
     
+    // Helper function to check if a date is within selected year/month filters
+    const isDateInFilter = (date: Date | null | undefined) => {
+      if (!date || date < CUTOFF_DATE) return false;
+      if (selectedYear === 'Todos' && selectedMonth === 'Todos') return true;
+      const itemYear = date.getFullYear().toString();
+      const itemMonth = months[date.getMonth()];
+      const yearMatch = selectedYear === 'Todos' || itemYear === selectedYear;
+      const monthMatch = selectedMonth === 'Todos' || itemMonth === selectedMonth;
+      return yearMatch && monthMatch;
+    };
+
     filteredData.forEach(item => {
       const st = item.status || 'OUTROS';
       statusCounts[st] = (statusCounts[st] || 0) + 1;
       statusWeights[st] = (statusWeights[st] || 0) + item.peso;
     });
 
-    deliveryFilteredData.forEach(item => {
+    // For "Valor por Status" chart, map all registered statuses according to supervisor request
+    data.forEach(item => {
       const st = item.status || 'OUTROS';
-      statusValues[st] = (statusValues[st] || 0) + item.valor;
+      const stNorm = st.trim().toUpperCase();
+      const isFaturamento = stNorm === 'FATURADO TOTAL' || stNorm === 'FATURADO PARCIAL' || stNorm === 'FATURAMENTO PARCIAL';
+      
+      if (isFaturamento) {
+        // Referenced by Column J (dataFaturamento) and summing Column G (saldoRestante)
+        if (isDateInFilter(item.dataFaturamento)) {
+          statusValues['FATURADO PARCIAL'] = (statusValues['FATURADO PARCIAL'] || 0) + (item.saldoRestante || 0);
+        }
+      } else {
+        // For other statuses, referenced by Column E (dataEntrega) and summing Column F (valor / Valor do Pedido)
+        if (isDateInFilter(item.dataEntrega)) {
+          statusValues[st] = (statusValues[st] || 0) + (item.valor || 0);
+        }
+      }
     });
 
     const statusChartData = Object.keys(statusCounts).map(name => ({
@@ -191,10 +197,12 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       value: statusWeights[name]
     }));
 
-    const statusValueChartData = Object.keys(statusValues).map(name => ({
-      name,
-      value: statusValues[name]
-    }));
+    const statusValueChartData = Object.keys(statusValues)
+      .map(name => ({
+        name,
+        value: statusValues[name]
+      }))
+      .filter(item => item.value > 0);
 
     // Lead Time calculations
     const today = new Date();
@@ -308,12 +316,12 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       }
     });
 
-    // Populate financial values strictly based on dataset matching column E (Data de Entrega)
-    deliveryFilteredData.forEach(item => {
+    // Populate financial values strictly based on column G (Saldo Restante) matching column J (Faturamento)
+    financialFilteredData.forEach(item => {
       if (!clientStats[item.cliente]) {
         clientStats[item.cliente] = { orders: 0, value: 0, weight: 0, leadTimeSum: 0, leadTimeCount: 0 };
       }
-      clientStats[item.cliente].value += item.valor;
+      clientStats[item.cliente].value += (item.saldoRestante || 0);
     });
 
     const topClientsByWeight = Object.keys(clientStats)
@@ -436,10 +444,9 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       case 0: // VISÃO GERAL
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <KpiCard title="Total de Pedidos" value={formatNumber(metrics.totalOrders)} icon={Package} color="blue" />
-              <KpiCard title="Valor Total" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
-              <KpiCard title="Faturamento Parcial" value={formatCurrency(metrics.totalPartialFaturamento)} icon={Coins} color="emerald" />
+              <KpiCard title="Faturamento Parcial" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
               <KpiCard title="Peso Expedido" value={formatWeight(metrics.totalWeight)} icon={Truck} color="amber" />
               <KpiCard title="Ticket Médio" value={formatCurrency(metrics.avgTicket)} icon={Activity} color="indigo" />
               <KpiCard title="Peso Médio/Pedido" value={formatWeight(metrics.avgWeight)} icon={TrendingUp} color="rose" />
@@ -542,7 +549,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       case 1: // EXPEDIÇÃO
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4">
               <KpiCard 
                 title="% Pedidos Liberados" 
                 value={`${metrics.releasedPercent.toFixed(1)}%`} 
@@ -552,7 +559,6 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                 secondaryText={`${formatNumber(metrics.releasedOrders)} Pedidos`}
               />
               <KpiCard title="Aguardando Coleta" value={formatNumber(metrics.waitingCollection)} icon={Clock3} color="amber" secondaryText="Total de pedidos" />
-              <KpiCard title="Faturamento Parcial" value={formatCurrency(metrics.totalPartialFaturamento)} icon={Coins} color="emerald" secondaryText="Saldo Restante" />
               <KpiCard title="Backlog (Não Liberados)" value={formatNumber(metrics.backlogCount)} icon={AlertCircle} color="rose" secondaryText="Pendentes" />
             </div>
 
@@ -920,7 +926,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <KpiCard title="Valor Total" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
+               <KpiCard title="Faturamento Parcial" value={formatCurrency(metrics.totalRevenue)} icon={DollarSign} color="emerald" />
                <KpiCard title="Backlog Financeiro" value={formatCurrency(metrics.financialBacklog)} icon={AlertCircle} color="rose" secondaryText="Pedidos em aberto" />
             </div>
 
@@ -1201,7 +1207,7 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
                       <td className="p-3 font-black text-black">{formatNumber(metrics.totalOrders)} unidades</td>
                     </tr>
                     <tr className="border-b border-black">
-                      <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Valor Total Faturado</td>
+                      <td className="border-r border-black p-3 font-black w-[45%] bg-gray-50 text-black">Faturamento Parcial</td>
                       <td className="p-3 font-black text-black">{formatCurrency(metrics.totalRevenue)}</td>
                     </tr>
                     <tr className="border-b border-black">

@@ -37,6 +37,7 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedEquipForDetails, setSelectedEquipForDetails] = useState<string | null>(null);
+  const [resumido, setResumido] = useState(false);
   
   const itemsPerPage = 12;
 
@@ -399,9 +400,20 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] bg-white overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:bg-white">
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
-                <div className="flex items-center">
-                    <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Painel de Manutenção Preventiva - Relatório</span>
+                <div className="flex items-center gap-6 font-sans">
+                    <div className="flex items-center">
+                        <Printer className="mr-2 w-5 h-5" />
+                        <span className="font-bold text-sm uppercase tracking-widest">Painel de Manutenção Preventiva - Relatório</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-700 hover:bg-slate-650 transition-colors px-3 py-1.5 rounded-lg border border-slate-650">
+                        <input 
+                            type="checkbox" 
+                            checked={resumido}
+                            onChange={(e) => setResumido(e.target.checked)}
+                            className="rounded border-slate-500 text-blue-600 focus:ring-blue-500 h-4 w-4 bg-slate-800 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">Relatório Resumido</span>
+                    </label>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
@@ -488,31 +500,33 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
                     </section>
 
                     {/* Seção 4: Log de Atividades */}
-                    <section className="mb-10 !text-black">
-                        <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">4. DETALHAMENTO ANALÍTICO DAS ATIVIDADES</h3>
-                        <table className="w-full text-[9px] border-collapse border border-black !text-black">
-                           <thead>
-                              <tr className="bg-gray-50">
-                                 <th className="border border-black p-2 text-left font-black">DATA</th>
-                                 <th className="border border-black p-2 text-left font-black">EQUIPAMENTO</th>
-                                 <th className="border border-black p-2 text-left font-black">ATIVIDADE</th>
-                                 <th className="border border-black p-2 text-center font-black">TEMPO</th>
-                                 <th className="border border-black p-2 text-left font-black">TÉCNICO</th>
-                              </tr>
-                           </thead>
-                           <tbody>
-                              {filteredData.map((p, i) => (
-                                <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
-                                   <td className="border-r border-black p-1.5 font-bold font-mono">{p.dataExecucao?.toLocaleDateString('pt-BR')}</td>
-                                   <td className="border-r border-black p-1.5 uppercase font-bold">{p.equipamento}</td>
-                                   <td className="border-r border-black p-1.5 italic line-clamp-2">{p.atividade}</td>
-                                   <td className="border-r border-black p-1.5 text-center font-black">{formatDetailedTime(p.tempo)}</td>
-                                   <td className="p-1.5 uppercase font-bold">{p.profissional}</td>
-                                </tr>
-                              ))}
-                           </tbody>
-                        </table>
-                    </section>
+                    {!resumido && (
+                        <section className="mb-10 !text-black">
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">4. DETALHAMENTO ANALÍTICO DAS ATIVIDADES</h3>
+                            <table className="w-full text-[9px] border-collapse border border-black !text-black">
+                               <thead>
+                                  <tr className="bg-gray-50">
+                                     <th className="border border-black p-2 text-left font-black">DATA</th>
+                                     <th className="border border-black p-2 text-left font-black">EQUIPAMENTO</th>
+                                     <th className="border border-black p-2 text-left font-black">ATIVIDADE</th>
+                                     <th className="border border-black p-2 text-center font-black">TEMPO</th>
+                                     <th className="border border-black p-2 text-left font-black">TÉCNICO</th>
+                                  </tr>
+                               </thead>
+                               <tbody>
+                                  {filteredData.map((p, i) => (
+                                    <tr key={i} className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                       <td className="border-r border-black p-1.5 font-bold font-mono">{p.dataExecucao?.toLocaleDateString('pt-BR')}</td>
+                                       <td className="border-r border-black p-1.5 uppercase font-bold">{p.equipamento}</td>
+                                       <td className="border-r border-black p-1.5 italic line-clamp-2">{p.atividade}</td>
+                                       <td className="border-r border-black p-1.5 text-center font-black">{formatDetailedTime(p.tempo)}</td>
+                                       <td className="p-1.5 uppercase font-bold">{p.profissional}</td>
+                                     </tr>
+                                  ))}
+                               </tbody>
+                            </table>
+                        </section>
+                    )}
 
                     <footer className="mt-20 pt-10 flex justify-between gap-24 no-break-inside !text-black">
                         <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase">Responsável PCM / Manutenção</div></div>

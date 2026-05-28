@@ -67,6 +67,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const [selectedPartForReasons, setSelectedPartForReasons] = useState<string | null>(null);
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [resumido, setResumido] = useState(false);
 
   // Paleta de cores variadas conforme a imagem
   const VIBRANT_COLORS = [
@@ -353,6 +354,50 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     return Object.values(grouped).sort((a, b) => b.count - a.count);
   }, [selectedPartForReasons, selectedEquipmentForModal, filteredData]);
 
+  const totalRequesterOS = useMemo(() => 
+    requesterDistribution.reduce((acc, curr) => acc + curr.value, 0)
+  , [requesterDistribution]);
+
+  const equipmentReportStats = useMemo(() => {
+    const eqMap: Record<string, {
+      name: string;
+      count: number;
+      parts: Record<string, {
+        count: number;
+        reasons: Record<string, number>;
+      }>;
+    }> = {};
+
+    filteredData.forEach(os => {
+      const eq = os.equipamento || 'Geral/Outros';
+      if (!eqMap[eq]) {
+        eqMap[eq] = { name: eq, count: 0, parts: {} };
+      }
+      eqMap[eq].count++;
+
+      if (os.peca) {
+        const parts = os.peca.split(/[,/]/).map(p => p.trim()).filter(Boolean);
+        const reason = os.motivo ? os.motivo.trim() : 'Não especificado';
+        parts.forEach(p => {
+          if (!eqMap[eq].parts[p]) {
+            eqMap[eq].parts[p] = { count: 0, reasons: {} };
+          }
+          eqMap[eq].parts[p].count++;
+          eqMap[eq].parts[p].reasons[reason] = (eqMap[eq].parts[p].reasons[reason] || 0) + 1;
+        });
+      } else {
+        const reason = os.motivo ? os.motivo.trim() : 'Não especificado';
+        if (!eqMap[eq].parts['Nenhuma peça citada']) {
+          eqMap[eq].parts['Nenhuma peça citada'] = { count: 0, reasons: {} };
+        }
+        eqMap[eq].parts['Nenhuma peça citada'].count++;
+        eqMap[eq].parts['Nenhuma peça citada'].reasons[reason] = (eqMap[eq].parts['Nenhuma peça citada'].reasons[reason] || 0) + 1;
+      }
+    });
+
+    return Object.values(eqMap).sort((a, b) => b.count - a.count);
+  }, [filteredData]);
+
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
     document.title = "relatorio_gerencial_alumasa";
@@ -616,9 +661,20 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible print:bg-white">
             {/* Header Print Preview */}
             <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print preview-header">
-                <div className="flex items-center">
-                    <Printer className="mr-2 w-5 h-5" />
-                    <span className="font-bold text-sm uppercase tracking-widest">Painel de Ordens de Serviço - Relatório</span>
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center">
+                        <Printer className="mr-2 w-5 h-5" />
+                        <span className="font-bold text-sm uppercase tracking-widest">Painel de Ordens de Serviço - Relatório</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-700 hover:bg-slate-650 transition-colors px-3 py-1.5 rounded-lg border border-slate-650">
+                        <input 
+                            type="checkbox" 
+                            checked={resumido}
+                            onChange={(e) => setResumido(e.target.checked)}
+                            className="rounded border-slate-500 text-blue-600 focus:ring-blue-500 h-4 w-4 bg-slate-800 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">Relatório Resumido</span>
+                    </label>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={() => setShowPrintPreview(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center transition-all active:scale-95"><X className="w-4 h-4 mr-2" /> Voltar</button>
@@ -704,37 +760,138 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                             </table>
                         </section>
 
-                        <div className="mb-12 overflow-visible">
-                            <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">4. LOG ANALÍTICO DE ORDENS DE SERVIÇO</h3>
-                            <table className="w-full text-[8.5px] border-collapse border border-black text-black">
-                                <thead style={{ display: 'table-header-group' }}>
-                                    <tr className="bg-gray-200">
-                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">DATA / NÚMERO</th>
-                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">EQUIPAMENTO</th>
-                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">ATIVIDADE / PEÇA</th>
-                                        <th className="border border-black p-2 text-center font-black text-black uppercase text-[10px]">TEMPO</th>
-                                        <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">TÉCNICO</th>
+                        <section className="mb-8 font-sans" style={{ pageBreakInside: 'avoid' }}>
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">4. MÉTRICAS DE ABERTURA POR EQUIPAMENTO E PEÇAS</h3>
+                            <table className="w-full text-[11px] border-collapse border border-black text-black">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="border border-black p-2 text-left font-black uppercase text-black w-1/3 text-[10px]">EQUIPAMENTO (TOTAL OS)</th>
+                                        <th className="border border-black p-2 text-left font-black uppercase text-black w-1/3 text-[10px]">PEÇA CITADA (QTD.)</th>
+                                        <th className="border border-black p-2 text-left font-black uppercase text-black w-1/3 text-[10px]">MOTIVO DA TROCA / ABERTURA</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredData.map((os, i) => (
+                                    {equipmentReportStats.map((eq, i) => {
+                                        const partsArray = Object.entries(eq.parts);
+                                        if (partsArray.length === 0) {
+                                            return (
+                                                <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
+                                                    <td className="border-r border-black p-2 font-bold uppercase text-black">{eq.name} ({eq.count} OS)</td>
+                                                    <td className="border-r border-black p-2 text-slate-500 italic">Sem peças citadas</td>
+                                                    <td className="p-2 text-slate-500 italic">Sem motivos registrados</td>
+                                                </tr>
+                                            );
+                                        }
+                                        return partsArray.map(([partName, partData], partIdx) => (
+                                            <tr key={`${i}-${partIdx}`} className="border-b border-black text-[10.5px] text-black" style={{ pageBreakInside: 'avoid' }}>
+                                                {partIdx === 0 && (
+                                                    <td className="border-r border-black p-2 font-bold uppercase text-black align-top" rowSpan={partsArray.length}>
+                                                        <div className="font-extrabold">{eq.name}</div>
+                                                        <div className="text-[9px] text-gray-500 mt-0.5">{eq.count} {eq.count === 1 ? 'abertura' : 'aberturas'}</div>
+                                                    </td>
+                                                )}
+                                                <td className="border-r border-black p-2 font-semibold text-black align-top">
+                                                    {partName !== 'Nenhuma peça citada' ? `${partName} (${partData.count}x)` : <span className="text-slate-500 italic">Geral / Sem peça citada</span>}
+                                                </td>
+                                                <td className="p-2 text-black align-top">
+                                                    <ul className="list-disc list-inside">
+                                                        {Object.entries(partData.reasons).map(([reason, cnt]) => (
+                                                            <li key={reason} className="text-black">
+                                                                {reason} <span className="font-black">({cnt}x)</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </td>
+                                            </tr>
+                                        ));
+                                    })}
+                                </tbody>
+                            </table>
+                        </section>
+
+                        <section className="mb-8 font-sans" style={{ pageBreakInside: 'avoid' }}>
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">5. DISTRIBUIÇÃO DE ABERTURA POR SETOR</h3>
+                            <table className="w-full text-[11px] border-collapse border border-black text-black">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="border border-black p-2 text-left font-black uppercase text-black text-[10px]">SETOR</th>
+                                        <th className="border border-black p-2 text-center font-black uppercase text-black w-24 text-[10px]">QTD. OS</th>
+                                        <th className="border border-black p-2 text-center font-black uppercase text-black w-36 text-[10px]">REPRESENTATIVIDADE (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sectorDistribution.map((item, i) => (
                                         <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
-                                            <td className="border-r border-black p-1.5">
-                                                <div className="font-bold text-black">{os.dataAbertura.toLocaleDateString('pt-BR')}</div>
-                                                <div className="font-black text-blue-700">{os.numero}</div>
+                                            <td className="border-r border-black p-2 font-bold uppercase text-black">{item.name}</td>
+                                            <td className="border-r border-black p-2 text-center font-black text-black">{item.value}</td>
+                                            <td className="p-2 text-center font-black text-black">
+                                                {((item.value / (totalSectorOS || 1)) * 100).toFixed(1)}%
                                             </td>
-                                            <td className="border-r border-black p-1.5 uppercase font-bold text-black">{os.equipamento}</td>
-                                            <td className="border-r border-black p-1.5 italic text-black">
-                                                <div className="line-clamp-2">{os.descricao}</div>
-                                                {os.peca && <div className="font-black text-[7px] text-gray-500 uppercase mt-0.5">PEÇA: {os.peca}</div>}
-                                            </td>
-                                            <td className="border-r border-black p-1.5 text-center font-black text-black">{formatDetailedTime(os.horas)}</td>
-                                            <td className="p-1.5 uppercase font-bold text-black">{os.professional}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                        </section>
+
+                        {!resumido && (
+                            <section className="mb-8 font-sans" style={{ pageBreakInside: 'avoid' }}>
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">6. DISTRIBUIÇÃO DE ABERTURA POR REQUISITANTE</h3>
+                                <table className="w-full text-[11px] border-collapse border border-black text-black">
+                                    <thead>
+                                        <tr className="bg-gray-50">
+                                            <th className="border border-black p-2 text-left font-black uppercase text-black text-[10px]">REQUISITANTE</th>
+                                            <th className="border border-black p-2 text-center font-black uppercase text-black w-24 text-[10px]">QTD. OS</th>
+                                            <th className="border border-black p-2 text-center font-black uppercase text-black w-36 text-[10px]">REPRESENTATIVIDADE (%)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {requesterDistribution.map((item, i) => (
+                                            <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
+                                                <td className="border-r border-black p-2 font-bold uppercase text-black">{item.name}</td>
+                                                <td className="border-r border-black p-2 text-center font-black text-black">{item.value}</td>
+                                                <td className="p-2 text-center font-black text-black">
+                                                    {((item.value / (totalRequesterOS || 1)) * 100).toFixed(1)}%
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </section>
+                        )}
+
+                        {!resumido && (
+                            <div className="mb-12 overflow-visible">
+                                <h3 className="text-[10px] font-black uppercase mb-1 bg-black text-white p-2 border border-black">7. LOG ANALÍTICO DE ORDENS DE SERVIÇO</h3>
+                                <table className="w-full text-[8.5px] border-collapse border border-black text-black">
+                                    <thead style={{ display: 'table-header-group' }}>
+                                        <tr className="bg-gray-200">
+                                            <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">DATA / NÚMERO</th>
+                                            <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">EQUIPAMENTO</th>
+                                            <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">ATIVIDADE / PEÇA</th>
+                                            <th className="border border-black p-2 text-center font-black text-black uppercase text-[10px]">TEMPO</th>
+                                            <th className="border border-black p-2 text-left font-black text-black uppercase text-[10px]">TÉCNICO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredData.map((os, i) => (
+                                            <tr key={i} className="border-b border-black text-black" style={{ pageBreakInside: 'avoid' }}>
+                                                <td className="border-r border-black p-1.5">
+                                                    <div className="font-bold text-black">{os.dataAbertura.toLocaleDateString('pt-BR')}</div>
+                                                    <div className="font-black text-blue-700">{os.numero}</div>
+                                                </td>
+                                                <td className="border-r border-black p-1.5 uppercase font-bold text-black">{os.equipamento}</td>
+                                                <td className="border-r border-black p-1.5 italic text-black">
+                                                    <div className="line-clamp-2">{os.descricao}</div>
+                                                    {os.peca && <div className="font-black text-[7px] text-gray-500 uppercase mt-0.5">PEÇA: {os.peca}</div>}
+                                                </td>
+                                                <td className="border-r border-black p-1.5 text-center font-black text-black">{formatDetailedTime(os.horas)}</td>
+                                                <td className="p-1.5 uppercase font-bold text-black">{os.professional}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
 
                         <footer className="mt-20 pt-10 flex justify-between gap-24 no-break-inside text-black" style={{ pageBreakInside: 'avoid' }}>
                             <div className="text-center flex-1"><div className="w-full border-t-2 border-black pt-1 text-[9px] font-black uppercase text-black">Responsável Manutenção / PCM</div></div>
