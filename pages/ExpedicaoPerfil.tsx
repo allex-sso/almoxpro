@@ -282,8 +282,18 @@ const ExpedicaoPerfil: React.FC<ExpedicaoPerfilProps> = ({ data, isLoading, init
       })
       .reduce((acc, curr) => acc + (curr.saldoRestante || 0), 0);
 
-    // Backlog Financeiro: Valor Total - Faturamento Parcial (as requested: totalRevenue - totalPartialFaturamento)
-    const financialBacklog = totalRevenue - totalPartialFaturamento;
+    // Backlog Financeiro: Valor do Pedido (coluna F) menos (-) Faturamento Parcial (coluna G) para saber os valores que ainda faltam faturar
+    const financialBacklog = filteredData
+      .filter(item => {
+        const st = item.status?.trim().toUpperCase();
+        return st !== 'FATURADO TOTAL' && st !== 'CANCELADO' && st !== 'SALDO CANCELADO';
+      })
+      .reduce((acc, curr) => {
+        const st = curr.status?.trim().toUpperCase();
+        const isPartial = st === 'FATURADO PARCIAL' || st === 'FATURAMENTO PARCIAL' || st === 'SALDO RESTANTE';
+        const remaining = isPartial ? curr.valor - (curr.saldoRestante || 0) : curr.valor;
+        return acc + (remaining > 0 ? remaining : 0);
+      }, 0);
 
     // Backlog Financeiro de não liberados: specifically for the backlog row on general report (does not include released/LIBERADO)
     const unreleasedFinancialBacklog = filteredData
