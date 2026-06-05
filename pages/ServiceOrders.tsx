@@ -109,13 +109,44 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       return matchesYear && matchesMonth && matchesSector;
     });
 
-    // Deduplicate by OS number to avoid counting the same OS multiple times
+    // Deduplicate by OS number to avoid counting the same OS multiple times, but merge professionals, hours, and pieces
     const uniqueMap = new Map<string, ServiceOrder>();
     filtered.forEach(os => {
-      // If OS already exists, we could potentially merge or keep the most complete one.
-      // For now, keeping the first occurrence as requested by "not counting repeated".
       if (!uniqueMap.has(os.numero)) {
-        uniqueMap.set(os.numero, os);
+        uniqueMap.set(os.numero, { ...os });
+      } else {
+        const existing = uniqueMap.get(os.numero)!;
+        
+        // Merge professionals uniquely
+        const getNames = (profStr: string) => {
+          return (profStr || '')
+            .split('/')
+            .map(n => n.trim())
+            .filter(n => n.toUpperCase() !== 'N' && n.toUpperCase() !== 'D' && n.toUpperCase() !== 'N/D' && n !== '');
+        };
+        const existingNames = getNames(existing.professional);
+        const newNames = getNames(os.professional);
+        const allNames = Array.from(new Set([...existingNames, ...newNames]));
+        if (allNames.length > 0) {
+          existing.professional = allNames.join(' / ');
+        } else if (!existing.professional || existing.professional === 'N/D') {
+          existing.professional = os.professional;
+        }
+
+        // Sum service hours for the duplicates
+        existing.horas = (existing.horas || 0) + (os.horas || 0);
+
+        // Merge components/pieces if different
+        if (os.peca && os.peca !== 'N/D' && os.peca !== '') {
+          if (!existing.peca || existing.peca === 'N/D' || existing.peca === '') {
+            existing.peca = os.peca;
+          } else {
+            const existingParts = existing.peca.split(',').map(p => p.trim());
+            const newParts = os.peca.split(',').map(p => p.trim());
+            const allParts = Array.from(new Set([...existingParts, ...newParts]));
+            existing.peca = allParts.join(', ');
+          }
+        }
       }
     });
     return Array.from(uniqueMap.values());
