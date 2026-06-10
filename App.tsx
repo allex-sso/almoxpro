@@ -378,7 +378,7 @@ const App: React.FC = () => {
       case Page.SERVICE_ORDERS:
         return <ServiceOrdersPage osData={osData} inventoryData={processedInventory} isLoading={loading} />;
       case Page.PREVENTIVES:
-        return <PreventivePage data={preventiveData} isLoading={loading} />;
+        return <PreventivePage data={preventiveData} osData={osData} isLoading={loading} />;
       case Page.CENTRAL_DASHBOARD:
         return <CentralDashboard data={movements} isLoading={loading} />;
       case Page.CENTRAL_PERFIL:

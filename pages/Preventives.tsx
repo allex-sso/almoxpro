@@ -10,10 +10,11 @@ import {
   ChevronLeft, ChevronRight, Info, Layers, CalendarDays
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
-import { PreventiveEntry } from '../types';
+import { PreventiveEntry, ServiceOrder } from '../types';
 
 interface PreventivePageProps {
   data: PreventiveEntry[];
+  osData?: ServiceOrder[];
   isLoading: boolean;
 }
 
@@ -30,7 +31,7 @@ const formatDetailedTime = (decimalHours: number): string => {
   return `${h}h ${m}m`;
 };
 
-const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
+const PreventivePage: React.FC<PreventivePageProps> = ({ data, osData = [], isLoading }) => {
   const [selectedSetor, setSelectedSetor] = useState('Todos');
   const [selectedYear, setSelectedYear] = useState('Todos');
   const [selectedMonth, setSelectedMonth] = useState('Todos');
@@ -64,6 +65,31 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
     });
   }, [data, selectedSetor, selectedYear, selectedMonth]);
 
+  const filteredOsData = useMemo(() => {
+    if (!osData) return [];
+    
+    const filtered = osData.filter(os => {
+      const matchesSetor = selectedSetor === 'Todos' || os.setor === selectedSetor;
+      
+      const execDate = os.dataAbertura;
+      const year = execDate ? execDate.getFullYear().toString() : '';
+      const month = execDate ? monthsList[execDate.getMonth()] : '';
+      
+      const matchesYear = selectedYear === 'Todos' || year === selectedYear;
+      const matchesMonth = selectedMonth === 'Todos' || month === selectedMonth;
+      
+      return matchesSetor && matchesYear && matchesMonth;
+    });
+
+    const uniqueMap = new Map<string, ServiceOrder>();
+    filtered.forEach(os => {
+      if (!uniqueMap.has(os.numero)) {
+        uniqueMap.set(os.numero, os);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [osData, selectedSetor, selectedYear, selectedMonth]);
+
   const metrics = useMemo(() => {
     let totalTime = 0;
     const natureMap: Record<string, number> = { 'PREVENTIVA': 0, 'CORRETIVA': 0 };
@@ -75,39 +101,39 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
     filteredData.forEach(p => {
       totalTime += p.tempo;
       
-      const nat = (p.natureza || 'PREVENTIVA').toUpperCase();
-      if (nat.includes('PREVENTIVA')) {
-          natureMap['PREVENTIVA']++;
-          prevCount++;
-      } else {
-          natureMap['CORRETIVA']++;
-      }
-
       const eq = p.equipamento;
       equipMap[eq] = (eq in equipMap) ? equipMap[eq] + 1 : 1;
 
-      if (p.dataExecucao) {
+      if (p.dataExecucao && p.dataExecucao.getTime() <= Date.now()) {
         const dStr = p.dataExecucao.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
         if (!dayMap[dStr]) dayMap[dStr] = { date: dStr, count: 0, raw: p.dataExecucao };
         dayMap[dStr].count++;
       }
     });
 
+    prevCount = filteredData.length;
+
+    const finalCorretivaCount = filteredOsData.length;
+    const finalNatureChart = [
+      { name: 'Preventiva', value: prevCount, color: '#10b981' },
+      { name: 'Corretiva', value: finalCorretivaCount, color: '#ef4444' }
+    ].filter(d => d.value > 0);
+
+    const totalNature = finalNatureChart.reduce((sum, item) => sum + item.value, 0);
+
     return {
       total: filteredData.length,
       totalTime,
-      preventiveEff: filteredData.length > 0 ? (prevCount / filteredData.length) * 100 : 0,
+      preventiveEff: totalNature > 0 ? (prevCount / totalNature) * 100 : 0,
       avgTime: filteredData.length > 0 ? totalTime / filteredData.length : 0,
-      natureChart: [
-        { name: 'Preventiva', value: natureMap['PREVENTIVA'], color: '#10b981' },
-        { name: 'Corretiva', value: natureMap['CORRETIVA'], color: '#ef4444' }
-      ].filter(d => d.value > 0),
+      natureChart: finalNatureChart,
+      totalNature,
       equipChart: Object.entries(equipMap).map(([name, value]) => ({ 
         name, value 
       })).sort((a,b) => b.value - a.value).slice(0, 10),
       evolutionChart: Object.values(dayMap).sort((a,b) => a.raw.getTime() - b.raw.getTime()).slice(-15)
     };
-  }, [filteredData]);
+  }, [filteredData, filteredOsData]);
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -271,13 +297,35 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
                   dataKey="value" 
                   stroke="none"
                   cornerRadius={6}
+                  label={({ name, value, percent }) => {
+                    const pct = (percent * 100).toFixed(1);
+                    return `${name.toUpperCase()}: ${value} (${pct}%)`;
+                  }}
+                  labelLine={{ stroke: '#475569', strokeWidth: 1 }}
                 >
                   {metrics.natureChart.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                  <LabelList dataKey="name" position="outside" style={{ fill: '#94a3b8', fontSize: '9px', fontWeight: 'bold' }} />
                 </Pie>
                 <Tooltip 
-                  contentStyle={chartTooltipStyle.contentStyle}
-                  itemStyle={chartTooltipStyle.itemStyle}
+                  content={({ active, payload }: any) => {
+                    if (active && payload && payload.length) {
+                      const entry = payload[0].payload;
+                      const pct = metrics.totalNature > 0 ? ((entry.value / metrics.totalNature) * 100).toFixed(1) : "0";
+                      return (
+                        <div className="bg-[#0f172a] border border-slate-700/80 p-3 rounded-xl shadow-2xl backdrop-blur-md">
+                          <p className="text-xs font-black text-white uppercase tracking-widest" style={{ color: entry.color }}>
+                            {entry.name}
+                          </p>
+                          <p className="text-sm font-black text-slate-200 mt-1 uppercase text-xs">
+                            Volume: {entry.value} chamados
+                          </p>
+                          <p className="text-xs font-bold text-slate-400">
+                            Proporção: {pct}%
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'black' }} />
               </PieChart>
@@ -469,7 +517,7 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, isLoading }) => {
                                 <tr key={i} className="border-b border-black">
                                    <td className="border-r border-black p-2 font-bold uppercase">{n.name}</td>
                                    <td className="border-r border-black p-2 text-center font-black">{n.value}</td>
-                                   <td className="p-2 text-center font-black">{((n.value / metrics.total) * 100).toFixed(1)}%</td>
+                                   <td className="p-2 text-center font-black">{((n.value / (metrics.totalNature || 1)) * 100).toFixed(1)}%</td>
                                 </tr>
                               ))}
                            </tbody>

@@ -320,15 +320,34 @@ export const fetchPreventiveData = async (url: string): Promise<PreventiveEntry[
   const { index: headerIdx, headers } = findHeaderRow(rows, ['equipamento', 'atividade']);
   if (headerIdx === -1) return [];
   return rows.slice(headerIdx + 1).map((row, i): PreventiveEntry | null => {
-    const equip = row[findBestCol(headers, ['equipamento', 'maquina'])]?.trim();
-    if (!equip) return null;
+    const equipColIdx = findBestCol(headers, ['equipamento', 'maquina']);
+    const equip = (equipColIdx !== -1 ? row[equipColIdx] : '')?.trim() || 'N/D';
+    
+    const atividadeColIdx = findBestCol(headers, ['atividade']);
+    const atividade = (atividadeColIdx !== -1 ? row[atividadeColIdx] : '')?.trim() || '';
+    
+    const previstaColIdx = findBestCol(headers, ['prevista']);
+    const previstaStr = previstaColIdx !== -1 ? row[previstaColIdx] : '';
+    
+    const execucaoColIdx = findBestCol(headers, ['execucao', 'realizada']);
+    const execucaoStr = execucaoColIdx !== -1 ? row[execucaoColIdx] : '';
+
+    if (!atividade && !previstaStr && !execucaoStr && (equip === 'N/D' || !equip)) {
+      return null;
+    }
+
     return {
-      id: `prev-${i}`, dataPrevista: parseDate(row[findBestCol(headers, ['prevista'])]),
-      dataExecucao: parseDate(row[findBestCol(headers, ['execucao', 'realizada'])]),
-      setor: row[findBestCol(headers, ['setor'])] || 'N/D', equipamento: equip,
-      atividade: row[findBestCol(headers, ['atividade'])] || '', natureza: row[findBestCol(headers, ['natureza'])] || 'preventiva',
-      status: row[findBestCol(headers, ['status'])] || 'Concluído', tempo: parseDurationToHours(row[findBestCol(headers, ['tempo'])]),
-      profissional: row[findBestCol(headers, ['profissional'])] || 'N/D', descricaoTrabalho: ''
+      id: `prev-${i}`, 
+      dataPrevista: parseDate(previstaStr),
+      dataExecucao: parseDate(execucaoStr),
+      setor: row[findBestCol(headers, ['setor'])] || 'N/D', 
+      equipamento: equip,
+      atividade: atividade, 
+      natureza: row[findBestCol(headers, ['natureza'])] || 'preventiva',
+      status: row[findBestCol(headers, ['status'])] || 'Concluído', 
+      tempo: parseDurationToHours(row[findBestCol(headers, ['tempo'])]),
+      profissional: row[findBestCol(headers, ['profissional'])] || 'N/D', 
+      descricaoTrabalho: ''
     };
   }).filter((p): p is PreventiveEntry => p !== null);
 };
