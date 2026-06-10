@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, 
-  PieChart, Pie, Legend, LabelList
+  PieChart, Pie, Legend, LabelList, LineChart, Line
 } from 'recharts';
 import { 
   ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check, FileText, ArrowUpCircle, Calendar
@@ -65,6 +65,8 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const [selectedEquipmentForModal, setSelectedEquipmentForModal] = useState<string | null>(null);
   const [selectedRequesterForModal, setSelectedRequesterForModal] = useState<string | null>(null);
   const [selectedPartForReasons, setSelectedPartForReasons] = useState<string | null>(null);
+  const [equipmentChartMode, setEquipmentChartMode] = useState<'quantity' | 'downtime'>('quantity');
+  const [downtimeTrendEquipment, setDowntimeTrendEquipment] = useState<string | null>(null);
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [resumido, setResumido] = useState(false);
@@ -334,6 +336,116 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       .sort((a, b) => b.value - a.value);
   }, [filteredData]);
 
+  const totalDowntime = useMemo(() => 
+    downtimeByEquipment.reduce((acc, curr) => acc + curr.value, 0)
+  , [downtimeByEquipment]);
+
+  const downtimeTrendData = useMemo(() => {
+    if (!downtimeTrendEquipment) return [];
+
+    // Filter raw data to match the selected equipment and matching sector filter
+    const eqData = data.filter(os => {
+      const eqName = os.equipamento || 'Geral';
+      if (eqName !== downtimeTrendEquipment) return false;
+      
+      const matchesSector = selectedSector === 'Todos' || os.setor === selectedSector;
+      return matchesSector;
+    });
+
+    // If a specific year is selected
+    if (selectedYear !== 'Todos') {
+      const yearNum = parseInt(selectedYear);
+      // Initialize all 12 months with 0 value
+      const monthsTrend = monthsList.map((monthName, index) => ({
+        name: monthName.substring(0, 3), // e.g. "Jan", "Fev"
+        value: 0,
+        fullName: monthName
+      }));
+
+      eqData.forEach(os => {
+        if (os.dataAbertura.getFullYear() === yearNum && os.parada === 'Sim') {
+          const monthIndex = os.dataAbertura.getMonth();
+          // Compute downtime
+          if (os.dataFim) {
+            if (os.dataAbertura.getTime() > os.dataFim.getTime()) return;
+
+            let startTime = os.dataAbertura;
+            if (os.dataInicio && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
+              startTime = os.dataInicio;
+            }
+
+            const diffInMs = os.dataFim.getTime() - startTime.getTime();
+            const diffInHours = diffInMs / 3600000;
+
+            if (diffInHours > 0 && diffInHours < 744) {
+              monthsTrend[monthIndex].value += diffInHours;
+            }
+          }
+        }
+      });
+
+      return monthsTrend;
+    } else {
+      // If "Todos" years selected, let's group by Year + Month
+      const map: Record<string, { year: number, monthIndex: number, value: number }> = {};
+      
+      eqData.forEach(os => {
+        if (os.parada === 'Sim') {
+          const yr = os.dataAbertura.getFullYear();
+          const mIdx = os.dataAbertura.getMonth();
+          const key = `${yr}-${mIdx}`;
+
+          if (os.dataFim) {
+            if (os.dataAbertura.getTime() > os.dataFim.getTime()) return;
+
+            let startTime = os.dataAbertura;
+            if (os.dataInicio && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
+              startTime = os.dataInicio;
+            }
+
+            const diffInMs = os.dataFim.getTime() - startTime.getTime();
+            const diffInHours = diffInMs / 3600000;
+
+            if (diffInHours > 0 && diffInHours < 744) {
+              if (!map[key]) {
+                map[key] = { year: yr, monthIndex: mIdx, value: 0 };
+              }
+              map[key].value += diffInHours;
+            }
+          }
+        }
+      });
+
+      // Sort chronologically
+      return Object.values(map)
+        .sort((a, b) => {
+          if (a.year !== b.year) return a.year - b.year;
+          return a.monthIndex - b.monthIndex;
+        })
+        .map(item => ({
+          name: `${monthsList[item.monthIndex].substring(0, 3)}/${item.year.toString().substring(2)}`, // e.g. "Jan/26"
+          value: item.value,
+          fullName: `${monthsList[item.monthIndex]} de ${item.year}`
+        }));
+    }
+  }, [downtimeTrendEquipment, data, selectedYear, selectedSector]);
+
+  const downtimeTrendStats = useMemo(() => {
+    if (downtimeTrendData.length === 0) return { total: 0, average: 0, maxMonth: '', maxValue: 0 };
+    let total = 0;
+    let maxValue = -1;
+    let maxMonth = '';
+    downtimeTrendData.forEach(item => {
+      total += item.value;
+      if (item.value > maxValue) {
+        maxValue = item.value;
+        maxMonth = item.fullName || item.name;
+      }
+    });
+    const average = total / downtimeTrendData.length;
+    return { total, average, maxMonth, maxValue };
+  }, [downtimeTrendData]);
+
   const equipmentPartsData = useMemo(() => {
     if (!selectedEquipmentForModal) return [];
     const map: Record<string, number> = {};
@@ -564,7 +676,18 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                    axisLine={false}
                    tickLine={false}
                 />
-                <Bar dataKey="value" name="Tempo Parado" radius={[8, 8, 0, 0]} barSize={55}>
+                <Bar 
+                  dataKey="value" 
+                  name="Tempo Parado" 
+                  radius={[8, 8, 0, 0]} 
+                  barSize={55}
+                  className="cursor-pointer"
+                  onClick={(data) => {
+                    if (data && data.name) {
+                      setDowntimeTrendEquipment(data.name);
+                    }
+                  }}
+                >
                   {downtimeByEquipment.slice(0, 10).map((_, index) => (
                     <Cell key={`cell-${index}`} fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} />
                   ))}
@@ -586,19 +709,66 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center mb-6"><Wrench className="w-5 h-5 text-blue-600 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">Abertura por Equipamento (Top 5)</h3></div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+            <div className="flex items-center">
+              <Wrench className="w-5 h-5 text-blue-600 mr-2" />
+              <h3 className="font-bold text-slate-800 dark:text-white">
+                {equipmentChartMode === 'quantity' ? "Abertura por Equipamento (Top 5)" : "Tempo Parado por Equipamento (Top 5)"}
+              </h3>
+            </div>
+            <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start sm:self-auto border border-gray-200 dark:border-slate-700">
+              <button
+                onClick={() => setEquipmentChartMode('quantity')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  equipmentChartMode === 'quantity'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                Qtd. OS
+              </button>
+              <button
+                onClick={() => setEquipmentChartMode('downtime')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  equipmentChartMode === 'downtime'
+                    ? 'bg-rose-600 text-white shadow shadow-rose-500/20'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                Tempo Parado
+              </button>
+            </div>
+          </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} layout="vertical" margin={{ right: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
-                <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
-                  <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
-                  <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {equipmentChartMode === 'quantity' ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} layout="vertical" margin={{ right: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
+                  <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
+                    <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                    <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              downtimeByEquipment.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={downtimeByEquipment.slice(0, 5)} layout="vertical" margin={{ right: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
+                    <Bar dataKey="value" name="Tempo Parado" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
+                      <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = totalDowntime > 0 ? ((value / totalDowntime) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                      <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => formatDetailedTime(value)} style={{ fill: '#ef4444', fontSize: '12px', fontWeight: 'bold' }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado para este período</div>
+              )
+            )}
           </div>
         </div>
 
@@ -1111,6 +1281,127 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 className="w-full py-5 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all active:scale-[0.98] shadow-xl border border-slate-700"
               >
                 Fechar Detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {downtimeTrendEquipment && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 no-print">
+          <div className="bg-[#1e293b] w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-700 flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-rose-500/10 rounded-2xl">
+                  <TrendingDown className="w-6 h-6 text-rose-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Tendência de Tempo Parado</h2>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{downtimeTrendEquipment}</p>
+                  <p className="text-xs font-black text-rose-500 uppercase tracking-widest mt-1">
+                    Filtro: {selectedYear === 'Todos' ? 'Histórico Geral' : `Ano ${selectedYear}`} • Setor: {selectedSector}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDowntimeTrendEquipment(null)} 
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-8 flex-1 overflow-y-auto space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tempo Total Parado</p>
+                  <p className="text-3xl font-black text-rose-400">
+                    {formatDetailedTimeWithSpace(downtimeTrendStats.total)}
+                  </p>
+                </div>
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Média por Mês</p>
+                  <p className="text-3xl font-black text-blue-400">
+                    {formatDetailedTimeWithSpace(downtimeTrendStats.average)}
+                  </p>
+                </div>
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Mês com Maior Pico</p>
+                  <p className="text-lg font-black text-amber-400 mt-2 truncate">
+                    {downtimeTrendStats.maxMonth ? `${downtimeTrendStats.maxMonth}: ${formatDetailedTime(downtimeTrendStats.maxValue)}` : 'N/D'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Chart container */}
+              <div className="bg-slate-800/20 rounded-2xl border border-slate-700 p-6">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-rose-500" /> Histórico Mensal de Paradas
+                </h3>
+                <div className="h-[320px]">
+                  {downtimeTrendData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={downtimeTrendData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.3} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#94a3b8" 
+                          fontSize={11} 
+                          fontWeight="700" 
+                          tickLine={false} 
+                        />
+                        <YAxis 
+                          stroke="#94a3b8" 
+                          fontSize={11} 
+                          fontWeight="700" 
+                          tickLine={false} 
+                          tickFormatter={(val) => `${val}h`} 
+                        />
+                        <Tooltip
+                          content={({ active, payload }: any) => {
+                            if (active && payload && payload.length) {
+                              const item = payload[0].payload;
+                              return (
+                                <div className="bg-[#0f172a] border border-slate-700/80 p-4 rounded-xl shadow-2xl backdrop-blur-md">
+                                  <p className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.fullName || item.name}</p>
+                                  <p className="text-sm font-black text-rose-400 mt-1 flex items-center gap-1.5">
+                                    <Clock className="w-4 h-4 text-rose-500" />
+                                    {formatDetailedTime(payload[0].value)}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          name="Downtime"
+                          stroke="#ef4444"
+                          strokeWidth={3}
+                          dot={{ r: 4, stroke: "#ef4444", strokeWidth: 2, fill: "#1e293b" }}
+                          activeDot={{ r: 7, stroke: "#ef4444", strokeWidth: 1, fill: "#ef4444" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400 gap-4 py-12">
+                      <AlertCircle className="w-12 h-12 opacity-20" />
+                      <p className="font-bold uppercase tracking-widest text-xs">Nenhum tempo parado registrado para este equipamento</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-end">
+              <button 
+                onClick={() => setDowntimeTrendEquipment(null)} 
+                className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg border border-slate-700"
+              >
+                Fechar
               </button>
             </div>
           </div>
