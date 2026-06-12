@@ -58,6 +58,34 @@ const formatDetailedTimeWithSpace = (decimalHours: number | string): string => {
   return isNegative ? `-${result}` : result;
 };
 
+const getOSDowntimeInHours = (os: ServiceOrder): number => {
+  if (os.parada !== 'Sim' || !os.dataFim) return 0;
+  
+  let startTime: Date | null = null;
+  
+  if (os.dataInicio) {
+    if (os.dataInicio.getTime() < os.dataFim.getTime()) {
+      startTime = os.dataInicio;
+    }
+  }
+  
+  if (os.dataAbertura.getTime() < os.dataFim.getTime()) {
+    if (!startTime || os.dataAbertura.getTime() < startTime.getTime()) {
+      startTime = os.dataAbertura;
+    }
+  }
+  
+  if (!startTime) return 0;
+  
+  const diffInMs = os.dataFim.getTime() - startTime.getTime();
+  const diffInHours = diffInMs / 3600000;
+  
+  if (diffInHours > 0 && diffInHours < 744) {
+    return diffInHours;
+  }
+  return 0;
+};
+
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
@@ -314,40 +342,48 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   // Lógica de Downtime (Tempo Parado) otimizada para capturar os dados da imagem
   const downtimeByEquipment = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredData.forEach(os => {
-      if (os.parada === 'Sim') {
-        const eq = os.equipamento || 'Geral';
-        
-        // Regra de Ouro: Tempo parado é do Fim da Manutenção menos o Início (ou Abertura)
-        if (os.dataFim && os.dataAbertura) {
-          // Se a OS foi aberta após o término do serviço, não contamos como tempo de máquina parada
-          if (os.dataAbertura.getTime() > os.dataFim.getTime()) {
-             return;
-          }
+    
+    // First, filter raw data by year, month, sector (without the arbitrary deduplication that might discard the "Sim" or correct equipment name)
+    const filteredRaw = data.filter(os => {
+      const osYear = os.dataAbertura.getFullYear().toString();
+      const osMonth = monthsList[os.dataAbertura.getMonth()];
+      
+      const matchesYear = selectedYear === 'Todos' || osYear === selectedYear;
+      const matchesMonth = selectedMonth === 'Todos' || osMonth === selectedMonth;
+      const matchesSector = selectedSector === 'Todos' || os.setor === selectedSector;
+      
+      return matchesYear && matchesMonth && matchesSector;
+    });
 
-          let startTime = os.dataAbertura;
-          
-          // Caso o inicio da manutenção tenha começado antes da abertura da OS, 
-          // o tempo de parada do equipamento deve ser considerado apenas o tempo entre o inicio e fim da manutenção
-          if (os.dataInicio && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
-            startTime = os.dataInicio;
-          }
+    // We only care about OSs that have parada === 'Sim'
+    const stoppedOSs = filteredRaw.filter(os => os.parada === 'Sim');
 
-          const diffInMs = os.dataFim.getTime() - startTime.getTime();
-          const diffInHours = diffInMs / 3600000;
-
-          // Validação de sanidade: Ignore tempos negativos ou superiores a 1 mês (provável erro de lançamento)
-          // Usamos 744h como limite (31 dias)
-          if (diffInHours > 0 && diffInHours < 744) {
-             map[eq] = (map[eq] || 0) + diffInHours;
-          }
+    // Deduplicate by OS number, but if multiple rows exist, make sure we pick the one with valid equipment if possible, or just deduplicate
+    const uniqueMap = new Map<string, ServiceOrder>();
+    stoppedOSs.forEach(os => {
+      if (!uniqueMap.has(os.numero)) {
+        uniqueMap.set(os.numero, os);
+      } else {
+        // If we already have this OS, but the existing one has 'Geral' or empty equipment, and the new one has a specific machine, prefer the specific machine
+        const existing = uniqueMap.get(os.numero)!;
+        if ((!existing.equipamento || existing.equipamento === 'Geral') && os.equipamento && os.equipamento !== 'Geral') {
+          uniqueMap.set(os.numero, os);
         }
       }
     });
+
+    uniqueMap.forEach(os => {
+      const eq = os.equipamento || 'Geral';
+      const hours = getOSDowntimeInHours(os);
+      if (hours > 0) {
+        map[eq] = (map[eq] || 0) + hours;
+      }
+    });
+
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredData]);
+  }, [data, selectedYear, selectedMonth, selectedSector]);
 
   const totalDowntime = useMemo(() => 
     downtimeByEquipment.reduce((acc, curr) => acc + curr.value, 0)
@@ -365,6 +401,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       return matchesSector;
     });
 
+    // Deduplicate by O.S. number so duplicate rows (e.g. multiple professionals) don't count downtime multiple times
+    const uniqueEqMap = new Map<string, ServiceOrder>();
+    eqData.forEach(os => {
+      if (!uniqueEqMap.has(os.numero)) {
+        uniqueEqMap.set(os.numero, os);
+      }
+    });
+    const uniqueEqData = Array.from(uniqueEqMap.values());
+
     // If a specific year is selected
     if (selectedYear !== 'Todos') {
       const yearNum = parseInt(selectedYear);
@@ -375,24 +420,12 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         fullName: monthName
       }));
 
-      eqData.forEach(os => {
+      uniqueEqData.forEach(os => {
         if (os.dataAbertura.getFullYear() === yearNum && os.parada === 'Sim') {
           const monthIndex = os.dataAbertura.getMonth();
-          // Compute downtime
-          if (os.dataFim) {
-            if (os.dataAbertura.getTime() > os.dataFim.getTime()) return;
-
-            let startTime = os.dataAbertura;
-            if (os.dataInicio && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
-              startTime = os.dataInicio;
-            }
-
-            const diffInMs = os.dataFim.getTime() - startTime.getTime();
-            const diffInHours = diffInMs / 3600000;
-
-            if (diffInHours > 0 && diffInHours < 744) {
-              monthsTrend[monthIndex].value += diffInHours;
-            }
+          const hours = getOSDowntimeInHours(os);
+          if (hours > 0) {
+            monthsTrend[monthIndex].value += hours;
           }
         }
       });
@@ -402,29 +435,18 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       // If "Todos" years selected, let's group by Year + Month
       const map: Record<string, { year: number, monthIndex: number, value: number }> = {};
       
-      eqData.forEach(os => {
+      uniqueEqData.forEach(os => {
         if (os.parada === 'Sim') {
           const yr = os.dataAbertura.getFullYear();
           const mIdx = os.dataAbertura.getMonth();
           const key = `${yr}-${mIdx}`;
 
-          if (os.dataFim) {
-            if (os.dataAbertura.getTime() > os.dataFim.getTime()) return;
-
-            let startTime = os.dataAbertura;
-            if (os.dataInicio && os.dataInicio.getTime() < os.dataAbertura.getTime()) {
-              startTime = os.dataInicio;
+          const hours = getOSDowntimeInHours(os);
+          if (hours > 0) {
+            if (!map[key]) {
+              map[key] = { year: yr, monthIndex: mIdx, value: 0 };
             }
-
-            const diffInMs = os.dataFim.getTime() - startTime.getTime();
-            const diffInHours = diffInMs / 3600000;
-
-            if (diffInHours > 0 && diffInHours < 744) {
-              if (!map[key]) {
-                map[key] = { year: yr, monthIndex: mIdx, value: 0 };
-              }
-              map[key].value += diffInHours;
-            }
+            map[key].value += hours;
           }
         }
       });
@@ -647,11 +669,12 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 no-print">
         <StatCard title="Total OS" value={stats.total} icon={ClipboardList} color="blue" />
         <StatCard title="Méd. Execução" value={formatDetailedTimeWithSpace(stats.avgExecutionTime)} icon={Zap} color="green" />
         <StatCard title="Méd. Resposta" value={formatDetailedTimeWithSpace(stats.avgResponseTime)} icon={Timer} color="purple" />
-        <StatCard title="Horas Totais" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
+        <StatCard title="Horas Totais Trabalhadas" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
+        <StatCard title="Tempo Total Parado" value={formatDetailedTimeWithSpace(totalDowntime)} icon={TrendingDown} color="red" />
       </div>
 
       {/* GRÁFICO DE DOWNTIME REFINADO - SEM VAZIO E COM ALINHAMENTO PRECISO */}
@@ -919,10 +942,14 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                         <td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgResponseTime)}</td>
                                     </tr>
                                     <tr className="border-b border-black">
-                                        <td className="p-2 border-r border-black font-black bg-gray-50 uppercase text-[10px] text-black">Horas Totais</td>
+                                        <td className="p-2 border-r border-black font-black bg-gray-50 uppercase text-[10px] text-black">Horas Totais Trab.</td>
                                         <td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.totalHours)}</td>
                                         <td className="p-2 border-l border-black font-black bg-gray-50 uppercase text-[10px] text-black">Méd. Execução</td>
                                         <td className="p-2 font-black text-black">{formatDetailedTimeWithSpace(stats.avgExecutionTime)}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-r border-black font-black bg-gray-50 uppercase text-[10px] text-black">Tempo Total Parado</td>
+                                        <td className="p-2 font-black text-black" colSpan={3}>{formatDetailedTimeWithSpace(totalDowntime)}</td>
                                     </tr>
                                 </tbody>
                             </table>
