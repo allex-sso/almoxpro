@@ -86,6 +86,26 @@ const getOSDowntimeInHours = (os: ServiceOrder): number => {
   return 0;
 };
 
+const canonicalizeReason = (reasonStr: string): string => {
+  if (!reasonStr) return 'Manutenção preventiva/corretiva';
+  
+  const normalized = reasonStr
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  if (
+    normalized.includes("matriz") &&
+    normalized.includes("estampar") &&
+    (normalized.includes("degrau") || normalized.includes("degraus"))
+  ) {
+    return "Ajuste na matriz de corte de estampar degraus";
+  }
+
+  return reasonStr;
+};
+
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
@@ -511,7 +531,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
         os.peca?.includes(selectedPartForReasons)
       )
       .forEach(os => {
-        const reasonStr = os.motivo || 'Manutenção preventiva/corretiva';
+        const reasonStr = canonicalizeReason(os.motivo || 'Manutenção preventiva/corretiva');
         if (!grouped[reasonStr]) {
           grouped[reasonStr] = { 
             reason: reasonStr, 
@@ -555,7 +575,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
       if (os.peca) {
         const parts = os.peca.split(/[,/]/).map(p => p.trim()).filter(Boolean);
-        const reason = os.motivo ? os.motivo.trim() : 'Não especificado';
+        const reason = canonicalizeReason(os.motivo ? os.motivo.trim() : 'Não especificado');
         parts.forEach(p => {
           if (!eqMap[eq].parts[p]) {
             eqMap[eq].parts[p] = { count: 0, reasons: {} };
@@ -564,7 +584,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           eqMap[eq].parts[p].reasons[reason] = (eqMap[eq].parts[p].reasons[reason] || 0) + 1;
         });
       } else {
-        const reason = os.motivo ? os.motivo.trim() : 'Não especificado';
+        const reason = canonicalizeReason(os.motivo ? os.motivo.trim() : 'Não especificado');
         if (!eqMap[eq].parts['Nenhuma peça citada']) {
           eqMap[eq].parts['Nenhuma peça citada'] = { count: 0, reasons: {} };
         }
