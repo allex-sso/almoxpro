@@ -1396,7 +1396,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                           strokeWidth={3}
                           dot={{ r: 4, stroke: "#ef4444", strokeWidth: 2, fill: "#1e293b" }}
                           activeDot={{ r: 7, stroke: "#ef4444", strokeWidth: 1, fill: "#ef4444" }}
-                        />
+                        >
+                          <LabelList
+                            dataKey="value"
+                            position="top"
+                            offset={10}
+                            formatter={(val: any) => val > 0 ? formatDetailedTime(val) : ''}
+                            style={{ fill: '#f87171', fontSize: '11px', fontWeight: '900' }}
+                          />
+                        </Line>
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
