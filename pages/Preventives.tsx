@@ -47,7 +47,8 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, osData = [], isLo
     const years = new Set<string>();
     data.forEach(p => {
       if (p.setor) setores.add(p.setor);
-      if (p.dataExecucao) years.add(p.dataExecucao.getFullYear().toString());
+      const yearDate = p.dataExecucao || p.dataPrevista;
+      if (yearDate) years.add(yearDate.getFullYear().toString());
     });
     return {
       setores: ['Todos', ...Array.from(setores).sort()],
@@ -58,7 +59,7 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, osData = [], isLo
   const filteredData = useMemo(() => {
     return data.filter(p => {
       const matchesSetor = selectedSetor === 'Todos' || p.setor === selectedSetor;
-      const execDate = p.dataExecucao;
+      const execDate = p.dataExecucao || p.dataPrevista;
       const matchesYear = selectedYear === 'Todos' || (execDate && execDate.getFullYear().toString() === selectedYear);
       const matchesMonth = selectedMonth === 'Todos' || (execDate && monthsList[execDate.getMonth()] === selectedMonth);
       return matchesSetor && matchesYear && matchesMonth;
@@ -104,9 +105,10 @@ const PreventivePage: React.FC<PreventivePageProps> = ({ data, osData = [], isLo
       const eq = p.equipamento;
       equipMap[eq] = (eq in equipMap) ? equipMap[eq] + 1 : 1;
 
-      if (p.dataExecucao && p.dataExecucao.getTime() <= Date.now()) {
-        const dStr = p.dataExecucao.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        if (!dayMap[dStr]) dayMap[dStr] = { date: dStr, count: 0, raw: p.dataExecucao };
+      const chartDate = p.dataExecucao || p.dataPrevista;
+      if (chartDate && chartDate.getTime() <= Date.now()) {
+        const dStr = chartDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        if (!dayMap[dStr]) dayMap[dStr] = { date: dStr, count: 0, raw: chartDate };
         dayMap[dStr].count++;
       }
     });

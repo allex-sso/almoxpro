@@ -195,9 +195,21 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   }, [filteredData]);
 
   const professionalStats = useMemo(() => {
-    const map: Record<string, { count: number, hours: number, respSum: number }> = {};
-    filteredData.forEach(os => {
-      // Filtrando "N", "D" e "N/D" na geração da tabela
+    // Filter the raw data to match current filters
+    const filtered = data.filter(os => {
+      const osYear = os.dataAbertura.getFullYear().toString();
+      const osMonth = monthsList[os.dataAbertura.getMonth()];
+      
+      const matchesYear = selectedYear === 'Todos' || osYear === selectedYear;
+      const matchesMonth = selectedMonth === 'Todos' || osMonth === selectedMonth;
+      const matchesSector = selectedSector === 'Todos' || os.setor === selectedSector;
+      
+      return matchesYear && matchesMonth && matchesSector;
+    });
+
+    const map: Record<string, { uniqueOs: Set<string>, hours: number, respSum: number, respCount: number }> = {};
+    
+    filtered.forEach(os => {
       const names = os.professional 
         ? os.professional.split('/')
             .map(n => n.trim())
@@ -207,14 +219,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       const dHours = os.horas || 0;
 
       names.forEach(n => {
-        if (!map[n]) map[n] = { count: 0, hours: 0, respSum: 0 };
-        map[n].count++;
+        if (!map[n]) map[n] = { uniqueOs: new Set(), hours: 0, respSum: 0, respCount: 0 };
+        map[n].uniqueOs.add(os.numero);
         map[n].hours += dHours;
         
         if (os.dataAbertura && os.dataInicio) {
           const diff = (os.dataInicio.getTime() - os.dataAbertura.getTime()) / 3600000;
           if (Math.abs(diff) < 2000) { 
             map[n].respSum += diff; 
+            map[n].respCount++;
           }
         }
       });
@@ -222,11 +235,11 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
 
     return Object.entries(map).map(([name, s]) => ({
       name, 
-      count: s.count, 
+      count: s.uniqueOs.size, 
       hours: s.hours, 
-      avgResp: s.count > 0 ? s.respSum / s.count : 0
+      avgResp: s.respCount > 0 ? s.respSum / s.respCount : 0
     })).sort((a, b) => a.avgResp - b.avgResp);
-  }, [filteredData]);
+  }, [data, selectedYear, selectedMonth, selectedSector]);
 
   const assetsDemand = useMemo(() => {
     const map: Record<string, number> = {};
