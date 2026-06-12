@@ -1355,7 +1355,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 <div className="h-[320px]">
                   {downtimeTrendData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={downtimeTrendData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                      <LineChart data={downtimeTrendData} margin={{ top: 30, right: 30, left: 10, bottom: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.3} />
                         <XAxis 
                           dataKey="name" 
