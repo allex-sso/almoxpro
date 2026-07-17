@@ -113,6 +113,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   const [selectedEquipmentForModal, setSelectedEquipmentForModal] = useState<string | null>(null);
   const [selectedRequesterForModal, setSelectedRequesterForModal] = useState<string | null>(null);
   const [selectedPartForReasons, setSelectedPartForReasons] = useState<string | null>(null);
+  const [selectedReasonForActivities, setSelectedReasonForActivities] = useState<string | null>(null);
   const [equipmentChartMode, setEquipmentChartMode] = useState<'quantity' | 'downtime'>('quantity');
   const [downtimeTrendEquipment, setDowntimeTrendEquipment] = useState<string | null>(null);
   
@@ -393,7 +394,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     });
 
     // We need to keep track of reasons per equipment
-    const reasonsMap: Record<string, Record<string, { count: number; hours: number }>> = {};
+    const reasonsMap: Record<string, Record<string, { count: number; hours: number; activities: string[] }>> = {};
 
     uniqueMap.forEach(os => {
       const eq = os.equipamento || 'Geral';
@@ -406,10 +407,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           reasonsMap[eq] = {};
         }
         if (!reasonsMap[eq][reason]) {
-          reasonsMap[eq][reason] = { count: 0, hours: 0 };
+          reasonsMap[eq][reason] = { count: 0, hours: 0, activities: [] };
         }
         reasonsMap[eq][reason].count += 1;
         reasonsMap[eq][reason].hours += hours;
+        
+        const activity = os.descricao ? os.descricao.trim() : '';
+        if (activity && !reasonsMap[eq][reason].activities.includes(activity)) {
+          reasonsMap[eq][reason].activities.push(activity);
+        }
       }
     });
 
@@ -420,7 +426,8 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           .map(([rName, rData]) => ({
             name: rName,
             count: rData.count,
-            hours: rData.hours
+            hours: rData.hours,
+            activities: rData.activities
           }))
           .sort((a, b) => b.hours - a.hours || b.count - a.count);
         return { name, value, reasons };
@@ -574,6 +581,15 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       
     return Object.values(grouped).sort((a, b) => b.count - a.count);
   }, [selectedPartForReasons, selectedEquipmentForModal, filteredData]);
+
+  const activitiesForSelectedReason = useMemo(() => {
+    if (!selectedReasonForActivities || !selectedPartForReasons || !selectedEquipmentForModal) return [];
+    return filteredData.filter(os => 
+      os.equipamento === selectedEquipmentForModal && 
+      os.peca?.includes(selectedPartForReasons) &&
+      canonicalizeReason(os.motivo || 'Manutenção preventiva/corretiva') === selectedReasonForActivities
+    ).sort((a, b) => b.dataAbertura.getTime() - a.dataAbertura.getTime());
+  }, [selectedReasonForActivities, selectedPartForReasons, selectedEquipmentForModal, filteredData]);
 
   const totalRequesterOS = useMemo(() => 
     requesterDistribution.reduce((acc, curr) => acc + curr.value, 0)
@@ -1020,13 +1036,22 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                                                 <tr className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
                                                     <td colSpan={3} className="p-2.5 bg-white pl-6">
                                                         <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Principais Motivos de Parada do Equipamento:</div>
-                                                        <div className="space-y-1.5">
+                                                        <div className="space-y-2.5">
                                                             {item.reasons.slice(0, 5).map((r, rIdx) => (
-                                                                <div key={rIdx} className="flex justify-between items-center text-[10px] text-slate-800 font-medium pl-2.5 border-l-2 border-slate-300">
-                                                                    <span className="uppercase text-[9.5px] font-bold">{r.name}</span>
-                                                                    <span className="text-[10px] font-extrabold text-black shrink-0 ml-4">
-                                                                        {r.count}x ({formatDetailedTime(r.hours)})
-                                                                    </span>
+                                                                <div key={rIdx} className="pl-2.5 border-l-2 border-slate-300 text-left">
+                                                                    <div className="flex justify-between items-center text-[10px] text-slate-800 font-bold mb-0.5">
+                                                                        <span className="uppercase text-[9.5px] font-extrabold">{r.name}</span>
+                                                                        <span className="text-[10px] font-extrabold text-black shrink-0 ml-4">
+                                                                            {r.count}x ({formatDetailedTime(r.hours)})
+                                                                        </span>
+                                                                    </div>
+                                                                    {r.activities && r.activities.length > 0 && (
+                                                                        <ul className="list-disc list-outside pl-4 text-[9px] text-slate-600 font-normal italic space-y-0.5 leading-relaxed">
+                                                                            {r.activities.map((act, actIdx) => (
+                                                                                <li key={actIdx}>{act}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -1351,23 +1376,31 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
               </button>
             </div>
             
-            <div className="p-10 flex-1 overflow-y-auto max-h-[60vh] space-y-6">
+            <div className="p-10 flex-1 overflow-y-auto max-h-[60vh] space-y-4">
               {partReasons.length > 0 ? (
                 partReasons.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between group">
+                  <button 
+                    key={idx} 
+                    onClick={() => setSelectedReasonForActivities(item.reason)}
+                    className="w-full text-left flex items-center justify-between group p-4 rounded-2xl hover:bg-slate-800/60 cursor-pointer transition-all border border-transparent hover:border-slate-700/50 outline-none focus:border-slate-600 focus:bg-slate-800/80"
+                  >
                     <div className="flex items-center gap-5">
-                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+                      <div className="w-1.5 h-12 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] group-hover:scale-y-110 transition-transform" />
                       <div>
-                        <p className="text-lg font-black text-white italic leading-tight">{item.reason}</p>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
-                          Última Ocorrência: {item.lastDate}
+                        <p className="text-base font-black text-white italic leading-tight group-hover:text-blue-400 transition-colors">{item.reason}</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                          <span>Última Ocorrência: {item.lastDate}</span>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-blue-500 group-hover:text-blue-400 font-extrabold flex items-center gap-0.5">
+                            Ver atividades <ChevronDown className="w-3 h-3 -rotate-90" />
+                          </span>
                         </p>
                       </div>
                     </div>
-                    <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg group-hover:bg-blue-500/20 transition-all shrink-0 ml-4">
                       <span className="text-xs font-black text-blue-400">{item.count}x</span>
                     </div>
-                  </div>
+                  </button>
                 ))
               ) : (
                 <div className="py-12 text-center">
@@ -1383,6 +1416,87 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 className="w-full py-5 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all active:scale-[0.98] shadow-xl border border-slate-700"
               >
                 Fechar Detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedReasonForActivities && (
+        <div className="fixed inset-0 z-[250] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200 no-print">
+          <div className="bg-[#1e293b] w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-10 border-b border-slate-700 flex justify-between items-start">
+              <div className="flex items-center gap-5">
+                <div className="p-4 bg-emerald-500/10 rounded-2xl">
+                  <ClipboardList className="w-8 h-8 text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Atividades Realizadas</h2>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Motivo: {selectedReasonForActivities}</p>
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-0.5">
+                    {selectedEquipmentForModal} • {selectedPartForReasons}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedReasonForActivities(null)} 
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-10 flex-1 overflow-y-auto space-y-6">
+              {activitiesForSelectedReason.length > 0 ? (
+                <div className="space-y-4">
+                  {activitiesForSelectedReason.map((os, idx) => (
+                    <div key={idx} className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-6 hover:bg-slate-800/60 transition-all">
+                      <div className="flex flex-wrap justify-between items-start gap-4 mb-3">
+                        <div>
+                          <span className="px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md text-[10px] font-black uppercase tracking-wider">
+                            OS: {os.numero}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-slate-400 text-xs">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                            {os.dataAbertura.toLocaleDateString('pt-BR')}
+                          </span>
+                          {os.horas > 0 && (
+                            <span className="flex items-center gap-1 font-semibold text-slate-300 bg-slate-700/40 px-2 py-0.5 rounded">
+                              <Timer className="w-3.5 h-3.5 text-amber-500" />
+                              {formatDetailedTime(os.horas)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <p className="text-white font-medium text-sm leading-relaxed mb-4 bg-slate-900/30 p-3.5 rounded-xl border border-slate-700/40 italic">
+                        "{os.descricao || 'Nenhuma descrição de atividade registrada.'}"
+                      </p>
+                      
+                      <div className="flex items-center gap-2 text-xs text-slate-400 border-t border-slate-700/40 pt-3">
+                        <Users className="w-4 h-4 text-slate-500" />
+                        <span className="font-bold text-slate-300 uppercase">Técnico:</span>
+                        <span className="uppercase font-semibold">{os.professional || 'N/D'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4 opacity-20" />
+                  <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Nenhuma atividade detalhada encontrada</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-8 bg-slate-900/50 border-t border-slate-700">
+              <button 
+                onClick={() => setSelectedReasonForActivities(null)} 
+                className="w-full py-5 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all active:scale-[0.98] shadow-xl border border-slate-700"
+              >
+                Voltar aos Motivos
               </button>
             </div>
           </div>
