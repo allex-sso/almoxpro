@@ -392,16 +392,39 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       }
     });
 
+    // We need to keep track of reasons per equipment
+    const reasonsMap: Record<string, Record<string, { count: number; hours: number }>> = {};
+
     uniqueMap.forEach(os => {
       const eq = os.equipamento || 'Geral';
       const hours = getOSDowntimeInHours(os);
       if (hours > 0) {
         map[eq] = (map[eq] || 0) + hours;
+
+        const reason = canonicalizeReason(os.motivo || 'Manutenção preventiva/corretiva');
+        if (!reasonsMap[eq]) {
+          reasonsMap[eq] = {};
+        }
+        if (!reasonsMap[eq][reason]) {
+          reasonsMap[eq][reason] = { count: 0, hours: 0 };
+        }
+        reasonsMap[eq][reason].count += 1;
+        reasonsMap[eq][reason].hours += hours;
       }
     });
 
     return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, value]) => {
+        const eqReasons = reasonsMap[name] || {};
+        const reasons = Object.entries(eqReasons)
+          .map(([rName, rData]) => ({
+            name: rName,
+            count: rData.count,
+            hours: rData.hours
+          }))
+          .sort((a, b) => b.hours - a.hours || b.count - a.count);
+        return { name, value, reasons };
+      })
       .sort((a, b) => b.value - a.value);
   }, [data, selectedYear, selectedMonth, selectedSector]);
 
@@ -976,22 +999,41 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         </section>
 
                         <section className="mb-8" style={{ pageBreakInside: 'avoid' }}>
-                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">2. TEMPO TOTAL PARADO POR EQUIPAMENTO (TOP 10)</h3>
+                            <h3 className="text-[10px] font-black uppercase mb-1 bg-gray-100 text-black p-2 border border-black">2. TEMPO TOTAL PARADO POR EQUIPAMENTO (TOP 5) E PRINCIPAIS MOTIVOS</h3>
                             <table className="w-full text-[11px] border-collapse border border-black text-black">
                                 <thead>
                                     <tr className="bg-gray-50">
-                                        <th className="border border-black p-2 text-left font-black uppercase text-black">EQUIPAMENTO</th>
-                                        <th className="border border-black p-2 text-right font-black uppercase text-black">TEMPO TOTAL PARADO</th>
-                                        <th className="border border-black p-2 text-center font-black uppercase text-black">REPRESENTATIVIDADE (%)</th>
+                                        <th className="border border-black p-2 text-left font-black uppercase text-black">EQUIPAMENTO / MOTIVOS DE PARADA (TOP 5)</th>
+                                        <th className="border border-black p-2 text-right font-black uppercase text-black w-1/4">TEMPO PARADO</th>
+                                        <th className="border border-black p-2 text-center font-black uppercase text-black w-1/4">REPRESENTATIVIDADE (%)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {downtimeByEquipment.slice(0, 10).map((item, i) => (
-                                        <tr key={i} className="border-b border-black">
-                                            <td className="border-r border-black p-2 font-bold uppercase text-black">{item.name}</td>
-                                            <td className="border-r border-black p-2 text-right font-black text-black">{formatDetailedTime(item.value)}</td>
-                                            <td className="p-2 text-center font-black text-black">{((item.value / (stats.totalHours || 1)) * 100).toFixed(1)}%</td>
-                                        </tr>
+                                    {downtimeByEquipment.slice(0, 5).map((item, i) => (
+                                        <React.Fragment key={i}>
+                                            <tr className="border-b border-black bg-gray-50/70" style={{ pageBreakInside: 'avoid' }}>
+                                                <td className="border-r border-black p-2 font-black uppercase text-black">{item.name}</td>
+                                                <td className="border-r border-black p-2 text-right font-black text-black">{formatDetailedTime(item.value)}</td>
+                                                <td className="p-2 text-center font-black text-black">{((item.value / (stats.totalHours || 1)) * 100).toFixed(1)}%</td>
+                                            </tr>
+                                            {item.reasons && item.reasons.length > 0 && (
+                                                <tr className="border-b border-black" style={{ pageBreakInside: 'avoid' }}>
+                                                    <td colSpan={3} className="p-2.5 bg-white pl-6">
+                                                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Principais Motivos de Parada do Equipamento:</div>
+                                                        <div className="space-y-1.5">
+                                                            {item.reasons.slice(0, 5).map((r, rIdx) => (
+                                                                <div key={rIdx} className="flex justify-between items-center text-[10px] text-slate-800 font-medium pl-2.5 border-l-2 border-slate-300">
+                                                                    <span className="uppercase text-[9.5px] font-bold">{r.name}</span>
+                                                                    <span className="text-[10px] font-extrabold text-black shrink-0 ml-4">
+                                                                        {r.count}x ({formatDetailedTime(r.hours)})
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                 </tbody>
                             </table>
