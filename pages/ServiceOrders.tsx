@@ -5,7 +5,8 @@ import {
   PieChart, Pie, Legend, LabelList, LineChart, Line
 } from 'recharts';
 import { 
-  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check, FileText, ArrowUpCircle, Calendar
+  ClipboardList, Clock, Wrench, Building, Users, Timer, Zap, CalendarDays, AlertCircle, TrendingDown, X, MessageCircle, BarChart3, Printer, Filter, ChevronDown, Check, FileText, ArrowUpCircle, Calendar,
+  Plus, Trash2, Save, Sparkles
 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { ServiceOrder, InventoryItem } from '../types';
@@ -106,6 +107,134 @@ const canonicalizeReason = (reasonStr: string): string => {
   return reasonStr;
 };
 
+export interface FiveWhysReport {
+  id: string;
+  equipamento: string;
+  tag: string;
+  mesOcorrencia: string;
+  problema: string;
+  pq1: string;
+  pq2: string;
+  pq3: string;
+  pq4: string;
+  pq5: string;
+  causaRaiz: string;
+  acoes: {
+    id: string;
+    acao: string;
+    responsavel: string;
+    prazo: string;
+    status: 'Concluído' | 'Pendente' | 'Em Andamento';
+  }[];
+  responsavelAssinatura: string;
+  dataCriacao: string;
+}
+
+const MAINTENANCE_KNOWLEDGE_BASE: Record<string, {
+  tag: string;
+  pq1: string;
+  pq2: string;
+  pq3: string;
+  pq4: string;
+  pq5: string;
+  causaRaiz: string;
+  acoes: Array<{ acao: string; responsavel: string; prazo: string; status: 'Concluído' | 'Pendente' | 'Em Andamento' }>;
+}> = {
+  'Prensa': {
+    tag: 'PR-01',
+    pq1: 'Perda de força hidráulica e lentidão no ciclo de prensagem.',
+    pq2: 'Queda de pressão no circuito principal por vazamento interno.',
+    pq3: 'Fadiga e rachadura no anel de vedação do pistão principal.',
+    pq4: 'Atrito excessivo por presença de micropartículas abrasivas no óleo hidráulico.',
+    pq5: 'O filtro de óleo estava saturado e houve desvio do fluxo pela válvula bypass sem filtragem.',
+    causaRaiz: 'Ausência de um plano de análise periódica do óleo e de substituição preventiva de vedações e filtros.',
+    acoes: [
+      { acao: 'Substituir vedações e filtros de óleo hidráulico.', responsavel: 'Cláudio', prazo: '2026-07-25', status: 'Pendente' },
+      { acao: 'Drenar e purificar o óleo do tanque com unidade de filtragem externa.', responsavel: 'Cláudio', prazo: '2026-07-28', status: 'Pendente' },
+      { acao: 'Implementar rotina de inspeção semanal da pressão do circuito hidráulico.', responsavel: 'Cláudio', prazo: '2026-08-05', status: 'Pendente' }
+    ]
+  },
+  'Prensa Sucata': {
+    tag: 'PR-SUC',
+    pq1: 'Travamento repentino das facas de corte lateral.',
+    pq2: 'Folga mecânica excessiva nas guias lineares do cabeçote.',
+    pq3: 'Desgaste prematuro dos parafusos de fixação das guias por vibração.',
+    pq4: 'Infiltração de cavacos e resíduos metálicos sob a vedação protetora.',
+    pq5: 'Acúmulo de sujeira acumulada devido à falta de limpeza sistemática no fim do turno.',
+    causaRaiz: 'Inexistência de rotina de lubrificação mecânica e limpeza diária do cabeçote de prensa.',
+    acoes: [
+      { acao: 'Ajustar folga mecânica e substituir parafusos danificados.', responsavel: 'Cláudio', prazo: '2026-07-24', status: 'Pendente' },
+      { acao: 'Criar check-list diário de limpeza preventiva (5S) na prensa de sucata.', responsavel: 'Cláudio', prazo: '2026-07-27', status: 'Pendente' }
+    ]
+  },
+  'Broca': {
+    tag: 'BR-04',
+    pq1: 'Substituição excessiva de brocas por perda precoce do fio de corte.',
+    pq2: 'Elevação térmica severa e desgaste por atrito na furação de perfis.',
+    pq3: 'Falta de refrigeração/lubrificação líquida direta na ferramenta.',
+    pq4: 'Bocal aspersor de fluido refrigerante obstruído por resíduos metálicos.',
+    pq5: 'Falta de limpeza regular do sistema de refrigeração e de filtro de linha.',
+    causaRaiz: 'Ausência de rotina para inspeção visual rápida e limpeza do aspersor de refrigeração.',
+    acoes: [
+      { acao: 'Desobstruir bocal aspersor e reabastecer tanque de fluido refrigerante.', responsavel: 'Cláudio', prazo: '2026-07-22', status: 'Pendente' },
+      { acao: 'Fixar placa com instruções de regulagem do fluxo refrigerante na máquina.', responsavel: 'Cláudio', prazo: '2026-07-25', status: 'Pendente' },
+      { acao: 'Adicionar check de refrigeração no plano de preventiva semanal.', responsavel: 'Cláudio', prazo: '2026-07-30', status: 'Pendente' }
+    ]
+  },
+  'P20': {
+    tag: 'P20-FUR',
+    pq1: 'Broca sem furar / furos fora do dimensional tolerado.',
+    pq2: 'Desalinhamento mecânico no eixo de rotação do cabeçote de furação.',
+    pq3: 'Vibração severa induzida por folga nos rolamentos de sustentação.',
+    pq4: 'Desgaste severo por falta de lubrificação sistemática nos rolamentos.',
+    pq5: 'Inexistência de canal lubrificador desobstruído e de monitoramento de vibração.',
+    causaRaiz: 'Falta de rotina preventiva de engraxe e de aferição mecânica dimensional do eixo.',
+    acoes: [
+      { acao: 'Substituir rolamentos mecânicos danificados e efetuar alinhamento dimensional.', responsavel: 'Cláudio', prazo: '2026-07-25', status: 'Pendente' },
+      { acao: 'Estabelecer cronograma quinzenal de afiação de brocas e troca preventiva.', responsavel: 'Cláudio', prazo: '2026-08-01', status: 'Pendente' }
+    ]
+  },
+  'Extrusora': {
+    tag: 'EXT-02',
+    pq1: 'Oscilação severa de temperatura na zona de alimentação elétrica.',
+    pq2: 'Queima sistemática das resistências de aquecimento cerâmicas.',
+    pq3: 'Acúmulo de material termoplástico fundido sobre os cabos elétricos.',
+    pq4: 'Refluxo ou vazamento mecânico por folga no flange de acoplamento.',
+    pq5: 'Parafusos de fixação do cabeçote folgados por choque térmico cíclico.',
+    causaRaiz: 'Falta de rotina de manutenção preventiva para reaperto programado nas fixações elétricas e mecânicas da extrusora.',
+    acoes: [
+      { acao: 'Limpar fiação e substituir resistência cerâmica danificada.', responsavel: 'Cláudio', prazo: '2026-07-24', status: 'Pendente' },
+      { acao: 'Implementar reaperto técnico de resistências no plano mensal.', responsavel: 'Cláudio', prazo: '2026-07-29', status: 'Pendente' }
+    ]
+  },
+  'Forno': {
+    tag: 'FN-GE',
+    pq1: 'Queimador principal falha ao iniciar a rampa de aquecimento.',
+    pq2: 'Inexistência de centelha de ignição eletrônica ou falha no sensor de chama.',
+    pq3: 'Eletrodo de ignição severamente carbonizado por queima incompleta.',
+    pq4: 'Proporção incorreta de ar e gás por folga na articulação da válvula proporcional.',
+    pq5: 'Vibração contínua afrouxou o manípulo mecânico de calibração da válvula.',
+    causaRaiz: 'Ausência de plano anual de calibração eletrônica e análise de gases do queimador.',
+    acoes: [
+      { acao: 'Limpar eletrodos de ignição e calibrar folga mecânica da válvula de gás.', responsavel: 'Cláudio', prazo: '2026-07-23', status: 'Pendente' },
+      { acao: 'Programar calibração anual da queima com emissão de laudo técnico.', responsavel: 'Cláudio', prazo: '2026-08-10', status: 'Pendente' }
+    ]
+  },
+  'Serra': {
+    tag: 'SR-03',
+    pq1: 'Acabamento áspero ou desalinhamento no corte do perfil metálico.',
+    pq2: 'Fricção lateral excessiva e empenamento térmico do disco de corte.',
+    pq3: 'Desgaste acentuado nos mancais de apoio do eixo de rotação.',
+    pq4: 'Falta crônica de graxa lubrificante devido a retentores desgastados.',
+    pq5: 'Presença de cavacos de alumínio triturados que perfuraram a vedação de borracha.',
+    causaRaiz: 'Ausência de limpeza periódica de cavacos na base do mancal e lubrificação semestral programada.',
+    acoes: [
+      { acao: 'Efetuar troca dos rolamentos e retentores da serra, adicionando graxa especial.', responsavel: 'Cláudio', prazo: '2026-07-25', status: 'Pendente' },
+      { acao: 'Instalar barreira protetora adicional contra cavacos de alumínio no mancal.', responsavel: 'Cláudio', prazo: '2026-07-30', status: 'Pendente' }
+    ]
+  }
+};
+
 const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, inventoryData, isLoading }) => {
   const [selectedYear, setSelectedYear] = useState<string>('Todos');
   const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
@@ -119,6 +248,42 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [resumido, setResumido] = useState(false);
+
+  // Estados para 5 Porquês e Plano de Ação
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'fiveWhys'>('dashboard');
+  const [showFiveWhysPrintPreview, setShowFiveWhysPrintPreview] = useState(false);
+  const [savedReports, setSavedReports] = useState<FiveWhysReport[]>(() => {
+    try {
+      const saved = localStorage.getItem('alumasa_5whys_reports');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  
+  // Dados do formulário ativo de 5 Porquês
+  const [formEquipamento, setFormEquipamento] = useState('');
+  const [formTag, setFormTag] = useState('');
+  const [formMesOcorrencia, setFormMesOcorrencia] = useState('');
+  const [formProblema, setFormProblema] = useState('');
+  const [formPq1, setFormPq1] = useState('');
+  const [formPq2, setFormPq2] = useState('');
+  const [formPq3, setFormPq3] = useState('');
+  const [formPq4, setFormPq4] = useState('');
+  const [formPq5, setFormPq5] = useState('');
+  const [formCausaRaiz, setFormCausaRaiz] = useState('');
+  const [formAcoes, setFormAcoes] = useState<Array<{
+    id: string;
+    acao: string;
+    responsavel: string;
+    prazo: string;
+    status: 'Concluído' | 'Pendente' | 'Em Andamento';
+  }>>([]);
+  const [formResponsavelAssinatura, setFormResponsavelAssinatura] = useState('');
+  const [isAllPDCAPrint, setIsAllPDCAPrint] = useState(false);
+  const [expandedAssetPDCA, setExpandedAssetPDCA] = useState<string | null>(null);
 
   // Paleta de cores variadas conforme a imagem
   const VIBRANT_COLORS = [
@@ -635,6 +800,352 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     return Object.values(eqMap).sort((a, b) => b.count - a.count);
   }, [filteredData]);
 
+  // CÁLCULO DINÂMICO DOS EQUIPAMENTOS TOP 5
+  const top5Equipment = useMemo(() => {
+    // 1. Tentar pegar por tempo parado (downtimeByEquipment)
+    const fromDowntime = downtimeByEquipment.slice(0, 5).map(e => ({
+      name: e.name,
+      reasons: e.reasons || [],
+      type: 'downtime' as const,
+      metric: e.value
+    }));
+    
+    if (fromDowntime.length >= 5) return fromDowntime;
+    
+    // 2. Se houver menos que 5, complementar com os de maior volume de OS (assetsDemand)
+    const fromDemand = assetsDemand.slice(0, 5).map(e => {
+      const foundInDowntime = downtimeByEquipment.find(d => d.name === e[0]);
+      return {
+        name: e[0],
+        reasons: foundInDowntime ? foundInDowntime.reasons || [] : [],
+        type: 'demand' as const,
+        metric: e[1]
+      };
+    });
+    
+    const merged: { name: string; reasons: any[]; type: 'downtime' | 'demand'; metric: number }[] = [...fromDowntime];
+    fromDemand.forEach(item => {
+      if (!merged.some(m => m.name === item.name)) {
+        merged.push(item);
+      }
+    });
+    return merged.slice(0, 5);
+  }, [downtimeByEquipment, assetsDemand]);
+
+  // Helper to generate fully automated, realistic 5 Whys and Action Plan for any given equipment
+  const getPDCADataForEquipment = (eqName: string, metricStr: string, reasonName?: string) => {
+    const nameLower = eqName.toLowerCase();
+    let matchKey = '';
+    
+    if (nameLower.includes('prensa') && nameLower.includes('sucata')) {
+      matchKey = 'Prensa Sucata';
+    } else if (nameLower.includes('prensa')) {
+      matchKey = 'Prensa';
+    } else if (nameLower.includes('p20')) {
+      matchKey = 'P20';
+    } else if (nameLower.includes('broca')) {
+      matchKey = 'Broca';
+    } else if (nameLower.includes('extrusora')) {
+      matchKey = 'Extrusora';
+    } else if (nameLower.includes('forno')) {
+      matchKey = 'Forno';
+    } else if (nameLower.includes('serra')) {
+      matchKey = 'Serra';
+    }
+
+    const defaultProblem = reasonName 
+      ? `FALHA COM PARADA NÃO PROGRAMADA POR: ${reasonName.toUpperCase()}`
+      : `INTERRUPÇÃO OPERACIONAL SEVERA COM IMPACTO DE ${metricStr.toUpperCase()} PARALISADO.`;
+
+    const mesStr = selectedMonth === 'Todos' ? 'JULHO/2026' : `${selectedMonth.toUpperCase()}/${selectedYear === 'Todos' ? '2026' : selectedYear}`;
+
+    if (matchKey && MAINTENANCE_KNOWLEDGE_BASE[matchKey]) {
+      const kb = MAINTENANCE_KNOWLEDGE_BASE[matchKey];
+      return {
+        equipamento: eqName,
+        tag: kb.tag,
+        mesOcorrencia: mesStr,
+        problema: defaultProblem,
+        pq1: kb.pq1,
+        pq2: kb.pq2,
+        pq3: kb.pq3,
+        pq4: kb.pq4,
+        pq5: kb.pq5,
+        causaRaiz: kb.causaRaiz,
+        acoes: kb.acoes.map((ac, idx) => ({
+          id: `${eqName}-${idx}`,
+          acao: ac.acao,
+          responsavel: ac.responsavel,
+          prazo: ac.prazo,
+          status: ac.status
+        }))
+      };
+    } else {
+      // Smart Fallback based on top reason or generic mechanical
+      const cleanReason = reasonName || 'Desgaste mecânico e fadiga';
+      const cleanReasonLower = cleanReason.toLowerCase();
+      
+      let tagStr = `${eqName.substring(0, 3).toUpperCase() || 'EQ'}-01`;
+      let pq1 = `Substituição emergencial de componente ou peça devido a ${cleanReasonLower}.`;
+      let pq2 = `Atrito mecânico excessivo ou sobrecarga térmica operando sob fadiga contínua.`;
+      let pq3 = `Ausência de lubrificação periódica adequada nos pontos móveis de atrito.`;
+      let pq4 = `Infiltração de poeira ou resíduos abrasivos que obstruíram o canal lubrificador do ativo.`;
+      let pq5 = `Falta de check-list preventivo sistemático no plano semanal do setor de manutenção.`;
+      let causaRaiz = `Ausência de cronograma sistemático de lubrificação, limpeza de resíduos e manutenção preventiva periódica para o ativo ${eqName}.`;
+      
+      if (cleanReasonLower.includes('eletric') || cleanReasonLower.includes('disjuntor') || cleanReasonLower.includes('sensor') || cleanReasonLower.includes('cabo')) {
+        tagStr = `${eqName.substring(0, 3).toUpperCase()}-EL`;
+        pq1 = `Queda de energia ou desarmamento de componente elétrico por sobrecorrente de ${cleanReasonLower}.`;
+        pq2 = `Sobrecarga térmica e pico de corrente circulando pela fiação do comando.`;
+        pq3 = `Mau contato físico ou oxidação severa nos terminais e conexões de potência.`;
+        pq4 = `Infiltração de umidade ou fuligem condutiva na caixa protetora de conexões elétricas.`;
+        pq5 = `Falta de plano de reaperto preventivo e termografia sistemática nos painéis de força.`;
+        causaRaiz = `Inexistência de inspeção termográfica periódica mensal e rotina de reaperto preventivo dos contatores e disjuntores da máquina.`;
+      } else if (cleanReasonLower.includes('pneumatic') || cleanReasonLower.includes('valvula') || cleanReasonLower.includes('ar') || cleanReasonLower.includes('pressao')) {
+        tagStr = `${eqName.substring(0, 3).toUpperCase()}-PN`;
+        pq1 = `Perda de pressão de ar comprimido ou vazamento detectado na linha pneumática.`;
+        pq2 = `Rompimento de mangueira pneumática ou fadiga no atuador de acionamento de ${cleanReasonLower}.`;
+        pq3 = `Presença excessiva de condensado de água e contaminação de óleo no sistema de ar.`;
+        pq4 = `Saturação do elemento filtrante e dreno do purgador de linha inoperante por sujeira.`;
+        pq5 = `Falta de purga periódica diária e check-list de pressão no painel de ar de PCM.`;
+        causaRaiz = `Falta de drenagem sistemática do compressor de linha e ausência de substituição preventiva de filtros purificadores de ar comprimido.`;
+      }
+
+      return {
+        equipamento: eqName,
+        tag: tagStr,
+        mesOcorrencia: mesStr,
+        problema: defaultProblem,
+        pq1,
+        pq2,
+        pq3,
+        pq4,
+        pq5,
+        causaRaiz,
+        acoes: [
+          { 
+            id: `${eqName}-1`, 
+            acao: `Realizar reparo imediato do componente (${cleanReason.toUpperCase()}), efetuar limpeza profunda do painel e pontos de atrito.`, 
+            responsavel: 'Cláudio', 
+            prazo: '2026-07-24', 
+            status: 'Pendente' as const 
+          },
+          { 
+            id: `${eqName}-2`, 
+            acao: `Desenvolver e implantar check-list operacional de preventivas semanais específico para evitar ocorrências de ${cleanReason.toUpperCase()}.`, 
+            responsavel: 'Cláudio', 
+            prazo: '2026-08-01', 
+            status: 'Pendente' as const 
+          }
+        ]
+      };
+    }
+  };
+
+  const allPDCAData = useMemo(() => {
+    return top5Equipment.map((eq) => {
+      const topReason = eq.reasons && eq.reasons.length > 0 ? eq.reasons[0].name : '';
+      const metricStr = eq.type === 'downtime' ? formatDetailedTime(eq.metric) : `${eq.metric} OS`;
+      return getPDCADataForEquipment(eq.name, metricStr, topReason);
+    });
+  }, [top5Equipment, selectedMonth, selectedYear]);
+
+  // Função para gerar rascunho inteligente baseado em IA/Conhecimento de Manutenção
+  const handleGenerateAIDraft = (equipName: string, customProblem?: string) => {
+    const nameLower = equipName.toLowerCase();
+    let matchKey = '';
+    
+    if (nameLower.includes('prensa') && nameLower.includes('sucata')) {
+      matchKey = 'Prensa Sucata';
+    } else if (nameLower.includes('prensa')) {
+      matchKey = 'Prensa';
+    } else if (nameLower.includes('p20')) {
+      matchKey = 'P20';
+    } else if (nameLower.includes('broca')) {
+      matchKey = 'Broca';
+    } else if (nameLower.includes('extrusora')) {
+      matchKey = 'Extrusora';
+    } else if (nameLower.includes('forno')) {
+      matchKey = 'Forno';
+    } else if (nameLower.includes('serra')) {
+      matchKey = 'Serra';
+    }
+    
+    if (matchKey && MAINTENANCE_KNOWLEDGE_BASE[matchKey]) {
+      const kb = MAINTENANCE_KNOWLEDGE_BASE[matchKey];
+      setFormTag(kb.tag);
+      setFormProblema(customProblem || `Falha funcional no equipamento ${equipName} gerando paradas não programadas`);
+      setFormPq1(kb.pq1);
+      setFormPq2(kb.pq2);
+      setFormPq3(kb.pq3);
+      setFormPq4(kb.pq4);
+      setFormPq5(kb.pq5);
+      setFormCausaRaiz(kb.causaRaiz);
+      setFormAcoes(kb.acoes.map((ac, idx) => ({
+        id: `${Date.now()}-${idx}`,
+        acao: ac.acao,
+        responsavel: ac.responsavel,
+        prazo: ac.prazo,
+        status: ac.status
+      })));
+    } else {
+      // Fallback genérico inteligente
+      setFormTag(`${equipName.substring(0, 3).toUpperCase() || 'EQ'}-01`);
+      setFormProblema(customProblem || `Interrupção das atividades normais do equipamento ${equipName}`);
+      setFormPq1(`Desgaste mecânico acentuado em componente estrutural da máquina.`);
+      setFormPq2(`Estresse dinâmico por vibração excessiva operando fora das especificações normais.`);
+      setFormPq3(`Falta de lubrificação sistemática ou refrigeração adequada nas partes móveis.`);
+      setFormPq4(`Infiltração de poeira ou resíduos abrasivos que obstruíram os dutos de graxa/óleo.`);
+      setFormPq5(`Ausência de manutenção preventiva e check-list diário operacional.`);
+      setFormCausaRaiz(`Falta de um plano de manutenção preventiva semanal e limpeza para o ativo ${equipName}.`);
+      setFormAcoes([
+        { id: `${Date.now()}-1`, acao: `Substituir partes depreciadas e limpar os barramentos/guias do equipamento.`, responsavel: 'Cláudio', prazo: '2026-07-25', status: 'Pendente' },
+        { id: `${Date.now()}-2`, acao: `Programar rotina periódica de inspeção e lubrificação no cronograma de preventivas.`, responsavel: 'Cláudio', prazo: '2026-08-01', status: 'Pendente' }
+      ]);
+    }
+    
+    if (!formResponsavelAssinatura) {
+      setFormResponsavelAssinatura('Cláudio');
+    }
+  };
+
+  // Funções de gerenciamento dos relatórios
+  const handleSaveReport = () => {
+    if (!formEquipamento || !formProblema) {
+      alert('Por favor, preencha pelo menos o Equipamento e o Problema para salvar!');
+      return;
+    }
+    
+    const reportData: FiveWhysReport = {
+      id: selectedReportId || `5whys-${Date.now()}`,
+      equipamento: formEquipamento,
+      tag: formTag,
+      mesOcorrencia: formMesOcorrencia || selectedMonth || 'Geral',
+      problema: formProblema,
+      pq1: formPq1,
+      pq2: formPq2,
+      pq3: formPq3,
+      pq4: formPq4,
+      pq5: formPq5,
+      causaRaiz: formCausaRaiz,
+      acoes: formAcoes,
+      responsavelAssinatura: formResponsavelAssinatura || 'Cláudio',
+      dataCriacao: new Date().toLocaleDateString('pt-BR')
+    };
+    
+    let updated: FiveWhysReport[] = [];
+    if (selectedReportId) {
+      updated = savedReports.map(r => r.id === selectedReportId ? reportData : r);
+    } else {
+      updated = [reportData, ...savedReports];
+      setSelectedReportId(reportData.id);
+    }
+    
+    setSavedReports(updated);
+    localStorage.setItem('alumasa_5whys_reports', JSON.stringify(updated));
+  };
+
+  const handleDeleteReport = (id: string) => {
+    if (confirm('Tem certeza de que deseja excluir este relatório dos 5 Porquês?')) {
+      const updated = savedReports.filter(r => r.id !== id);
+      setSavedReports(updated);
+      localStorage.setItem('alumasa_5whys_reports', JSON.stringify(updated));
+      if (selectedReportId === id) {
+        handleCreateNewReport();
+      }
+    }
+  };
+
+  const handleLoadReport = (report: FiveWhysReport) => {
+    setSelectedReportId(report.id);
+    setFormEquipamento(report.equipamento);
+    setFormTag(report.tag);
+    setFormMesOcorrencia(report.mesOcorrencia);
+    setFormProblema(report.problema);
+    setFormPq1(report.pq1);
+    setFormPq2(report.pq2);
+    setFormPq3(report.pq3);
+    setFormPq4(report.pq4);
+    setFormPq5(report.pq5);
+    setFormCausaRaiz(report.causaRaiz);
+    setFormAcoes(report.acoes);
+    setFormResponsavelAssinatura(report.responsavelAssinatura);
+  };
+
+  const handleCreateNewReport = () => {
+    setSelectedReportId(null);
+    setFormEquipamento('');
+    setFormTag('');
+    setFormMesOcorrencia(selectedMonth !== 'Todos' ? selectedMonth : 'Julho');
+    setFormProblema('');
+    setFormPq1('');
+    setFormPq2('');
+    setFormPq3('');
+    setFormPq4('');
+    setFormPq5('');
+    setFormCausaRaiz('');
+    setFormAcoes([]);
+    setFormResponsavelAssinatura('Cláudio');
+  };
+
+  const handlePrintSinglePDCA = (eqName: string, metricStr: string, reasonName?: string) => {
+    const data = getPDCADataForEquipment(eqName, metricStr, reasonName);
+    setFormEquipamento(data.equipamento);
+    setFormTag(data.tag);
+    setFormMesOcorrencia(data.mesOcorrencia);
+    setFormProblema(data.problema);
+    setFormPq1(data.pq1);
+    setFormPq2(data.pq2);
+    setFormPq3(data.pq3);
+    setFormPq4(data.pq4);
+    setFormPq5(data.pq5);
+    setFormCausaRaiz(data.causaRaiz);
+    setFormAcoes(data.acoes);
+    setFormResponsavelAssinatura('PCM - ALUMASA');
+    setIsAllPDCAPrint(false);
+    setShowFiveWhysPrintPreview(true);
+  };
+
+  const handlePrintAllPDCAs = () => {
+    setIsAllPDCAPrint(true);
+    setShowFiveWhysPrintPreview(true);
+  };
+
+  const handleAddActionRow = () => {
+    setFormAcoes(prev => [
+      ...prev,
+      {
+        id: `action-${Date.now()}`,
+        acao: '',
+        responsavel: 'Cláudio',
+        prazo: '',
+        status: 'Pendente'
+      }
+    ]);
+  };
+
+  const handleUpdateActionRow = (id: string, field: string, value: any) => {
+    setFormAcoes(prev => prev.map(a => {
+      if (a.id === id) {
+        return { ...a, [field]: value };
+      }
+      return a;
+    }));
+  };
+
+  const handleRemoveActionRow = (id: string) => {
+    setFormAcoes(prev => prev.filter(a => a.id !== id));
+  };
+
+  const handleConfirmFiveWhysPrint = () => {
+    const originalTitle = document.title;
+    document.title = `analise_5_porques_${formEquipamento.replace(/\s+/g, '_').toLowerCase()}`;
+    setTimeout(() => {
+        window.print();
+        document.title = originalTitle;
+    }, 100);
+  };
+
   const handleConfirmPrint = () => {
     const originalTitle = document.title;
     document.title = "relatorio_gerencial_alumasa";
@@ -725,233 +1236,626 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
           <button onClick={() => setShowPrintPreview(true)} className="bg-white dark:bg-dark-card border border-gray-700 p-2.5 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 shadow-sm">
             <Printer className="w-4 h-4 text-rose-500" /> Relatório
           </button>
+
+          <button 
+            onClick={handlePrintAllPDCAs} 
+            className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl flex items-center gap-2 font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-md no-print"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" /> Gerar PDCA
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 no-print">
-        <StatCard title="Total OS" value={stats.total} icon={ClipboardList} color="blue" />
-        <StatCard title="Méd. Execução" value={formatDetailedTimeWithSpace(stats.avgExecutionTime)} icon={Zap} color="green" />
-        <StatCard title="Méd. Resposta" value={formatDetailedTimeWithSpace(stats.avgResponseTime)} icon={Timer} color="purple" />
-        <StatCard title="Horas Totais Trabalhadas" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
-        <StatCard title="Tempo Total Parado" value={formatDetailedTimeWithSpace(totalDowntime)} icon={TrendingDown} color="red" />
-      </div>
-
-      {/* GRÁFICO DE DOWNTIME REFINADO - SEM VAZIO E COM ALINHAMENTO PRECISO */}
-      <div className="bg-white dark:bg-dark-card rounded-[2rem] p-8 shadow-2xl border border-gray-100 dark:border-gray-800 no-print">
-        <div className="flex items-center mb-8">
-          <TrendingDown className="w-6 h-6 text-rose-500 mr-3" />
-          <h3 className="font-black text-xl text-slate-800 dark:text-white uppercase tracking-tight">Tempo Total Parado por Equipamento (Top 10)</h3>
-        </div>
-        <div className="h-[480px]">
-          {downtimeByEquipment.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={downtimeByEquipment.slice(0, 10)} 
-                margin={{ top: 50, bottom: 160, left: 10, right: 10 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700 opacity-30" />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="#94a3b8" 
-                  fontSize={10} 
-                  fontWeight="900"
-                  height={120}
-                  tick={{ dy: 15, dx: -5, fill: '#94a3b8' }} 
-                  angle={-45}
-                  textAnchor="end"
-                  interval={0} 
-                  axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                  tickLine={false}
-                />
-                <YAxis 
-                   stroke="#94a3b8" 
-                   fontSize={10} 
-                   fontWeight="bold"
-                   tickFormatter={(val) => `${val}h`} 
-                   axisLine={false}
-                   tickLine={false}
-                />
-                <Bar 
-                  dataKey="value" 
-                  name="Tempo Parado" 
-                  radius={[8, 8, 0, 0]} 
-                  barSize={55}
-                  className="cursor-pointer"
-                  onClick={(data) => {
-                    if (data && data.name) {
-                      setDowntimeTrendEquipment(data.name);
-                    }
-                  }}
-                >
-                  {downtimeByEquipment.slice(0, 10).map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} />
-                  ))}
-                  <LabelList 
-                    dataKey="value" 
-                    position="top" 
-                    offset={20} 
-                    formatter={(val: any) => formatDetailedTime(val)} 
-                    style={{ fill: '#ef4444', fontSize: '13px', fontWeight: '900', textShadow: '0px 0px 2px rgba(0,0,0,0.05)' }} 
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado para este período</div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-            <div className="flex items-center">
-              <Wrench className="w-5 h-5 text-blue-600 mr-2" />
-              <h3 className="font-bold text-slate-800 dark:text-white">
-                {equipmentChartMode === 'quantity' ? "Abertura por Equipamento (Top 5)" : "Tempo Parado por Equipamento (Top 5)"}
-              </h3>
-            </div>
-            <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start sm:self-auto border border-gray-200 dark:border-slate-700">
-              <button
-                onClick={() => setEquipmentChartMode('quantity')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
-                  equipmentChartMode === 'quantity'
-                    ? 'bg-blue-600 text-white shadow'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                Qtd. OS
-              </button>
-              <button
-                onClick={() => setEquipmentChartMode('downtime')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
-                  equipmentChartMode === 'downtime'
-                    ? 'bg-rose-600 text-white shadow shadow-rose-500/20'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                Tempo Parado
-              </button>
-            </div>
+      {/* SELETOR DE ABAS PCM REMOVIDO PARA SIMPLIFICAÇÃO */}
+      <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 no-print">
+            <StatCard title="Total OS" value={stats.total} icon={ClipboardList} color="blue" />
+            <StatCard title="Méd. Execução" value={formatDetailedTimeWithSpace(stats.avgExecutionTime)} icon={Zap} color="green" />
+            <StatCard title="Méd. Resposta" value={formatDetailedTimeWithSpace(stats.avgResponseTime)} icon={Timer} color="purple" />
+            <StatCard title="Horas Totais Trabalhadas" value={formatDetailedTimeWithSpace(stats.totalHours)} icon={Clock} color="blue" />
+            <StatCard title="Tempo Total Parado" value={formatDetailedTimeWithSpace(totalDowntime)} icon={TrendingDown} color="red" />
           </div>
-          <div className="h-72">
-            {equipmentChartMode === 'quantity' ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} layout="vertical" margin={{ right: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
-                  <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
-                    <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
-                    <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              downtimeByEquipment.length > 0 ? (
+
+          {/* GRÁFICO DE DOWNTIME REFINADO - SEM VAZIO E COM ALINHAMENTO PRECISO */}
+          <div className="bg-white dark:bg-dark-card rounded-[2rem] p-8 shadow-2xl border border-gray-100 dark:border-gray-800 no-print">
+            <div className="flex items-center mb-8">
+              <TrendingDown className="w-6 h-6 text-rose-500 mr-3" />
+              <h3 className="font-black text-xl text-slate-800 dark:text-white uppercase tracking-tight">Tempo Total Parado por Equipamento (Top 10)</h3>
+            </div>
+            <div className="h-[480px]">
+              {downtimeByEquipment.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={downtimeByEquipment.slice(0, 5)} layout="vertical" margin={{ right: 80 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
-                    <Bar dataKey="value" name="Tempo Parado" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
-                      <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = totalDowntime > 0 ? ((value / totalDowntime) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
-                      <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => formatDetailedTime(value)} style={{ fill: '#ef4444', fontSize: '12px', fontWeight: 'bold' }} />
+                  <BarChart 
+                    data={downtimeByEquipment.slice(0, 10)} 
+                    margin={{ top: 50, bottom: 160, left: 10, right: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-gray-700 opacity-30" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#94a3b8" 
+                      fontSize={10} 
+                      fontWeight="900"
+                      height={120}
+                      tick={{ dy: 15, dx: -5, fill: '#94a3b8' }} 
+                      angle={-45}
+                      textAnchor="end"
+                      interval={0} 
+                      axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                       stroke="#94a3b8" 
+                       fontSize={10} 
+                       fontWeight="bold"
+                       tickFormatter={(val) => `${val}h`} 
+                       axisLine={false}
+                       tickLine={false}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      name="Tempo Parado" 
+                      radius={[8, 8, 0, 0]} 
+                      barSize={55}
+                      className="cursor-pointer"
+                      onClick={(data) => {
+                        if (data && data.name) {
+                          setDowntimeTrendEquipment(data.name);
+                        }
+                      }}
+                    >
+                      {downtimeByEquipment.slice(0, 10).map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} />
+                      ))}
+                      <LabelList 
+                        dataKey="value" 
+                        position="top" 
+                        offset={20} 
+                        formatter={(val: any) => formatDetailedTime(val)} 
+                        style={{ fill: '#ef4444', fontSize: '13px', fontWeight: '900', textShadow: '0px 0px 2px rgba(0,0,0,0.05)' }} 
+                      />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado para este período</div>
-              )
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center mb-6"><Building className="w-5 h-5 text-primary mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">Abertura por Setor</h3></div>
-          <div className="h-72">
-            {sectorDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sectorDistribution} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
-                  <YAxis type="number" hide />
-                  <Bar dataKey="value" name="Quantidade" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40}>
-                    <LabelList dataKey="value" position="insideTop" offset={10} formatter={(value: number) => { const percent = totalSectorOS > 0 ? ((value / totalSectorOS) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
-                    <LabelList dataKey="value" position="top" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#10b981', fontSize: '12px', fontWeight: 'bold' }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 lg:col-span-2">
-          <div className="flex items-center mb-6"><Users className="w-5 h-5 text-amber-500 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">OS por Requisitante</h3></div>
-          <div className="h-72">
-            {requesterDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={requesterDistribution} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
-                  <YAxis type="number" hide />
-                  <Bar 
-                    dataKey="value" 
-                    name="Quantidade" 
-                    fill="#f59e0b" 
-                    radius={[4, 4, 0, 0]} 
-                    barSize={40}
-                    className="cursor-pointer"
-                    onClick={(data) => { if (data && data.name) setSelectedRequesterForModal(data.name); }}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+                <div className="flex items-center">
+                  <Wrench className="w-5 h-5 text-blue-600 mr-2" />
+                  <h3 className="font-bold text-slate-800 dark:text-white">
+                    {equipmentChartMode === 'quantity' ? "Abertura por Equipamento (Top 5)" : "Tempo Parado por Equipamento (Top 5)"}
+                  </h3>
+                </div>
+                <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start sm:self-auto border border-gray-200 dark:border-slate-700">
+                  <button
+                    onClick={() => setEquipmentChartMode('quantity')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                      equipmentChartMode === 'quantity'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                    }`}
                   >
-                    <LabelList dataKey="value" position="top" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#f59e0b', fontSize: '12px', fontWeight: 'bold' }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
-            )}
-          </div>
-        </div>
-      </div>
+                    Qtd. OS
+                  </button>
+                  <button
+                    onClick={() => setEquipmentChartMode('downtime')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                      equipmentChartMode === 'downtime'
+                        ? 'bg-rose-600 text-white shadow shadow-rose-500/20'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    Tempo Parado
+                  </button>
+                </div>
+              </div>
+              <div className="h-72">
+                {equipmentChartMode === 'quantity' ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={assetsDemand.slice(0, 5).map(d => ({name: d[0], value: d[1]}))} layout="vertical" margin={{ right: 80 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
+                      <Bar dataKey="value" name="Quantidade" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
+                        <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = stats.total > 0 ? ((value / stats.total) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                        <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  downtimeByEquipment.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={downtimeByEquipment.slice(0, 5)} layout="vertical" margin={{ right: 80 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 10}} />
+                        <Bar dataKey="value" name="Tempo Parado" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={25} className="cursor-pointer" onClick={(data) => { if (data && data.name) { setSelectedEquipmentForModal(data.name); } }}>
+                          <LabelList dataKey="value" position="insideRight" offset={10} formatter={(value: number) => { const percent = totalDowntime > 0 ? ((value / totalDowntime) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                          <LabelList dataKey="value" position="right" offset={10} formatter={(value: number) => formatDetailedTime(value)} style={{ fill: '#ef4444', fontSize: '12px', fontWeight: 'bold' }} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Nenhum tempo de parada registrado para este período</div>
+                  )
+                )}
+              </div>
+            </div>
 
-      <div className="space-y-8 no-print">
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 flex justify-between items-center px-6 py-4">
-          <div className="flex items-center">
-            <Users className="w-5 h-5 text-blue-600 mr-2" />
-            <h3 className="font-bold text-slate-800 dark:text-white">Detalhamento por Profissional</h3>
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
+              <div className="flex items-center mb-6"><Building className="w-5 h-5 text-primary mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">Abertura por Setor</h3></div>
+              <div className="h-72">
+                {sectorDistribution.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={sectorDistribution} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
+                      <YAxis type="number" hide />
+                      <Bar dataKey="value" name="Quantidade" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40}>
+                        <LabelList dataKey="value" position="insideTop" offset={10} formatter={(value: number) => { const percent = totalSectorOS > 0 ? ((value / totalSectorOS) * 100).toFixed(1) : "0"; return `${percent}%`; }} style={{ fill: '#ffffff', fontSize: '11px', fontWeight: '900' }} />
+                        <LabelList dataKey="value" position="top" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#10b981', fontSize: '12px', fontWeight: 'bold' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 lg:col-span-2">
+              <div className="flex items-center mb-6"><Users className="w-5 h-5 text-amber-500 mr-2" /><h3 className="font-bold text-slate-800 dark:text-white">OS por Requisitante</h3></div>
+              <div className="h-72">
+                {requesterDistribution.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={requesterDistribution} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" type="category" tick={{fontSize: 10}} interval={0} angle={-15} textAnchor="end" />
+                      <YAxis type="number" hide />
+                      <Bar 
+                        dataKey="value" 
+                        name="Quantidade" 
+                        fill="#f59e0b" 
+                        radius={[4, 4, 0, 0]} 
+                        barSize={40}
+                        className="cursor-pointer"
+                        onClick={(data) => { if (data && data.name) setSelectedRequesterForModal(data.name); }}
+                      >
+                        <LabelList dataKey="value" position="top" offset={10} formatter={(value: number) => `${value}`} style={{ fill: '#f59e0b', fontSize: '12px', fontWeight: 'bold' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sem dados para exibir</div>
+                )}
+              </div>
+            </div>
           </div>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ordenado por Média de Resposta</span>
-        </div>
-        <div className="overflow-x-auto bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0">
-              <tr>
-                <th className="px-6 py-4">Profissional</th>
-                <th className="px-6 py-4 text-center">OS</th>
-                <th className="px-6 py-4 text-center">Total Tempo Serviço</th>
-                <th className="px-6 py-4 text-right">MÉDIA RESPOSTA</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {professionalStats.map((p, i) => (
-                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                  <td className="px-6 py-4 font-bold text-slate-800 dark:text-white">{p.name}</td>
-                  <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
-                  <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
-                  <td className="px-6 py-4 text-right">
-                    <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${getBadgeColor(p.avgResp)}`}>
-                      {formatDetailedTimeWithSpace(p.avgResp)}
+
+          <div className="space-y-8 no-print">
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 flex justify-between items-center px-6 py-4">
+              <div className="flex items-center">
+                <Users className="w-5 h-5 text-blue-600 mr-2" />
+                <h3 className="font-bold text-slate-800 dark:text-white">Detalhamento por Profissional</h3>
+              </div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ordenado por Média de Resposta</span>
+            </div>
+            <div className="overflow-x-auto bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0">
+                  <tr>
+                    <th className="px-6 py-4">Profissional</th>
+                    <th className="px-6 py-4 text-center">OS</th>
+                    <th className="px-6 py-4 text-center">Total Tempo Serviço</th>
+                    <th className="px-6 py-4 text-right">MÉDIA RESPOSTA</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {professionalStats.map((p, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                      <td className="px-6 py-4 font-bold text-slate-800 dark:text-white">{p.name}</td>
+                      <td className="px-6 py-4 text-center font-black text-blue-600">{p.count}</td>
+                      <td className="px-6 py-4 text-center font-bold text-slate-600 dark:text-slate-400">{formatDetailedTimeWithSpace(p.hours)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <span className={`inline-flex items-center px-3 py-1 border rounded-full text-[11px] font-black ${getBadgeColor(p.avgResp)}`}>
+                          {formatDetailedTimeWithSpace(p.avgResp)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      {false && (
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 no-print">
+          {/* LATERAL: LISTA DE RELATÓRIOS SALVOS */}
+          <div className="xl:col-span-1 bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-md flex flex-col h-[700px]">
+            <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">
+              <h4 className="font-bold text-sm uppercase tracking-tight text-slate-700 dark:text-slate-300 flex items-center">
+                <FileText className="w-4 h-4 text-blue-500 mr-2" />
+                Relatórios Salvos ({savedReports.length})
+              </h4>
+              <button
+                onClick={handleCreateNewReport}
+                className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all active:scale-95"
+                title="Novo Relatório"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {savedReports.length > 0 ? (
+                savedReports.map((rep) => (
+                  <div
+                    key={rep.id}
+                    onClick={() => handleLoadReport(rep)}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all hover:border-blue-300 dark:hover:border-blue-800 flex justify-between items-start gap-2 ${
+                      selectedReportId === rep.id
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
+                        : 'border-gray-100 dark:border-gray-800 bg-slate-50/30 dark:bg-slate-900/10'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black text-blue-600 bg-blue-100/60 dark:bg-blue-950/40 px-2 py-0.5 rounded uppercase">
+                          {rep.tag || 'S/T'}
+                        </span>
+                        <span className="text-[9px] font-medium text-slate-400">
+                          {rep.dataCriacao}
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-xs text-slate-800 dark:text-white truncate">
+                        {rep.equipamento}
+                      </h5>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {rep.problema}
+                      </p>
+                      <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">
+                        Ref: {rep.mesOcorrencia}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteReport(rep.id);
+                      }}
+                      className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50/50 dark:hover:bg-red-950/20 transition-all self-center"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                  <FileText className="w-8 h-8 text-slate-300 mb-2" />
+                  <p className="text-xs text-slate-400 italic">Nenhum relatório salvo no momento. Crie um novo abaixo!</p>
+                </div>
+              )}
+            </div>
+            
+            <button
+              onClick={handleCreateNewReport}
+              className="mt-4 w-full py-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center transition-all active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5 mr-2" /> Novo Diagnóstico
+            </button>
+          </div>
+
+          {/* COMPONENTE PRINCIPAL: EDITOR DO RELATÓRIO */}
+          <div className="xl:col-span-3 bg-white dark:bg-dark-card rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-md space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-gray-100 dark:border-gray-800 pb-4 gap-4">
+              <div>
+                <h3 className="font-black text-base text-slate-800 dark:text-white uppercase tracking-tight flex items-center">
+                  <Sparkles className="w-5 h-5 text-amber-500 mr-2 animate-pulse" />
+                  {selectedReportId ? 'Editar Análise de Causa Raiz' : 'Novo Diagnóstico 5 Porquês'}
+                </h3>
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Identifique causas e elabore planos de ação robustos</p>
+              </div>
+              <div className="flex gap-2.5">
+                <button
+                  onClick={handleSaveReport}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center shadow-md active:scale-95 transition-all"
+                >
+                  <Save className="w-4 h-4 mr-2" /> Salvar
+                </button>
+                {formEquipamento && (
+                  <button
+                    onClick={() => setShowFiveWhysPrintPreview(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center shadow-md active:scale-95 transition-all"
+                  >
+                    <Printer className="w-4 h-4 mr-2" /> Imprimir A4
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* SELEÇÃO DO ATIVO TOP 5 */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+              <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-wider mb-2.5">Escolher Ativos com Maior Impacto ({selectedMonth === 'Todos' ? 'Mês Selecionado' : selectedMonth})</h4>
+              <div className="flex flex-wrap gap-2">
+                {top5Equipment.map((eq, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setFormEquipamento(eq.name);
+                      const topReason = eq.reasons && eq.reasons.length > 0 ? eq.reasons[0].name : '';
+                      handleGenerateAIDraft(eq.name, topReason ? `Parada crítica: ${topReason}` : '');
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 active:scale-95 ${
+                      formEquipamento === eq.name
+                        ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-gray-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: VIBRANT_COLORS[i % VIBRANT_COLORS.length] }}></span>
+                    <span className="uppercase">{eq.name}</span>
+                    <span className="text-[10px] opacity-75 font-mono ml-1">
+                      ({eq.type === 'downtime' ? `${formatDetailedTime(eq.metric)} parado` : `${eq.metric} OS`})
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    handleCreateNewReport();
+                    setFormEquipamento('Outro');
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    formEquipamento === 'Outro' || (!top5Equipment.some(e => e.name === formEquipamento) && formEquipamento !== '')
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-gray-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  MÁQUINA CUSTOMIZADA...
+                </button>
+              </div>
+              
+              {/* SUGESTÃO DE PROBLEMAS BASEADA EM REGISTROS REAIS */}
+              {formEquipamento && formEquipamento !== 'Outro' && (
+                <div className="mt-4 border-t border-dashed border-gray-200 dark:border-gray-800 pt-3">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Selecione uma falha real registrada na planilha para analisar:</span>
+                  <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto">
+                    {top5Equipment.find(e => e.name === formEquipamento)?.reasons.map((r, rIdx) => (
+                      <button
+                        key={rIdx}
+                        onClick={() => {
+                          setFormProblema(`Falha de parada por: ${r.name}`);
+                          handleGenerateAIDraft(formEquipamento, `Parada por: ${r.name}`);
+                        }}
+                        className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-tight text-left truncate max-w-[280px]"
+                        title={r.name}
+                      >
+                        {r.name} ({r.count}x)
+                      </button>
+                    ))}
+                    {(!top5Equipment.find(e => e.name === formEquipamento)?.reasons || top5Equipment.find(e => e.name === formEquipamento)?.reasons.length === 0) && (
+                      <span className="text-[10px] text-slate-400 italic">Nenhum motivo de parada detalhado encontrado para este ativo no mês corrente.</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SEÇÃO 1: CABEÇALHO DO DIAGNÓSTICO */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Equipamento / Máquina (MÁQ)</label>
+                <input
+                  type="text"
+                  value={formEquipamento}
+                  onChange={(e) => setFormEquipamento(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white uppercase outline-none focus:border-blue-500 transition-all"
+                  placeholder="Ex: Prensa 01"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">TAG / Identificação Ativo</label>
+                <input
+                  type="text"
+                  value={formTag}
+                  onChange={(e) => setFormTag(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white uppercase outline-none focus:border-blue-500 transition-all"
+                  placeholder="Ex: PR-01"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Mês de Ocorrência</label>
+                <input
+                  type="text"
+                  value={formMesOcorrencia}
+                  onChange={(e) => setFormMesOcorrencia(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-all"
+                  placeholder="Ex: Julho"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Problema Identificado</label>
+              <textarea
+                value={formProblema}
+                onChange={(e) => setFormProblema(e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-all h-16"
+                placeholder="Insira a descrição detalhada do problema observado..."
+              />
+            </div>
+
+            {/* SEÇÃO 2: OS 5 PORQUÊS */}
+            <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-xs uppercase tracking-widest text-slate-600 dark:text-slate-400">Análise de Desdobramento (Metodologia dos 5 Porquês)</h4>
+                {formEquipamento && (
+                  <button
+                    onClick={() => handleGenerateAIDraft(formEquipamento, formProblema)}
+                    className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 active:scale-95 transition-all flex items-center"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1" /> Rascunho IA
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3.5">
+                {[
+                  { label: '1º Porquê', value: formPq1, setter: setFormPq1, desc: 'Por que ocorreu o problema identificado?' },
+                  { label: '2º Porquê', value: formPq2, setter: setFormPq2, desc: 'Por que ocorreu a causa do primeiro porquê?' },
+                  { label: '3º Porquê', value: formPq3, setter: setFormPq3, desc: 'Por que ocorreu a causa do segundo porquê?' },
+                  { label: '4º Porquê', value: formPq4, setter: setFormPq4, desc: 'Por que ocorreu a causa do terceiro porquê?' },
+                  { label: '5º Porquê', value: formPq5, setter: setFormPq5, desc: 'Por que ocorreu a causa do quarto porquê? (Bloqueio definitivo)' },
+                ].map((pq, idx) => (
+                  <div key={idx} className="flex gap-4 items-start bg-slate-50/20 dark:bg-slate-900/10 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                    <span className="w-20 shrink-0 text-slate-700 dark:text-slate-300 font-extrabold text-xs text-right mt-2 uppercase">{pq.label}</span>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={pq.value}
+                        onChange={(e) => pq.setter(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-all"
+                        placeholder={pq.desc}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex gap-4 items-start bg-amber-500/5 dark:bg-amber-950/10 p-3.5 rounded-xl border border-amber-500/20">
+                  <span className="w-20 shrink-0 text-amber-600 dark:text-amber-400 font-black text-xs text-right mt-2.5 uppercase">Causa Raiz</span>
+                  <div className="flex-1">
+                    <textarea
+                      value={formCausaRaiz}
+                      onChange={(e) => setFormCausaRaiz(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-amber-500/30 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-amber-500 transition-all h-16"
+                      placeholder="Conclusão sobre a causa raiz fundamental após a árvore de porquês"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SEÇÃO 3: PLANO DE AÇÃO */}
+            <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-xs uppercase tracking-widest text-slate-600 dark:text-slate-400">Plano de Ação Corretiva</h4>
+                <button
+                  onClick={handleAddActionRow}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center transition-all active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Ação
+                </button>
+              </div>
+
+              <div className="overflow-x-auto border border-gray-100 dark:border-gray-800 rounded-xl">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3 w-1/2">Ação Recomendada</th>
+                      <th className="px-4 py-3">Responsável</th>
+                      <th className="px-4 py-3">Prazo</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-center">Remover</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {formAcoes.map((ac) => (
+                      <tr key={ac.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                        <td className="p-2">
+                          <input
+                            type="text"
+                            value={ac.acao}
+                            onChange={(e) => handleUpdateActionRow(ac.id, 'acao', e.target.value)}
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-white"
+                            placeholder="Descreva a ação corretiva..."
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="text"
+                            value={ac.responsavel}
+                            onChange={(e) => handleUpdateActionRow(ac.id, 'responsavel', e.target.value)}
+                            className="w-28 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-white"
+                            placeholder="Nome"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="date"
+                            value={ac.prazo}
+                            onChange={(e) => handleUpdateActionRow(ac.id, 'prazo', e.target.value)}
+                            className="w-32 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-white"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <select
+                            value={ac.status}
+                            onChange={(e) => handleUpdateActionRow(ac.id, 'status', e.target.value)}
+                            className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-white cursor-pointer"
+                          >
+                            <option value="Pendente">Pendente</option>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Concluído">Concluído</option>
+                          </select>
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            onClick={() => handleRemoveActionRow(ac.id)}
+                            className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {formAcoes.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-slate-400 italic">
+                          Nenhuma ação corretiva definida. Clique em "Adicionar Ação" para planejar.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SEÇÃO 4: RESPONSÁVEL E ASSINATURA */}
+            <div className="border-t border-gray-100 dark:border-gray-800 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Responsável pela Emissão (Assinatura)</label>
+                  <input
+                    type="text"
+                    value={formResponsavelAssinatura}
+                    onChange={(e) => setFormResponsavelAssinatura(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-all"
+                    placeholder="Ex: Cláudio"
+                  />
+                  <p className="text-[9px] text-slate-400 mt-1 italic">Conforme solicitado, o responsável preenche o campo de assinatura no rodapé do documento para validação formal.</p>
+                </div>
+                
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={handleCreateNewReport}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95"
+                  >
+                    Novo Relatório
+                  </button>
+                  <button
+                    onClick={handleSaveReport}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center shadow-lg active:scale-95 transition-all"
+                  >
+                    <Save className="w-4 h-4 mr-2" /> Salvar Diagnóstico
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] bg-white dark:bg-dark-card overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible print:bg-white">
@@ -1499,6 +2403,272 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                 Voltar aos Motivos
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+
+      {showFiveWhysPrintPreview && (
+        <div className="fixed inset-0 z-[200] bg-white overflow-auto flex flex-col print-mode-wrapper animate-in fade-in duration-300 print:static print:block print:h-auto print:overflow-visible print:bg-white text-black">
+          {/* Header Print Preview */}
+          <div className="sticky top-0 bg-slate-800 text-white p-4 flex justify-between items-center shadow-md z-50 no-print">
+            <div className="flex items-center gap-4">
+              <Printer className="w-5 h-5 text-emerald-400" />
+              <span className="font-bold text-sm uppercase tracking-widest">Visualização de Impressão - 5 Porquês (A4)</span>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowFiveWhysPrintPreview(false)} 
+                className="px-5 py-2 bg-slate-600 hover:bg-slate-700 rounded-xl font-bold text-xs uppercase flex items-center transition-all active:scale-95"
+              >
+                <X className="w-4 h-4 mr-2" /> Voltar ao Editor
+              </button>
+              <button 
+                onClick={() => window.print()} 
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center shadow-lg active:scale-95 transition-all"
+              >
+                <Check className="w-4 h-4 mr-2" /> Imprimir Documento
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 p-4 md:p-12 print:p-0 print:block print:h-auto print:static bg-slate-100 dark:bg-slate-900/40 print:bg-white">
+            {isAllPDCAPrint ? (
+              allPDCAData.map((doc, docIdx) => (
+                <div 
+                  key={docIdx} 
+                  className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-300 shadow-xl h-auto overflow-visible block print:border-none print:p-0 print:static print:max-w-none print:block print:shadow-none mb-8 last:mb-0 print:mb-0"
+                  style={{ pageBreakAfter: docIdx < allPDCAData.length - 1 ? 'always' : 'auto' }}
+                >
+                  <div className="w-full print:static">
+                    {/* CABEÇALHO DO LAUDO INDUSTRIAL */}
+                    <div className="border-[3px] border-black p-4 mb-6">
+                      <div className="grid grid-cols-4 gap-4 items-center">
+                        <div className="col-span-1 text-center border-r-2 border-black pr-4 h-full flex flex-col justify-center">
+                          <h2 className="font-black text-lg tracking-tighter">ALUMASA</h2>
+                          <span className="text-[7px] font-bold uppercase tracking-widest text-slate-500">Alumínio & Plástico</span>
+                        </div>
+                        <div className="col-span-2 text-center h-full flex flex-col justify-center px-2">
+                          <h1 className="font-black text-[13px] uppercase tracking-wide">ANÁLISE DE CAUSA RAIZ - 5 PORQUÊS</h1>
+                          <p className="text-[8px] font-bold text-slate-500 uppercase mt-1">Plano de Ação Corretiva do Sistema de Gestão de PCM</p>
+                        </div>
+                        <div className="col-span-1 border-l-2 border-black pl-4 text-right h-full flex flex-col justify-center text-[9px] font-bold space-y-0.5">
+                          <div>DATA: {new Date().toLocaleDateString('pt-BR')}</div>
+                          <div>MÊS REF: {doc.mesOcorrencia}</div>
+                          <div>TAG: {doc.tag || 'N/D'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DADOS DO ATIVO */}
+                    <div className="border-2 border-black p-4 mb-6 bg-slate-50">
+                      <h3 className="text-[10px] font-black uppercase mb-3 border-b border-black pb-1">1. IDENTIFICAÇÃO DO PROBLEMA</h3>
+                      <div className="grid grid-cols-3 gap-4 text-[11px] mb-3">
+                        <div>
+                          <span className="font-black text-slate-500 block text-[9px] uppercase">EQUIPAMENTO (MÁQ)</span>
+                          <span className="font-bold text-black uppercase">{doc.equipamento}</span>
+                        </div>
+                        <div>
+                          <span className="font-black text-slate-500 block text-[9px] uppercase">TAG ATIVO</span>
+                          <span className="font-bold text-black uppercase">{doc.tag || 'SEM REGISTRO'}</span>
+                        </div>
+                        <div>
+                          <span className="font-black text-slate-500 block text-[9px] uppercase">MÊS DE REFERÊNCIA</span>
+                          <span className="font-bold text-black uppercase">{doc.mesOcorrencia}</span>
+                        </div>
+                      </div>
+                      <div className="text-[11px]">
+                        <span className="font-black text-slate-500 block text-[9px] uppercase">DESCRIÇÃO DA FALHA / PROBLEMA DETALHADO</span>
+                        <p className="font-bold text-black uppercase bg-white border border-gray-300 p-2.5 rounded mt-1">
+                          {doc.problema || 'Nenhum detalhe adicional de falha informado.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* DESDOBRAMENTO PORQUÊS */}
+                    <div className="border-2 border-black p-4 mb-6">
+                      <h3 className="text-[10px] font-black uppercase mb-4 border-b border-black pb-1">2. INVESTIGAÇÃO DE CAUSA RAIZ (5 PORQUÊS)</h3>
+                      
+                      <div className="space-y-3.5 text-[11px]">
+                        {[
+                          { num: '1º', pq: doc.pq1 },
+                          { num: '2º', pq: doc.pq2 },
+                          { num: '3º', pq: doc.pq3 },
+                          { num: '4º', pq: doc.pq4 },
+                          { num: '5º', pq: doc.pq5 },
+                        ].map((p, pIdx) => (
+                          <div key={pIdx} className="flex gap-4 border-b border-dashed border-gray-200 pb-2">
+                            <span className="w-20 font-black text-slate-500 text-right uppercase shrink-0">{p.num} Porquê:</span>
+                            <p className="font-bold text-black uppercase italic">
+                              {p.pq ? `"${p.pq.toUpperCase()}"` : '—'}
+                            </p>
+                          </div>
+                        ))}
+
+                        <div className="bg-amber-50 p-3.5 border border-amber-300 rounded mt-4">
+                          <span className="font-black text-amber-700 block text-[9px] uppercase mb-1">🔍 CAUSA RAIZ CONFIRMADA</span>
+                          <p className="font-black text-black text-xs uppercase leading-relaxed">
+                            {doc.causaRaiz ? doc.causaRaiz.toUpperCase() : 'AGUARDANDO CONCLUSÃO DEFINITIVA.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PLANO DE AÇÃO */}
+                    <div className="border-2 border-black p-4 mb-8">
+                      <h3 className="text-[10px] font-black uppercase mb-3 border-b border-black pb-1">3. PLANO DE AÇÃO CORRETIVA</h3>
+                      <table className="w-full text-[10px] border-collapse border border-black text-black">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border border-black p-2 text-left font-black uppercase">Ação Corretiva Recomendada</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {doc.acoes.map((ac, acIdx) => (
+                            <tr key={ac.id} className="border-b border-black">
+                              <td className="p-2 font-bold uppercase">{acIdx + 1}. {ac.acao || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* ASSINATURA */}
+                    {docIdx === allPDCAData.length - 1 && (
+                      <div className="flex justify-end mt-12">
+                        <div className="text-center w-64 border-t-2 border-black pt-2">
+                          <span className="text-[10px] font-black text-slate-800 uppercase block mb-1">
+                            PCM - ALUMASA
+                          </span>
+                          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">
+                            Responsável pela Análise
+                          </span>
+                          <span className="text-[7.5px] text-slate-400 italic">Área de PCM - Alumasa</span>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="printable-area bg-white text-black p-10 max-w-[210mm] mx-auto border border-gray-300 shadow-xl h-auto overflow-visible block print:border-none print:p-0 print:static print:max-w-none print:block print:shadow-none">
+                <div className="w-full print:static">
+                  {/* CABEÇALHO DO LAUDO INDUSTRIAL */}
+                  <div className="border-[3px] border-black p-4 mb-6">
+                    <div className="grid grid-cols-4 gap-4 items-center">
+                      <div className="col-span-1 text-center border-r-2 border-black pr-4 h-full flex flex-col justify-center">
+                        <h2 className="font-black text-lg tracking-tighter">ALUMASA</h2>
+                        <span className="text-[7px] font-bold uppercase tracking-widest text-slate-500">Alumínio & Plástico</span>
+                      </div>
+                      <div className="col-span-2 text-center h-full flex flex-col justify-center px-2">
+                        <h1 className="font-black text-[13px] uppercase tracking-wide">ANÁLISE DE CAUSA RAIZ - 5 PORQUÊS</h1>
+                        <p className="text-[8px] font-bold text-slate-500 uppercase mt-1">Plano de Ação Corretiva do Sistema de Gestão de PCM</p>
+                      </div>
+                      <div className="col-span-1 border-l-2 border-black pl-4 text-right h-full flex flex-col justify-center text-[9px] font-bold space-y-0.5">
+                        <div>DATA: {new Date().toLocaleDateString('pt-BR')}</div>
+                        <div>MÊS REF: {formMesOcorrencia || 'JULHO'}</div>
+                        <div>TAG: {formTag || 'N/D'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DADOS DO ATIVO */}
+                  <div className="border-2 border-black p-4 mb-6 bg-slate-50">
+                    <h3 className="text-[10px] font-black uppercase mb-3 border-b border-black pb-1">1. IDENTIFICAÇÃO DO PROBLEMA</h3>
+                    <div className="grid grid-cols-3 gap-4 text-[11px] mb-3">
+                      <div>
+                        <span className="font-black text-slate-500 block text-[9px] uppercase">EQUIPAMENTO (MÁQ)</span>
+                        <span className="font-bold text-black uppercase">{formEquipamento}</span>
+                      </div>
+                      <div>
+                        <span className="font-black text-slate-500 block text-[9px] uppercase">TAG ATIVO</span>
+                        <span className="font-bold text-black uppercase">{formTag || 'SEM REGISTRO'}</span>
+                      </div>
+                      <div>
+                        <span className="font-black text-slate-500 block text-[9px] uppercase">MÊS DE REFERÊNCIA</span>
+                        <span className="font-bold text-black uppercase">{formMesOcorrencia}</span>
+                      </div>
+                    </div>
+                    <div className="text-[11px]">
+                      <span className="font-black text-slate-500 block text-[9px] uppercase">DESCRIÇÃO DA FALHA / PROBLEMA DETALHADO</span>
+                      <p className="font-bold text-black uppercase bg-white border border-gray-300 p-2.5 rounded mt-1">
+                        {formProblema || 'Nenhum detalhe adicional de falha informado.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* DESDOBRAMENTO PORQUÊS */}
+                  <div className="border-2 border-black p-4 mb-6">
+                    <h3 className="text-[10px] font-black uppercase mb-4 border-b border-black pb-1">2. INVESTIGAÇÃO DE CAUSA RAIZ (5 PORQUÊS)</h3>
+                    
+                    <div className="space-y-3.5 text-[11px]">
+                      {[
+                        { num: '1º', pq: formPq1 },
+                        { num: '2º', pq: formPq2 },
+                        { num: '3º', pq: formPq3 },
+                        { num: '4º', pq: formPq4 },
+                        { num: '5º', pq: formPq5 },
+                      ].map((p, pIdx) => (
+                        <div key={pIdx} className="flex gap-4 border-b border-dashed border-gray-200 pb-2">
+                          <span className="w-20 font-black text-slate-500 text-right uppercase shrink-0">{p.num} Porquê:</span>
+                          <p className="font-bold text-black uppercase italic">
+                            {p.pq ? `"${p.pq.toUpperCase()}"` : '—'}
+                          </p>
+                        </div>
+                      ))}
+
+                      <div className="bg-amber-50 p-3.5 border border-amber-300 rounded mt-4">
+                        <span className="font-black text-amber-700 block text-[9px] uppercase mb-1">🔍 CAUSA RAIZ CONFIRMADA</span>
+                        <p className="font-black text-black text-xs uppercase leading-relaxed">
+                          {formCausaRaiz ? formCausaRaiz.toUpperCase() : 'AGUARDANDO CONCLUSÃO DEFINITIVA.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PLANO DE AÇÃO */}
+                  <div className="border-2 border-black p-4 mb-8">
+                    <h3 className="text-[10px] font-black uppercase mb-3 border-b border-black pb-1">3. PLANO DE AÇÃO CORRETIVA</h3>
+                    <table className="w-full text-[10px] border-collapse border border-black text-black">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-black p-2 text-left font-black uppercase">Ação Corretiva Recomendada</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formAcoes.map((ac, idx) => (
+                          <tr key={ac.id} className="border-b border-black">
+                            <td className="p-2 font-bold uppercase">{idx + 1}. {ac.acao || '—'}</td>
+                          </tr>
+                        ))}
+                        {formAcoes.length === 0 && (
+                          <tr>
+                            <td className="p-4 text-center text-slate-400 italic">
+                              Nenhum plano de ação definido para esta causa raiz.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* ASSINATURA */}
+                  <div className="flex justify-end mt-12">
+                    <div className="text-center w-64 border-t-2 border-black pt-2">
+                      <span className="text-[10px] font-black text-slate-800 uppercase block mb-1">
+                        {formResponsavelAssinatura || 'ASSINATURA RESPONSÁVEL'}
+                      </span>
+                      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">
+                        Responsável pela Análise
+                      </span>
+                      <span className="text-[7.5px] text-slate-400 italic">Área de PCM - Alumasa</span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
