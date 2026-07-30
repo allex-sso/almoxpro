@@ -832,6 +832,22 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     return merged.slice(0, 5);
   }, [downtimeByEquipment, assetsDemand]);
 
+  // Lista dos equipamentos Top 5 para seleção individual do PDCA
+  const allAvailableEquipments = useMemo(() => {
+    return top5Equipment.map(item => {
+      const foundInDowntime = downtimeByEquipment.find(d => d.name === item.name);
+      const metricStr = item.type === 'downtime' 
+        ? formatDetailedTime(item.metric) 
+        : `${item.metric} OS`;
+      
+      return {
+        name: item.name,
+        metricStr,
+        topReason: item.reasons?.[0]?.name || foundInDowntime?.reasons?.[0]?.name
+      };
+    });
+  }, [top5Equipment, downtimeByEquipment]);
+
   // Helper to generate fully automated, realistic 5 Whys and Action Plan for any given equipment
   const getPDCADataForEquipment = (eqName: string, metricStr: string, reasonName?: string) => {
     const nameLower = eqName.toLowerCase();
@@ -1237,12 +1253,45 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             <Printer className="w-4 h-4 text-rose-500" /> Relatório
           </button>
 
-          <button 
-            onClick={handlePrintAllPDCAs} 
-            className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl flex items-center gap-2 font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-md no-print"
-          >
-            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" /> Gerar PDCA
-          </button>
+          {/* BOTÃO + SELETOR DE PDCA (TODOS OU INDIVIDUAL) */}
+          <div className="flex items-center gap-1.5 bg-blue-600 p-1 rounded-xl shadow-md no-print border border-blue-500">
+            <button 
+              onClick={handlePrintAllPDCAs} 
+              className="hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-black text-xs uppercase tracking-wider transition-all active:scale-95"
+              title="Gerar PDCA dos Top 5 Equipamentos"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" /> PDCA (Todos Top 5)
+            </button>
+            <div className="h-4 w-px bg-blue-400/50 my-auto" />
+            <div className="relative flex items-center pr-1">
+              <select 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  if (val === 'ALL') {
+                    handlePrintAllPDCAs();
+                  } else {
+                    const eqItem = allAvailableEquipments.find(item => item.name === val);
+                    if (eqItem) {
+                      handlePrintSinglePDCA(eqItem.name, eqItem.metricStr, eqItem.topReason);
+                    }
+                  }
+                  e.target.value = '';
+                }}
+                className="bg-transparent text-xs font-black text-white uppercase tracking-wider outline-none cursor-pointer pr-5 py-1.5 pl-2 appearance-none hover:text-amber-200 transition-colors"
+                defaultValue=""
+              >
+                <option value="" disabled className="bg-slate-900 text-slate-300">PDCA Individual...</option>
+                <option value="ALL" className="bg-slate-900 text-amber-300 font-extrabold">📄 Todos os Top 5 Equipamentos</option>
+                {allAvailableEquipments.map(eq => (
+                  <option key={eq.name} value={eq.name} className="bg-slate-900 text-white font-semibold">
+                    🔧 {eq.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-white/80 pointer-events-none absolute right-1" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2150,7 +2199,22 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                   <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mt-1">Ocorrências: {totalPieceOccurrences}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedEquipmentForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => {
+                    const eqItem = allAvailableEquipments.find(item => item.name === selectedEquipmentForModal) || {
+                      name: selectedEquipmentForModal,
+                      metricStr: '0 OS',
+                      topReason: undefined
+                    };
+                    handlePrintSinglePDCA(eqItem.name, eqItem.metricStr, eqItem.topReason);
+                  }}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95 border border-blue-400/30"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" /> Gerar PDCA Deste Equipamento
+                </button>
+                <button onClick={() => setSelectedEquipmentForModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
+              </div>
             </div>
             <div className="p-8 flex-1 overflow-y-auto">
               <div 
