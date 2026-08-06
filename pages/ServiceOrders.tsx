@@ -111,6 +111,7 @@ export interface FiveWhysReport {
   id: string;
   equipamento: string;
   tag: string;
+  tempoParado?: string;
   mesOcorrencia: string;
   problema: string;
   pq1: string;
@@ -266,6 +267,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
   // Dados do formulário ativo de 5 Porquês
   const [formEquipamento, setFormEquipamento] = useState('');
   const [formTag, setFormTag] = useState('');
+  const [formTempoParado, setFormTempoParado] = useState('');
   const [formMesOcorrencia, setFormMesOcorrencia] = useState('');
   const [formProblema, setFormProblema] = useState('');
   const [formPq1, setFormPq1] = useState('');
@@ -880,6 +882,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       return {
         equipamento: eqName,
         tag: kb.tag,
+        tempoParado: metricStr,
         mesOcorrencia: mesStr,
         problema: defaultProblem,
         pq1: kb.pq1,
@@ -930,6 +933,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       return {
         equipamento: eqName,
         tag: tagStr,
+        tempoParado: metricStr,
         mesOcorrencia: mesStr,
         problema: defaultProblem,
         pq1,
@@ -1036,6 +1040,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
       id: selectedReportId || `5whys-${Date.now()}`,
       equipamento: formEquipamento,
       tag: formTag,
+      tempoParado: formTempoParado,
       mesOcorrencia: formMesOcorrencia || selectedMonth || 'Geral',
       problema: formProblema,
       pq1: formPq1,
@@ -1076,6 +1081,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     setSelectedReportId(report.id);
     setFormEquipamento(report.equipamento);
     setFormTag(report.tag);
+    setFormTempoParado(report.tempoParado || '');
     setFormMesOcorrencia(report.mesOcorrencia);
     setFormProblema(report.problema);
     setFormPq1(report.pq1);
@@ -1092,6 +1098,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     setSelectedReportId(null);
     setFormEquipamento('');
     setFormTag('');
+    setFormTempoParado('');
     setFormMesOcorrencia(selectedMonth !== 'Todos' ? selectedMonth : 'Julho');
     setFormProblema('');
     setFormPq1('');
@@ -1108,6 +1115,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
     const data = getPDCADataForEquipment(eqName, metricStr, reasonName);
     setFormEquipamento(data.equipamento);
     setFormTag(data.tag);
+    setFormTempoParado(data.tempoParado || metricStr);
     setFormMesOcorrencia(data.mesOcorrencia);
     setFormProblema(data.problema);
     setFormPq1(data.pq1);
@@ -1693,7 +1701,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
             </div>
 
             {/* SEÇÃO 1: CABEÇALHO DO DIAGNÓSTICO */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Equipamento / Máquina (MÁQ)</label>
                 <input
@@ -1712,6 +1720,16 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                   onChange={(e) => setFormTag(e.target.value)}
                   className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white uppercase outline-none focus:border-blue-500 transition-all"
                   placeholder="Ex: PR-01"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1.5">Tempo Parado / Impacto</label>
+                <input
+                  type="text"
+                  value={formTempoParado}
+                  onChange={(e) => setFormTempoParado(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 uppercase outline-none focus:border-rose-500 transition-all"
+                  placeholder="Ex: 122h28m"
                 />
               </div>
               <div>
@@ -2520,6 +2538,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                           <div>DATA: {new Date().toLocaleDateString('pt-BR')}</div>
                           <div>MÊS REF: {doc.mesOcorrencia}</div>
                           <div>TAG: {doc.tag || 'N/D'}</div>
+                          {doc.tempoParado && <div className="text-rose-700 font-black">TEMPO PARADO: {doc.tempoParado}</div>}
                         </div>
                       </div>
                     </div>
@@ -2527,7 +2546,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                     {/* DADOS DO ATIVO */}
                     <div className="border-2 border-black p-4 mb-6 bg-slate-50">
                       <h3 className="text-[10px] font-black uppercase mb-3 border-b border-black pb-1">1. IDENTIFICAÇÃO DO PROBLEMA</h3>
-                      <div className="grid grid-cols-3 gap-4 text-[11px] mb-3">
+                      <div className="grid grid-cols-4 gap-4 text-[11px] mb-3">
                         <div>
                           <span className="font-black text-slate-500 block text-[9px] uppercase">EQUIPAMENTO (MÁQ)</span>
                           <span className="font-bold text-black uppercase">{doc.equipamento}</span>
@@ -2535,6 +2554,10 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         <div>
                           <span className="font-black text-slate-500 block text-[9px] uppercase">TAG ATIVO</span>
                           <span className="font-bold text-black uppercase">{doc.tag || 'SEM REGISTRO'}</span>
+                        </div>
+                        <div>
+                          <span className="font-black text-slate-500 block text-[9px] uppercase">TEMPO PARADO</span>
+                          <span className="font-black text-rose-600 uppercase">{doc.tempoParado || 'N/D'}</span>
                         </div>
                         <div>
                           <span className="font-black text-slate-500 block text-[9px] uppercase">MÊS DE REFERÊNCIA</span>
@@ -2633,6 +2656,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                         <div>DATA: {new Date().toLocaleDateString('pt-BR')}</div>
                         <div>MÊS REF: {formMesOcorrencia || 'JULHO'}</div>
                         <div>TAG: {formTag || 'N/D'}</div>
+                        {formTempoParado && <div className="text-rose-700 font-black">TEMPO PARADO: {formTempoParado}</div>}
                       </div>
                     </div>
                   </div>
@@ -2640,7 +2664,7 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                   {/* DADOS DO ATIVO */}
                   <div className="border-2 border-black p-4 mb-6 bg-slate-50">
                     <h3 className="text-[10px] font-black uppercase mb-3 border-b border-black pb-1">1. IDENTIFICAÇÃO DO PROBLEMA</h3>
-                    <div className="grid grid-cols-3 gap-4 text-[11px] mb-3">
+                    <div className="grid grid-cols-4 gap-4 text-[11px] mb-3">
                       <div>
                         <span className="font-black text-slate-500 block text-[9px] uppercase">EQUIPAMENTO (MÁQ)</span>
                         <span className="font-bold text-black uppercase">{formEquipamento}</span>
@@ -2648,6 +2672,10 @@ const ServiceOrdersPage: React.FC<ServiceOrdersProps> = ({ osData: data, invento
                       <div>
                         <span className="font-black text-slate-500 block text-[9px] uppercase">TAG ATIVO</span>
                         <span className="font-bold text-black uppercase">{formTag || 'SEM REGISTRO'}</span>
+                      </div>
+                      <div>
+                        <span className="font-black text-slate-500 block text-[9px] uppercase">TEMPO PARADO</span>
+                        <span className="font-black text-rose-600 uppercase">{formTempoParado || 'N/D'}</span>
                       </div>
                       <div>
                         <span className="font-black text-slate-500 block text-[9px] uppercase">MÊS DE REFERÊNCIA</span>
