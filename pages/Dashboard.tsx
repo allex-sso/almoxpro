@@ -41,6 +41,17 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
     });
   }, [movements, selectedYear, selectedMonth]);
 
+  const filteredStats = useMemo(() => {
+    const totalIn = filteredMovements.filter(m => m.tipo === 'entrada').length;
+    const totalOut = filteredMovements.filter(m => m.tipo === 'saida').length;
+
+    return {
+      ...stats,
+      totalIn,
+      totalOut,
+    };
+  }, [stats, filteredMovements]);
+
   const healthStats = useMemo(() => {
     const map = { saudavel: 0, atencao: 0, critico: 0 };
     data.forEach(item => {
@@ -210,9 +221,9 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
           </>
         ) : (
           <>
-            <StatCard title="VALOR EM ESTOQUE" value={`R$ ${stats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="blue" />
-            <StatCard title="ENTRADAS (LANÇ.)" value={stats.totalIn} icon={ArrowUpRight} color="green" />
-            <StatCard title="SAÍDAS (LANÇ.)" value={stats.totalOut} icon={ArrowDownRight} color="purple" />
+            <StatCard title="VALOR EM ESTOQUE" value={`R$ ${filteredStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="blue" />
+            <StatCard title="ENTRADAS (LANÇ.)" value={filteredStats.totalIn} icon={ArrowUpRight} color="green" />
+            <StatCard title="SAÍDAS (LANÇ.)" value={filteredStats.totalOut} icon={ArrowDownRight} color="purple" />
           </>
         )}
         <StatCard title="ITENS CRÍTICOS" value={healthStats.critico} icon={AlertTriangle} color="red" />
@@ -326,11 +337,11 @@ const Dashboard: React.FC<DashboardProps> = ({ data, stats, movements = [], isLo
                          </tr>
                          <tr className="border-b border-black">
                             <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black bg-gray-50 text-black">LANÇAMENTOS DE ENTRADA (INBOUND)</td>
-                            <td className="p-3 font-black text-lg text-emerald-600">{stats.totalIn} Registros</td>
+                            <td className="p-3 font-black text-lg text-emerald-600">{filteredStats.totalIn} Registros</td>
                          </tr>
                          <tr className="border-b border-black">
                             <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black bg-gray-50 text-black">REQUISIÇÕES DE SAÍDA (OUTBOUND)</td>
-                            <td className="p-3 font-black text-lg text-rose-600">{stats.totalOut} Registros</td>
+                            <td className="p-3 font-black text-lg text-rose-600">{filteredStats.totalOut} Registros</td>
                          </tr>
                          <tr>
                             <td className="p-3 w-1/2 font-black text-[11px] uppercase border-r border-black bg-gray-50 text-black">SKUS EM NÍVEL CRÍTICO / RUPTURA</td>
