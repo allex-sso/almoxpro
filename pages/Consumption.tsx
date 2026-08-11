@@ -231,28 +231,51 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
       .slice(0, 10);
 
     // 4. Ranking de Retiradas por Responsável
-    const respMap: Record<string, { total: number, count: number, items: Record<string, number> }> = {};
+    const respMap: Record<string, { total: number, count: number, itemCounts: Record<string, number> }> = {};
+    let lastResp = '';
+    let lastDateKey = '';
+    let lastSetor = '';
+
     filteredMovements.filter(m => m.tipo === 'saida').forEach(m => {
-      const resp = m.responsavel || 'N/D';
-      if (!respMap[resp]) respMap[resp] = { total: 0, count: 0, items: {} };
+      const resp = (m.responsavel || 'N/D').trim();
+      const dateKey = m.data instanceof Date && !isNaN(m.data.getTime()) 
+        ? m.data.toISOString().slice(0, 10) 
+        : String(m.data || '');
+      const setor = (m.setor || '').trim();
+
+      if (!respMap[resp]) {
+        respMap[resp] = { total: 0, count: 0, itemCounts: {} };
+      }
+
+      // Se for o mesmo responsável, mesmo dia e mesmo setor na sequência contínua, consideramos a mesma requisição
+      const isSameRequisition = resp === lastResp && dateKey === lastDateKey && (setor === lastSetor || !setor || !lastSetor);
+
+      if (!isSameRequisition) {
+        respMap[resp].count += 1;
+        lastResp = resp;
+        lastDateKey = dateKey;
+        lastSetor = setor;
+      } else {
+        if (setor && !lastSetor) lastSetor = setor;
+      }
+
       respMap[resp].total += m.quantidade;
-      respMap[resp].count += 1;
-      respMap[resp].items[m.codigo] = (respMap[resp].items[m.codigo] || 0) + m.quantidade;
+      respMap[resp].itemCounts[m.codigo] = (respMap[resp].itemCounts[m.codigo] || 0) + 1;
     });
 
     const rankingResponsaveis = Object.entries(respMap).map(([name, s]) => {
       let topItemCode = '';
-      let topItemQty = 0;
-      Object.entries(s.items).forEach(([code, qty]) => {
-        if (qty > topItemQty) { topItemQty = qty; topItemCode = code; }
+      let topItemCount = 0;
+      Object.entries(s.itemCounts).forEach(([code, count]) => {
+        if (count > topItemCount) { topItemCount = count; topItemCode = code; }
       });
       const itemDesc = inventoryMap[topItemCode]?.descricao || topItemCode;
-      const unit = inventoryMap[topItemCode]?.unidade || 'un';
+      const label = topItemCount === 1 ? 'SOLICITAÇÃO' : 'SOLICITAÇÕES';
       return {
         name,
         qty: s.total,
         count: s.count,
-        topItem: `${itemDesc} (${topItemQty} ${unit})`
+        topItem: `${itemDesc} (${topItemCount} ${label})`
       };
     }).sort((a, b) => b.qty - a.qty);
 
@@ -471,7 +494,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
                 <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
                   <td className="px-8 py-5 font-black text-slate-200 uppercase">{row.name}</td>
                   <td className="px-8 py-5 text-center">
-                    <span className="text-sm font-black text-blue-400">{row.qty.toLocaleString('pt-BR')}</span>
+                    <span className="text-sm font-black text-blue-400">{Math.round(row.qty).toLocaleString('pt-BR')}</span>
                   </td>
                   <td className="px-8 py-5 text-center font-bold text-slate-500">{row.count}</td>
                   <td className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase italic line-clamp-1 max-w-[350px]">{row.topItem}</td>
@@ -601,7 +624,7 @@ const Consumption: React.FC<ConsumptionProps> = ({ data, movements = [], isWareh
                            <tr key={i} className="text-[10px] font-bold text-black border-b border-black">
                               <td className="border border-black px-4 py-2 uppercase text-black">{row.name}</td>
                               <td className="border border-black px-4 py-2 font-black text-center text-black">{row.count}</td>
-                              <td className="border border-black px-4 py-2 font-black text-center text-black">{row.qty.toLocaleString('pt-BR')}</td>
+                              <td className="border border-black px-4 py-2 font-black text-center text-black">{Math.round(row.qty).toLocaleString('pt-BR')}</td>
                            </tr>
                         ))}
                       </tbody>
